@@ -24,7 +24,7 @@ jobs:
         run: go build ./...
       - name: Unit tests
         run: go test ./internal/... -count=1
-      - name: Integration tests (testcontainers: RLS, webhook, sync)
+      - name: "Integration tests (testcontainers: RLS, webhook, sync)"
         run: go test ./test/integration/... -count=1 -timeout 20m
 
   web:
