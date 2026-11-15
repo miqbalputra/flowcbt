@@ -1,0 +1,9 @@
+{
+  "name": "FlowCBT Ujian",
+  "short_name": "FlowCBT",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#1d63ed",
+  "description": "Aplikasi ujian online FlowCBT (PWA, bisa offline saat mengerjakan)"
+}
