@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useApiQuery } from '@flowcbt/api-client';
+import { useApiQuery, QueryError } from '@flowcbt/api-client';
 import { Card, Input, Badge } from '@flowcbt/ui';
 import { fmtDateTime } from '@flowcbt/shared';
 
 // Laporan historis (FR-9.6/9.7): daftar ujian + pencarian.
 export default function HistoryReportPage() {
   const [q, setQ] = useState('');
-  const { data: rows } = useApiQuery<any[]>(['hist', q], `/reports/history?q=${encodeURIComponent(q)}`);
+  const { data: rows, refetch, error } = useApiQuery<any[]>(['hist', q], `/reports/history?q=${encodeURIComponent(q)}`);
   return (
     <div>
       <h1 style={{ fontSize: 22 }}>Laporan Ujian</h1>
@@ -24,7 +24,7 @@ export default function HistoryReportPage() {
                 <td><Link to={`/reports/exams/${e.exam_id}`}>Detail →</Link></td>
               </tr>
             ))}
-            {(rows || []).length === 0 && <tr><td colSpan={7} style={{ color: 'var(--muted)' }}>Belum ada laporan.</td></tr>}
+            {(rows || []).length === 0 && ((error ? <tr><td colSpan={7}><QueryError error={error} onRetry={refetch} /></td></tr> : <tr><td colSpan={7} style={{ color: 'var(--muted)' }}>Belum ada laporan.</td></tr>))}
           </tbody>
         </table>
       </Card>

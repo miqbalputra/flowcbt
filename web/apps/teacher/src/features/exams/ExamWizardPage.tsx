@@ -20,9 +20,40 @@ export default function ExamWizardPage() {
   });
   const [classIds, setClassIds] = useState<string[]>([]);
   const set = (k: string, v: any) => setF({ ...f, [k]: v });
-  const toLocalInput = (iso: string) => iso ? new Date(iso).toISOString().slice(0, 16) : '';
+  // datetime-local membaca waktu LOKAL; tampilkan dari ISO dikonversi ke lokal (bukan slice UTC)
+  const toLocalInput = (iso: string) => {
+    const d = new Date(iso);
+    if (!iso || isNaN(d.getTime())) return '';
+    return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  };
+
+  const STEP_LABELS = ['Info', 'Soal', 'Peserta', 'Jadwal', 'Setelan'];
+
+  // validasi per langkah sebelum "Lanjut" diperbolehkan
+  const stepError = (s: number): string => {
+    if (s === 0 && !String(f.name).trim()) return 'Nama ujian wajib diisi.';
+    if (s === 0 && !f.question_set_id) return 'Pilih paket soal (sudah publish).';
+    if (s === 2 && classIds.length === 0) return 'Pilih minimal satu kelas peserta.';
+    if (s === 3) {
+      if (!f.duration_minutes || f.duration_minutes < 1) return 'Durasi minimal 1 menit.';
+      if (f.open_at && f.close_at && new Date(f.close_at) <= new Date(f.open_at)) return 'Waktu tutup harus setelah waktu buka.';
+    }
+    return '';
+  };
+  const [err, setErr] = useState('');
+  const goNext = () => {
+    const e = stepError(step);
+    if (e) { setErr(e); return; }
+    setErr('');
+    setStep(step + 1);
+  };
+  const goPrev = () => { setErr(''); setStep(step - 1); };
 
   const createAndPublish = async () => {
+    for (let s = 0; s < 4; s++) {
+      const e = stepError(s);
+      if (e) { setStep(s); setErr(e); return; }
+    }
     try {
       const body = {
         ...f,
@@ -42,6 +73,18 @@ export default function ExamWizardPage() {
   return (
     <div style={{ maxWidth: 720 }}>
       <h1 style={{ fontSize: 22 }}>Buat Ujian — langkah {step + 1}/5</h1>
+      <div style={{ display: 'flex', gap: 6, margin: '8px 0 4px', flexWrap: 'wrap' }} role="list" aria-label="Progres wizard">
+        {STEP_LABELS.map((label, i) => (
+          <span key={label} role="listitem" style={{
+            fontSize: 12, fontWeight: 700, padding: '4px 10px', borderRadius: 999,
+            border: '1px solid ' + (i === step ? 'var(--brand-600)' : i < step ? 'var(--ok)' : 'var(--muted)'),
+            color: i === step ? 'var(--brand-600)' : i < step ? 'var(--ok)' : 'var(--muted)',
+            background: i === step ? 'var(--brand-100)' : 'transparent',
+          }}>
+            {i < step ? '✓ ' : ''}{i + 1}. {label}
+          </span>
+        ))}
+      </div>
       <Card>
         {step === 0 && (
           <div style={{ display: 'grid', gap: 10 }}>
@@ -117,10 +160,11 @@ export default function ExamWizardPage() {
             <label><input type="checkbox" checked={f.camera_enabled} onChange={(e) => set('camera_enabled', e.target.checked)} /> Proctoring kamera (snapshot berkala, FR-5.8B)</label>
           </div>
         )}
+        {err && <div role="alert" style={{ color: '#fff', background: 'var(--danger)', borderRadius: 10, padding: '8px 12px', marginTop: 10, fontSize: 14 }}>{err}</div>}
         <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
-          <Button variant="ghost" disabled={step === 0} onClick={() => setStep(step - 1)}>Kembali</Button>
+          <Button variant="ghost" disabled={step === 0} onClick={goPrev}>Kembali</Button>
           {step < 4
-            ? <Button onClick={() => setStep(step + 1)}>Lanjut</Button>
+            ? <Button onClick={goNext}>Lanjut</Button>
             : <Button onClick={createAndPublish}>Publish ujian</Button>}
         </div>
       </Card>

@@ -1,43 +1,76 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '@flowcbt/api-client';
-import { Button, Card, Badge } from '@flowcbt/ui';
+import { Button, Card, Badge, useToast } from '@flowcbt/ui';
 import { db } from '../offline/db';
+import { drainOutbox, newEventId } from '../offline/engine';
+import { type SyncEvent } from '@flowcbt/shared';
 
-// Konfirmasi selesai (FR-6.5): ringkasan terjawab/belum/ragu; submit (online → langsung, offline → pending_sync lalu auto saat online, AC-4).
+// Konfirmasi selesai (FR-6.5): ringkasan terjawab/belum/ragu DULU, baru submit
+// saat pengguna campuh "kirim". Klarifikasi hitungan: gabungan jawaban yang sudah
+// ter-ACK server (GET /attempts/:id) + event pending di outbox — bukan outbox saja.
 export default function ReviewPage() {
   const { id } = useParams();
   const nav = useNavigate();
-  const [summary, setSummary] = useState<{ answered: number; flagged: number; total: number } | null>(null);
-  const [pending, setPending] = useState(0);
+  const toast = useToast();
+  const [summary, setSummary] = useState<{ answered: number; flagged: number; total: number; pending: number } | null>(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
+    document.title = 'Konfirmasi Selesai — FlowCBT';
     (async () => {
       const att = await db.attempts.get(id!);
+      const total = att?.packet.questions.length || 0;
       const outbox = await db.outbox.where('attemptId').equals(id!).toArray();
-      const ans = new Set(outbox.filter((e) => e.type === 'answer').map((e) => e.question_id));
-      setSummary({ answered: ans.size, flagged: outbox.filter((e) => e.type === 'flag' && (e.payload as any)?.flagged).length, total: att?.packet.questions.length || 0 });
-      setPending(outbox.length);
+      const answeredIds = new Set<string>();
+      let flagged = false;
+      // 1) jawaban yang sudah di-ACK server
+      try {
+        const remote = await api<any>('GET', `/attempts/${id}`);
+        for (const ans of remote.answers || []) {
+          if (ans.answer_json != null) answeredIds.add(ans.question_id);
+          if (ans.flagged) flagged = true;
+        }
+      } catch { /* offline: gunakan outbox saja */ }
+      // 2) event pending di outbox (menimpa status ter-ACK)
+      for (const e of outbox) {
+        if (e.type === 'answer' && e.question_id && e.payload != null) answeredIds.add(e.question_id);
+        if (e.type === 'flag' && (e.payload as any)?.flagged) flagged = true;
+      }
+      setSummary({
+        answered: answeredIds.size,
+        flagged: flagged ? 1 : 0,
+        total,
+        pending: outbox.length,
+      });
     })();
   }, [id]);
 
   const confirm = async () => {
     setBusy(true);
     try {
-      // kirim semua event tersisa + flag submitted (idempoten via client_event_id)
       const events = await db.outbox.where('attemptId').equals(id!).toArray();
+      const submitEv: SyncEvent & { attemptId: string } = {
+        client_event_id: newEventId(), type: 'submit',
+        seq: Math.max(0, ...events.map((e) => e.seq)) + 1,
+        client_ts: new Date().toISOString(), attemptId: id!,
+      };
+      const all = [...events, submitEv];
+      let synced = false;
       if (navigator.onLine) {
-        await api('POST', `/attempts/${id}/answers:sync`, { events, submitted: true, submit_reason: 'manual' });
+        try {
+          await api('POST', `/attempts/${id}/answers:sync`, { events: all, submitted: true, submit_reason: 'manual' });
+          await db.outbox.where('attemptId').equals(id!).delete();
+          synced = true;
+        } catch { /* offline / gagal: biarkan outbox, DonePage melanjutkan */ }
       }
+      if (!synced) await db.outbox.put(submitEv);
       await db.attempts.update(id!, { status: 'pending_sync', submittedLocal: true });
-      nav(`/attempt/${id}/done`);
     } catch (err: any) {
-      // offline: tetap lanjut, akan tersinkron otomatis saat online (AC-4)
-      await db.attempts.update(id!, { status: 'pending_sync', submittedLocal: true });
-      nav(`/attempt/${id}/done`);
+      toast(err?.message || 'Gagal mengirim, jawaban tetap tersimpan di perangkat.', 'danger');
     } finally {
       setBusy(false);
+      nav(`/attempt/${id}/done`);
     }
   };
 
@@ -49,11 +82,14 @@ export default function ReviewPage() {
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
             <Badge tone="ok">Terjawab: {summary.answered}/{summary.total}</Badge>
             <Badge tone="muted">Belum: {summary.total - summary.answered}</Badge>
-            <Badge tone="warn">Ragu-ragu: {summary.flagged}</Badge>
+            {summary.flagged > 0 && <Badge tone="warn">Ragu-ragu: {summary.flagged}</Badge>}
           </div>
         )}
         {summary && summary.answered < summary.total && (
           <p style={{ color: 'var(--warn)' }}>Masih ada {summary.total - summary.answered} soal belum dijawab.</p>
+        )}
+        {summary && summary.pending > 0 && (
+          <p style={{ fontSize: 13, color: 'var(--muted)' }}>{summary.pending} perubahan belum terkirim dan akan dibawa saat pengiriman sekarang.</p>
         )}
         <p style={{ fontSize: 14, color: 'var(--muted)' }}>
           {navigator.onLine

@@ -5,7 +5,7 @@ import { Button, Input, Card, Modal, useToast, Badge } from '@flowcbt/ui';
 // CRUD kelas (FR-3.1).
 export default function ClassesPage() {
   const toast = useToast();
-  const { data: classes, refetch } = useApiQuery<any[]>(['classes'], '/classes');
+  const { data: classes, refetch, error } = useApiQuery<any[]>(['classes'], '/classes');
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ name: '', academic_year: '2026/2027' });
   const create = useApiMutation(async (f: any) => { await api('POST', '/classes', f); });
@@ -35,7 +35,7 @@ export default function ClassesPage() {
                 <td><Button variant="ghost" onClick={async () => { await api('DELETE', `/classes/${c.id}`); refetch(); }}>Arsipkan</Button></td>
               </tr>
             ))}
-            {(classes || []).length === 0 && <tr><td colSpan={4} style={{ color: 'var(--muted)' }}>Belum ada kelas.</td></tr>}
+            {!error && (classes || []).length === 0 && <tr><td colSpan={4} style={{ color: 'var(--muted)' }}>Belum ada kelas.</td></tr>}
           </tbody>
         </table>
       </Card>

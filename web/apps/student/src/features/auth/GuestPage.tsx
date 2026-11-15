@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { api, setAccessToken } from '@flowcbt/api-client';
+import { api, setAccessToken, setRefreshToken } from '@flowcbt/api-client';
 import { Button, Input, Card, useToast, ThemeToggle } from '@flowcbt/ui';
 
 // Login tanpa akun (FR-1.3): data diri + kode ujian + token.
@@ -16,7 +16,7 @@ export default function GuestPage() {
     try {
       const r = await api<any>('POST', '/student/auth/guest', form, { token: false });
       setAccessToken(r.tokens.access_token);
-      localStorage.setItem('flowcbt-refresh', r.tokens.refresh_token);
+      setRefreshToken(r.tokens.refresh_token);
       toast(r.student?.is_guest ? 'Masuk sebagai peserta tamu' : 'Data Anda cocok dengan siswa terdaftar', 'ok');
       nav('/exams');
     } catch (err: any) {

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { api, setAccessToken } from '@flowcbt/api-client';
+import { api, setAccessToken, setRefreshToken } from '@flowcbt/api-client';
 import { Button, Input, Card, useToast, ThemeToggle } from '@flowcbt/ui';
 
 export default function LoginPage() {
@@ -15,7 +15,7 @@ export default function LoginPage() {
     try {
       const r = await api<any>('POST', '/student/auth/login', form, { token: false });
       setAccessToken(r.tokens.access_token);
-      localStorage.setItem('flowcbt-refresh', r.tokens.refresh_token);
+      setRefreshToken(r.tokens.refresh_token);
       nav('/exams');
     } catch (err: any) {
       toast(err.message || 'Login gagal', 'danger');

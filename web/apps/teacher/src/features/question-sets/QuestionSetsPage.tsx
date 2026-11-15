@@ -9,7 +9,7 @@ export default function QuestionSetsPage() {
   const toast = useToast();
   const nav = useNavigate();
   const [q, setQ] = useState('');
-  const { data: sets, refetch } = useApiQuery<any[]>(['qs'], '/question-sets');
+  const { data: sets, refetch, error } = useApiQuery<any[]>(['qs'], '/question-sets');
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ subject_name: '', title: '', exam_code: '' });
 
@@ -42,7 +42,7 @@ export default function QuestionSetsPage() {
             </div>
           </Card>
         ))}
-        {list.length === 0 && <Card>Belum ada paket soal. Klik “+ Paket soal”.</Card>}
+        {!error && list.length === 0 && <Card>Belum ada paket soal. Klik “+ Paket soal”.</Card>}
       </div>
       <Modal open={open} onClose={() => setOpen(false)} title="Paket soal baru">
         <div style={{ display: 'grid', gap: 10 }}>

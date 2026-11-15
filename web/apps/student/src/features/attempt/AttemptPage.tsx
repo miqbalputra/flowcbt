@@ -108,7 +108,7 @@ export default function AttemptPage() {
 
   useEffect(() => {
     if (att && left <= 0 && att.status === 'in_progress') {
-      void doSubmit('timeout');
+      void doAutoSubmit();
     }
   }, [left, att]);
 
@@ -163,8 +163,10 @@ export default function AttemptPage() {
     await pushEvent(ev);
   };
 
-  const doSubmit = async (reason: string) => {
-    if (!att) return;
+  // submit otomatis lokal (AC-5, timeout): tulis event submit ke outbox;
+  // DonePage yang mengirimkannya ke server (dengan submitted:true) saat drain.
+  const doAutoSubmit = async () => {
+    if (!att || att.status !== 'in_progress') return;
     const ev: SyncEvent & { attemptId: string } = {
       client_event_id: newEventId(), type: 'submit', seq: ++seqRef.current,
       client_ts: new Date().toISOString(), attemptId: id!,
@@ -172,14 +174,7 @@ export default function AttemptPage() {
     await db.outbox.put(ev);
     await db.attempts.update(id!, { submittedLocal: true, status: 'pending_sync' });
     setAtt({ ...att, submittedLocal: true, status: 'pending_sync' });
-    if (navigator.onLine) {
-      try {
-        await api('POST', `/attempts/${id}/answers:sync`, { events: [ev], submitted: true, submit_reason: reason === 'timeout' ? 'timeout' : 'offline_sync' });
-      } catch {
-        await api('POST', `/attempts/${id}/submit`, { client_event_id: ev.client_event_id }).catch(() => {});
-      }
-    }
-    nav(`/attempt/${id}/review`);
+    nav(`/attempt/${id}/done`);
   };
 
   if (!att || !packet) return <div style={{ padding: 24 }}><Card>Memuat ujian…</Card></div>;
@@ -213,7 +208,7 @@ export default function AttemptPage() {
         <Button variant="ghost" disabled={idx === 0} onClick={() => setIdx(idx - 1)}>← Sebelumnya</Button>
         <Button variant="ghost" onClick={() => setShowNav(true)}>☰ Daftar Soal ({Object.keys(answers).filter((k) => answers[k].payload != null).length}/{questions.length})</Button>
         <Button variant="ghost" disabled={idx === questions.length - 1} onClick={() => setIdx(idx + 1)}>Berikutnya →</Button>
-        <Button variant="danger" style={{ marginLeft: 'auto' }} onClick={() => doSubmit('manual')}>Selesai</Button>
+        <Button variant="danger" style={{ marginLeft: 'auto' }} onClick={() => nav(`/attempt/${id}/review`)}>Selesai</Button>
       </div>
 
       <BottomSheet open={showNav} onClose={() => setShowNav(false)} title="Daftar Soal">
@@ -284,78 +279,136 @@ function QuestionInput({ q, value, flagged, onAnswer, onFlag }: { q: Question; v
         </div>
       );
     }
-    case 'matching': {
-      // mobile: tap kiri lalu tap kanan (FR-11); desktop bisa juga klik berpasangan
-      const opts = q.options_json as { left: { id: string; html: string }[]; right: { id: string; html: string }[] };
-      const pairs: Record<string, string> = value?.pairs || {};
-      const [picked, setPicked] = useState<string | null>(null);
-      return (
-        <div style={{ marginTop: 12 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-            <div style={{ display: 'grid', gap: 8 }}>
-              {opts.left.map((l) => (
-                <button key={l.id} onClick={() => setPicked(l.id)} style={{
-                  minHeight: 48, padding: '10px', borderRadius: 10, cursor: 'pointer', textAlign: 'left',
-                  border: '2px solid ' + (picked === l.id ? 'var(--warn)' : 'var(--muted)'), background: 'var(--surface)', color: 'var(--text)',
-                }}>
-                  <span dangerouslySetInnerHTML={{ __html: l.html }} />
-                  {pairs[l.id] && <Badge tone="ok"> → {opts.right.find((r) => r.id === pairs[l.id]) ? '' : ''}</Badge>}
-                </button>
-              ))}
-            </div>
-            <div style={{ display: 'grid', gap: 8 }}>
-              {opts.right.map((r) => (
-                <button
-                  key={r.id}
-                  onClick={() => {
-                    if (picked) {
-                      onAnswer({ pairs: { ...pairs, [picked]: r.id } });
-                      setPicked(null);
-                    }
-                  }}
-                  style={{
-                    minHeight: 48, padding: '10px', borderRadius: 10, cursor: 'pointer', textAlign: 'left',
-                    border: '2px solid ' + (Object.values(pairs).includes(r.id) ? 'var(--brand-600)' : 'var(--muted)'),
-                    background: Object.values(pairs).includes(r.id) ? 'var(--brand-100)' : 'var(--surface)', color: 'var(--text)',
-                  }}
-                >
-                  <span dangerouslySetInnerHTML={{ __html: r.html }} />
-                </button>
-              ))}
-            </div>
-          </div>
-          <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 8 }}>Pilih item kiri, lalu item kanan untuk memasangkan.</div>
-          <FlagButton flagged={flagged} onFlag={onFlag} />
-        </div>
-      );
-    }
+    case 'matching':
+      // komponen terpisah agar hook (useState) tidak dipanggil kondisional di switch
+      return <MatchingInput q={q} value={value} flagged={flagged} onAnswer={onAnswer} onFlag={onFlag} />;
     case 'short_answer':
       return (
         <div style={{ marginTop: 12 }}>
-          <input
-            className="input"
-            style={{ minHeight: 48 }}
-            placeholder="Ketik jawaban singkat…"
-            value={value?.text || ''}
-            onChange={(e) => onAnswer({ text: e.target.value })}
-          />
+          <DebouncedTextField placeholder="Ketik jawaban singkat…" value={value} onCommit={onAnswer} />
           <FlagButton flagged={flagged} onFlag={onFlag} />
         </div>
       );
     case 'essay':
       return (
         <div style={{ marginTop: 12 }}>
-          <textarea
-            className="input"
-            style={{ minHeight: 160 }}
-            placeholder="Tulis jawaban uraian…"
-            value={value?.text || ''}
-            onChange={(e) => onAnswer({ text: e.target.value })}
-          />
+          <DebouncedTextField placeholder="Tulis jawaban uraian…" value={value} onCommit={onAnswer} multiline />
           <FlagButton flagged={flagged} onFlag={onFlag} />
         </div>
       );
   }
+}
+
+// Matching (FR-11): tap kiri lalu tap kanan untuk memasangkan. Tap kanan yang sudah
+// berpasangan (atau tap kiri yang sama dua kali) melepas pasangan (unpair).
+function MatchingInput({ q, value, flagged, onAnswer, onFlag }: { q: Question; value: any; flagged?: boolean; onAnswer: (p: any) => void; onFlag: () => void }) {
+  const opts = q.options_json as { left: { id: string; html: string }[]; right: { id: string; html: string }[] };
+  const pairs: Record<string, string> = value?.pairs || {};
+  const [picked, setPicked] = useState<string | null>(null);
+  const pairedLeft = new Map(Object.entries(pairs));
+  const pairedRight = new Map(Object.entries(pairs).map(([l, r]) => [r, l]));
+
+  const tapLeft = (l: string) => {
+    if (picked === l) { setPicked(null); return; } // batal pilih
+    if (pairs[l]) { const np = { ...pairs }; delete np[l]; onAnswer({ pairs: np }); return; } // unpair
+    setPicked(l);
+  };
+  const tapRight = (r: string) => {
+    if (!picked) {
+      if (pairedRight.has(r)) { // unpair dari sisi kanan
+        const np = { ...pairs }; delete np[pairedRight.get(r)!]; onAnswer({ pairs: np });
+      }
+      return;
+    }
+    const np = { ...pairs };
+    delete np[picked]; // normalisasi: satu pasangan per kiri
+    for (const [l, pr] of Object.entries(np)) if (pr === r) delete np[l]; // kanan boleh dipakai ulang: lepas pasangan lama
+    np[picked] = r;
+    onAnswer({ pairs: np });
+    setPicked(null);
+  };
+
+  return (
+    <div style={{ marginTop: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+        <div style={{ display: 'grid', gap: 8 }}>
+          {opts.left.map((l) => {
+            const pr = pairedLeft.get(l.id);
+            return (
+              <button key={l.id} onClick={() => tapLeft(l.id)} aria-pressed={picked === l.id} aria-label={pr ? 'item kiri, sudah berpasangan; ketuk untuk melepas' : 'item kiri'} style={{
+                minHeight: 48, padding: '10px', borderRadius: 10, cursor: 'pointer', textAlign: 'left',
+                border: '2px solid ' + (picked === l.id ? 'var(--warn)' : pr ? 'var(--brand-600)' : 'var(--muted)'),
+                background: pr ? 'var(--brand-100)' : 'var(--surface)', color: 'var(--text)',
+              }}>
+                <span dangerouslySetInnerHTML={{ __html: l.html }} />
+                {pr && <Badge tone="ok">→ {shortText(opts.right.find((r) => r.id === pr)?.html || '')}</Badge>}
+              </button>
+            );
+          })}
+        </div>
+        <div style={{ display: 'grid', gap: 8 }}>
+          {opts.right.map((r) => (
+            <button
+              key={r.id}
+              onClick={() => tapRight(r.id)}
+              aria-label="item kanan"
+              style={{
+                minHeight: 48, padding: '10px', borderRadius: 10, cursor: 'pointer', textAlign: 'left',
+                border: '2px solid ' + (pairedRight.has(r.id) ? 'var(--brand-600)' : 'var(--muted)'),
+                background: pairedRight.has(r.id) ? 'var(--brand-100)' : 'var(--surface)', color: 'var(--text)',
+              }}
+            >
+              <span dangerouslySetInnerHTML={{ __html: r.html }} />
+            </button>
+          ))}
+        </div>
+      </div>
+      <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 8 }}>
+        Pilih item kiri, lalu item kanan untuk memasangkan. Ketuk item yang sudah berpasangan untuk melepasnya.
+      </div>
+      <FlagButton flagged={flagged} onFlag={onFlag} />
+    </div>
+  );
+}
+
+function shortText(html: string, max = 24): string {
+  const t = html.replace(/<[^>]*>/g, '').trim();
+  return t.length > max ? t.slice(0, max - 1) + '…' : t;
+}
+
+// Input jawaban berbasis teks dengan debounce (600 ms) + commit saat blur:
+// mencegah satu event API per ketikan membanjiri outbox/sinkron.
+function DebouncedTextField({ value, onCommit, placeholder, multiline = false }: {
+  value: any; onCommit: (p: { text: string }) => void; placeholder: string; multiline?: boolean;
+}) {
+  const [text, setText] = useState<string>(value?.text || '');
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const textRef = useRef(text);
+  textRef.current = text;
+  const commitRef = useRef(onCommit);
+  commitRef.current = onCommit;
+
+  const flush = () => {
+    if (timer.current) { clearTimeout(timer.current); timer.current = null; }
+    if ((value?.text || '') !== textRef.current) commitRef.current({ text: textRef.current });
+  };
+  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
+
+  const onChange = (t: string) => {
+    setText(t);
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => { timer.current = null; commitRef.current({ text: textRef.current }); }, 600);
+  };
+
+  const shared = {
+    value: text,
+    onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => onChange(e.target.value),
+    onBlur: flush,
+    'aria-label': placeholder.replace('…', ''),
+  };
+  return multiline
+    ? <textarea className="input" style={{ minHeight: 160 }} placeholder={placeholder} {...shared} />
+    : <input className="input" style={{ minHeight: 48 }} placeholder={placeholder} {...shared} />;
 }
 
 function FlagButton({ flagged, onFlag }: { flagged?: boolean; onFlag: () => void }) {

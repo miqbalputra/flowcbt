@@ -7,7 +7,7 @@ import { API_BASE } from '@flowcbt/api-client';
 // Manajemen siswa (FR-3.2/3.3/3.4): tabel→kartu di mobile, import 3 langkah (template→preview→commit, AC-10), export.
 export default function StudentsPage() {
   const toast = useToast();
-  const { data: students, refetch } = useApiQuery<any[]>(['students'], '/students?guests=1');
+  const { data: students, refetch, error: errStudents } = useApiQuery<any[]>(['students'], '/students?guests=1');
   const { data: classes } = useApiQuery<any[]>(['classes'], '/classes');
   const [q, setQ] = useState('');
   const [classFilter, setClassFilter] = useState('');
@@ -15,6 +15,18 @@ export default function StudentsPage() {
   const [preview, setPreview] = useState<any>(null);
   const [jobId, setJobId] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
+  const [credModal, setCredModal] = useState<{ name: string; username: string; password: string } | null>(null);
+  const [resetting, setResetting] = useState(false);
+
+  const doResetPassword = async (s: any) => {
+    setResetting(true);
+    try {
+      const r = await api<any>('POST', `/students/${s.id}/reset-password`, {});
+      setCredModal({ name: s.name, username: r.username || s.username || '-', password: r.new_password || r.password || '-' });
+      refetch();
+    } catch (err: any) { toast(err.message || 'Gagal mereset password', 'danger'); }
+    finally { setResetting(false); }
+  };
 
   const list = (students || []).filter((s) =>
     (!q || s.name.toLowerCase().includes(q.toLowerCase()) || s.student_code.includes(q)) &&
@@ -68,10 +80,10 @@ export default function StudentsPage() {
               <tr key={s.id}>
                 <td><Link to={`/students/${s.id}`}><strong>{s.name}</strong></Link> {s.is_guest && <Badge tone="warn">tamu</Badge>}</td>
                 <td>{s.student_code}</td><td>{s.class_name}</td><td>{s.gender}</td><td>{s.username || '-'}</td>
-                <td><Button variant="ghost" onClick={async () => { await api('POST', `/students/${s.id}/reset-password`, {}); refetch(); toast('Password direset (cek respons/log)', 'ok'); }}>Reset pw</Button></td>
+                <td><Button variant="ghost" disabled={resetting} onClick={() => doResetPassword(s)}>{resetting ? '…' : 'Reset pw'}</Button></td>
               </tr>
             ))}
-            {list.length === 0 && <tr><td colSpan={6} style={{ color: 'var(--muted)' }}>Tidak ada data.</td></tr>}
+            {!errStudents && list.length === 0 && <tr><td colSpan={6} style={{ color: 'var(--muted)' }}>Tidak ada data.</td></tr>}
           </tbody>
         </table>
       </Card>
@@ -120,6 +132,29 @@ export default function StudentsPage() {
             } catch (err: any) { toast(err.message, 'danger'); }
           }}>Simpan</Button>
         </div>
+      </Modal>
+
+      <Modal open={!!credModal} onClose={() => setCredModal(null)} title={`Password baru — ${credModal?.name || ''}`}>
+        {credModal && (
+          <div style={{ display: 'grid', gap: 10 }}>
+            <p style={{ margin: 0, fontSize: 14, color: 'var(--muted)' }}>Password lama tidak berlaku lagi. Berikan kredensial berikut ke siswa:</p>
+            <div>
+              <strong>Username</strong>
+              <div className="card" style={{ padding: '8px 12px', userSelect: 'all' }}>{credModal.username}</div>
+            </div>
+            <div>
+              <strong>Password baru</strong>
+              <div className="card" style={{ padding: '8px 12px', userSelect: 'all' }}>{credModal.password}</div>
+            </div>
+            <p style={{ margin: 0, fontSize: 13, color: 'var(--warn)' }}>Password ini hanya ditampilkan sekali. Catat sebelum menutup dialog ini.</p>
+            <Button onClick={() => {
+              navigator.clipboard?.writeText(`Username: ${credModal.username}\nPassword: ${credModal.password}`).then(
+                () => toast('Kredensial disalin', 'ok'),
+                () => toast('Gagal menyalin — salin manual', 'danger'),
+              );
+            }}>Salin kredensial</Button>
+          </div>
+        )}
       </Modal>
     </div>
   );

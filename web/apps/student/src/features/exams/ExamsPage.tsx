@@ -1,14 +1,14 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { api, useApiQuery, setAccessToken } from '@flowcbt/api-client';
+import { api, useApiQuery, logout as logoutAll, QueryError } from '@flowcbt/api-client';
 import { Badge, Button, Card, ThemeToggle, Spinner } from '@flowcbt/ui';
 import { fmtDateTime, fmtDuration } from '@flowcbt/shared';
 
 // Dashboard siswa (FR-6.1): sedang dibuka / akan datang / selesai.
 export default function ExamsPage() {
   const nav = useNavigate();
-  const { data: exams, isLoading } = useApiQuery<any[]>(['my-exams'], '/me/exams');
-  const logout = () => { setAccessToken(null); localStorage.removeItem('flowcbt-refresh'); nav('/login'); };
+  const { data: exams, isLoading, error, refetch } = useApiQuery<any[]>(['my-exams'], '/me/exams');
+  const logout = () => { void logoutAll().finally(() => nav('/login')); };
 
   return (
     <div style={{ maxWidth: 720, margin: '0 auto', padding: 16 }}>
@@ -21,6 +21,7 @@ export default function ExamsPage() {
         </div>
       </div>
       {isLoading && <Spinner />}
+      {error && <QueryError error={error} onRetry={refetch} />}
       <div style={{ display: 'grid', gap: 12 }}>
         {(exams || []).map((e) => (
           <Card key={e.exam_id}>
@@ -42,7 +43,7 @@ export default function ExamsPage() {
             {e.last_score != null && <div style={{ marginTop: 6 }}>Nilai terakhir: <strong>{e.last_score}</strong></div>}
           </Card>
         ))}
-        {!isLoading && (exams || []).length === 0 && <Card>Belum ada ujian untuk Anda.</Card>}
+        {!isLoading && !error && (exams || []).length === 0 && <Card>Belum ada ujian untuk Anda.</Card>}
       </div>
     </div>
   );

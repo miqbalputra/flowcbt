@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { setAccessToken, useApiQuery } from '@flowcbt/api-client';
+import { useApiQuery, logout as logoutAll } from '@flowcbt/api-client';
 import { ThemeToggle } from '@flowcbt/ui';
 
 const NAV = [
@@ -20,7 +20,7 @@ const NAV = [
 export default function Layout() {
   const nav = useNavigate();
   const { data: me } = useApiQuery<any>(['me'], '/auth/me');
-  const logout = () => { setAccessToken(null); localStorage.removeItem('flowcbt-refresh'); nav('/login'); };
+  const logout = () => { void logoutAll().finally(() => nav('/login')); };
   return (
     <div style={{ display: 'flex', minHeight: '100vh', flexDirection: 'column' }}>
       <header style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px', borderBottom: '1px solid var(--muted)', position: 'sticky', top: 0, background: 'var(--surface)', zIndex: 20 }}>

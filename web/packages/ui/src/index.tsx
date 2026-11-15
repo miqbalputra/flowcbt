@@ -93,11 +93,40 @@ export function ConnectionBadge({ online, pending }: { online: boolean; pending:
   return <span className="badge badge-ok" title="Online & tersinkron">🟢 Tersinkron</span>;
 }
 
+// Perilaku dialog: tutup dengan Esc + focus trap (Tab berputar di dalam dialog)
+// + fokus awal ke kontainer dialog agar navigasi keyboard mulai dari sini.
+function useDialogBehavior(open: boolean, onClose: () => void) {
+  const ref = React.useRef<HTMLDivElement | null>(null);
+  React.useEffect(() => {
+    if (!open) return;
+    const el = ref.current;
+    const prev = document.activeElement as HTMLElement | null;
+    el?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { e.stopPropagation(); onClose(); return; }
+      if (e.key !== 'Tab' || !el) return;
+      const focusables = el.querySelectorAll<HTMLElement>('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+      if (focusables.length === 0) { e.preventDefault(); return; }
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      if (e.shiftKey && (document.activeElement === first || document.activeElement === el)) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      prev?.focus?.();
+    };
+  }, [open, onClose]);
+  return ref;
+}
+
 export function Modal({ open, onClose, title, children }: { open: boolean; onClose: () => void; title: string; children: React.ReactNode }) {
+  const ref = useDialogBehavior(open, onClose);
   if (!open) return null;
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+      <div className="modal" role="dialog" aria-modal="true" aria-label={title} tabIndex={-1} ref={ref} onClick={(e) => e.stopPropagation()}>
         <div className="modal-head"><strong>{title}</strong><button className="btn btn-ghost" onClick={onClose} aria-label="tutup">✕</button></div>
         <div className="modal-body">{children}</div>
       </div>
@@ -107,11 +136,12 @@ export function Modal({ open, onClose, title, children }: { open: boolean; onClo
 
 // Bottom sheet untuk mobile (daftar soal) — FR-6.4.
 export function BottomSheet({ open, onClose, title, children }: { open: boolean; onClose: () => void; title: string; children: React.ReactNode }) {
+  const ref = useDialogBehavior(open, onClose);
   if (!open) return null;
   return (
     <div className="sheet-backdrop" onClick={onClose}>
-      <div className="sheet" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
-        <div className="sheet-head"><strong>{title}</strong><button className="btn btn-ghost" onClick={onClose}>✕</button></div>
+      <div className="sheet" role="dialog" aria-modal="true" aria-label={title} tabIndex={-1} ref={ref} onClick={(e) => e.stopPropagation()}>
+        <div className="sheet-head"><strong>{title}</strong><button className="btn btn-ghost" onClick={onClose} aria-label="tutup">✕</button></div>
         <div className="sheet-body">{children}</div>
       </div>
     </div>

@@ -1,11 +1,11 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { useApiQuery } from '@flowcbt/api-client';
+import { useApiQuery, QueryError } from '@flowcbt/api-client';
 import { Button, Card, Badge } from '@flowcbt/ui';
 import { fmtDateTime } from '@flowcbt/shared';
 
 export default function ExamsPage() {
-  const { data: exams, refetch } = useApiQuery<any[]>(['exams'], '/exams');
+  const { data: exams, refetch, error } = useApiQuery<any[]>(['exams'], '/exams');
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -28,7 +28,7 @@ export default function ExamsPage() {
             </div>
           </Card>
         ))}
-        {(exams || []).length === 0 && <Card>Belum ada ujian. <Link to="/exams/new">Buat sekarang</Link>.</Card>}
+        {!error && (exams || []).length === 0 && <Card>Belum ada ujian. <Link to="/exams/new">Buat sekarang</Link>.</Card>}
       </div>
     </div>
   );
