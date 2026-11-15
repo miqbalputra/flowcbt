@@ -182,10 +182,11 @@ func (s *Service) Login(ctx context.Context, in LoginInput, ip, ua string) (*Tok
 		return nil, nil, httpx.TooManyRequests("terlalu banyak percobaan login, coba lagi nanti")
 	}
 	var (
-		userID, tenantID, role, pwHash, status string
-		verified                               *time.Time
-		failed                                 int
-		lockedUntil                            *time.Time
+		userID, role, pwHash, status string
+		tenantID                       *string // NULL untuk super_admin
+		verified                       *time.Time
+		failed                         int
+		lockedUntil                    *time.Time
 	)
 	err := s.DB.WithSystemTx(ctx, func(tx pgx.Tx) error {
 		return tx.QueryRow(ctx,
@@ -221,11 +222,15 @@ func (s *Service) Login(ctx context.Context, in LoginInput, ip, ua string) (*Tok
 		_, err := tx.Exec(ctx, `UPDATE users SET failed_login_count=0, locked_until=NULL, last_login_at=now() WHERE id=$1`, userID)
 		return err
 	})
-	pair, err := s.Issuer.IssuePair(ctx, s.DB.System, tenantID, "user", role, userID, "", ip, ua)
+	tid := ""
+	if tenantID != nil {
+		tid = *tenantID
+	}
+	pair, err := s.Issuer.IssuePair(ctx, s.DB.System, platform.NewIDString(), tid, "user", role, userID, "", ip, ua)
 	if err != nil {
 		return nil, nil, err
 	}
-	return pair, map[string]any{"id": userID, "tenant_id": tenantID, "role": role}, nil
+	return pair, map[string]any{"id": userID, "tenant_id": tid, "role": role}, nil
 }
 
 func (s *Service) Refresh(ctx context.Context, rawRefresh string) (*TokenPair, error) {
@@ -306,7 +311,8 @@ func (s *Service) LoginGoogle(ctx context.Context, idToken, ip, ua string) (*Tok
 	if err != nil {
 		return nil, nil, httpx.Unauthorized("token Google tidak valid")
 	}
-	var userID, tenantID, role string
+	var userID, role string
+	var tenantID *string
 	err = s.DB.WithSystemTx(ctx, func(tx pgx.Tx) error {
 		err := tx.QueryRow(ctx, `SELECT id, tenant_id, role FROM users WHERE google_sub=$1`, sub).Scan(&userID, &tenantID, &role)
 		if err == nil {
@@ -322,11 +328,15 @@ func (s *Service) LoginGoogle(ctx context.Context, idToken, ip, ua string) (*Tok
 	if err != nil {
 		return nil, nil, err
 	}
-	pair, err := s.Issuer.IssuePair(ctx, s.DB.System, tenantID, "user", role, userID, "", ip, ua)
+	tid := ""
+	if tenantID != nil {
+		tid = *tenantID
+	}
+	pair, err := s.Issuer.IssuePair(ctx, s.DB.System, platform.NewIDString(), tid, "user", role, userID, "", ip, ua)
 	if err != nil {
 		return nil, nil, err
 	}
-	return pair, map[string]any{"id": userID, "tenant_id": tenantID, "role": role}, nil
+	return pair, map[string]any{"id": userID, "tenant_id": tid, "role": role}, nil
 }
 
 // --- Login siswa ---
@@ -358,7 +368,7 @@ func (s *Service) StudentLogin(ctx context.Context, in StudentLoginInput, ip, ua
 	if status != "active" || !VerifyPassword(in.Password, pwHash) {
 		return nil, nil, httpx.Unauthorized("kode sekolah atau kredensial salah")
 	}
-	pair, err := s.Issuer.IssuePair(ctx, s.DB.System, tenantID, "student", "student", studentID, "", ip, ua)
+	pair, err := s.Issuer.IssuePair(ctx, s.DB.System, platform.NewIDString(), tenantID, "student", "student", studentID, "", ip, ua)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -476,7 +486,7 @@ func (s *Service) GuestLogin(ctx context.Context, in GuestLoginInput, ip, ua, de
 	if device == "" {
 		device = platform.NewIDString()
 	}
-	pair, err := s.Issuer.IssuePair(ctx, s.DB.System, tenantID, "student", "student", studentID, hashDevice(device), ip, ua)
+	pair, err := s.Issuer.IssuePair(ctx, s.DB.System, platform.NewIDString(), tenantID, "student", "student", studentID, hashDevice(device), ip, ua)
 	if err != nil {
 		return nil, nil, err, ""
 	}
