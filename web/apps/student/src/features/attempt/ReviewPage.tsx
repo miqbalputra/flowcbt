@@ -89,9 +89,9 @@ export default function ReviewPage() {
           <p style={{ color: 'var(--warn)' }}>Masih ada {summary.total - summary.answered} soal belum dijawab.</p>
         )}
         {summary && summary.pending > 0 && (
-          <p style={{ fontSize: 13, color: 'var(--muted)' }}>{summary.pending} perubahan belum terkirim dan akan dibawa saat pengiriman sekarang.</p>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>{summary.pending} perubahan belum terkirim dan akan dibawa saat pengiriman sekarang.</p>
         )}
-        <p style={{ fontSize: 14, color: 'var(--muted)' }}>
+        <p style={{ fontSize: 14, color: 'var(--text-muted)' }}>
           {navigator.onLine
             ? 'Saat ini online — jawaban akan langsung terkirim ke server.'
             : 'Saat ini offline — jawaban tersimpan di perangkat dan otomatis terkirim saat koneksi pulih (jangan hapus data browser).'}

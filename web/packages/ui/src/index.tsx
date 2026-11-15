@@ -64,6 +64,49 @@ export function Badge({ children, tone = 'brand' }: { children: React.ReactNode;
 
 export function Spinner() { return <span className="spinner" aria-label="memuat" />; }
 
+// ---- Skeleton loading (placeholder struktur konten saat query berjalan) ----
+export function Skeleton({ w = '60%', h, style }: { w?: number | string; h?: number; style?: React.CSSProperties }) {
+  return <span className="skeleton" style={{ width: w, height: h, ...style }} aria-hidden="true" />;
+}
+
+// Baris skeleton untuk daftar/kartu: container aria-busy agar screen reader tahu konten sedang dimuat.
+export function SkeletonList({ rows = 4, gap = 10, height = 20 }: { rows?: number; gap?: number; height?: number }) {
+  return (
+    <div aria-busy="true" aria-live="polite" style={{ display: 'grid', gap }} data-testid="skeleton-list">
+      {Array.from({ length: rows }, (_, i) => (
+        <Skeleton key={i} w={`${100 - (i % 3) * 12}%`} h={height} />
+      ))}
+    </div>
+  );
+}
+
+// Skeleton kartu statistik (dashboard): box + dua garis.
+export function SkeletonCards({ count = 4, style }: { count?: number; style?: React.CSSProperties }) {
+  return (
+    <div aria-busy="true" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, ...style }} data-testid="skeleton-cards">
+      {Array.from({ length: count }, (_, i) => (
+        <div key={i} className="card" style={{ display: 'grid', gap: 8 }}>
+          <Skeleton w="70%" h={13} />
+          <Skeleton w="40%" h={26} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Skeleton baris tabel: sel mi ...
+export function SkeletonTableRows({ cols = 5, rows = 5, style }: { cols?: number; rows?: number; style?: React.CSSProperties }) {
+  return (
+    <tbody aria-busy="true" style={style} data-testid="skeleton-rows">
+      {Array.from({ length: rows }, (_, r) => (
+        <tr key={r}>{Array.from({ length: cols }, (_, c) => (
+          <td key={c}><Skeleton w={c === 0 ? '70%' : '45%'} /></td>
+        ))}</tr>
+      ))}
+    </tbody>
+  );
+}
+
 // ---- Toast ----
 const ToastCtx = createContext<(msg: string, tone?: 'ok' | 'danger' | 'muted') => void>(() => {});
 export function ToastProvider({ children }: { children: React.ReactNode }) {

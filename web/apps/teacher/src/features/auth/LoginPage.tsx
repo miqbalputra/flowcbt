@@ -25,7 +25,7 @@ export default function LoginPage() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h1 style={{ margin: 0 }}>🎓 FlowCBT</h1><ThemeToggle />
       </div>
-      <p style={{ color: 'var(--muted)' }}>Masuk sebagai guru/admin sekolah</p>
+      <p style={{ color: 'var(--text-muted)' }}>Masuk sebagai guru/admin sekolah</p>
       <Card>
         <form onSubmit={submit} style={{ display: 'grid', gap: 12 }}>
           <label>Email<Input required type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></label>

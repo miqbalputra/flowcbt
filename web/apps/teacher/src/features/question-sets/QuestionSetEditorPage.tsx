@@ -41,7 +41,7 @@ export default function QuestionSetEditorPage() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
         <div>
           <h1 style={{ fontSize: 22, margin: 0 }}>{set?.title}</h1>
-          <div style={{ fontSize: 13, color: 'var(--muted)' }}>{set?.subject_name} · kode {set?.exam_code} · <Badge tone={set?.status === 'published' ? 'ok' : 'muted'}>{set?.status}</Badge></div>
+          <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{set?.subject_name} · kode {set?.exam_code} · <Badge tone={set?.status === 'published' ? 'ok' : 'muted'}>{set?.status}</Badge></div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <a href={`${(window as any).__API__ || ''}`}></a>

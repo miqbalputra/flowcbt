@@ -25,7 +25,7 @@ export default function Layout() {
     <div style={{ display: 'flex', minHeight: '100vh', flexDirection: 'column' }}>
       <header style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px', borderBottom: '1px solid var(--muted)', position: 'sticky', top: 0, background: 'var(--surface)', zIndex: 20 }}>
         <strong style={{ fontSize: 18 }}>🎓 FlowCBT</strong>
-        <span style={{ color: 'var(--muted)', fontSize: 13 }}>{me?.tenant?.name}</span>
+        <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>{me?.tenant?.name}</span>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
           <ThemeToggle />
           <button className="btn btn-ghost" onClick={logout}>Keluar</button>
@@ -45,7 +45,7 @@ export default function Layout() {
       </div>
       <nav className="bottomnav" style={{ position: 'sticky', bottom: 0, display: 'flex', overflowX: 'auto', borderTop: '1px solid var(--muted)', background: 'var(--surface)' }}>
         {NAV.filter(([p]) => !(p === '/admin/tenants' && me?.role !== 'super_admin')).slice(0, 6).map(([p, label]) => (
-          <NavLink key={p} to={p} style={({ isActive }) => ({ flex: 1, textAlign: 'center', padding: '10px 4px', fontSize: 12, textDecoration: 'none', color: isActive ? 'var(--brand-600)' : 'var(--muted)', fontWeight: 700, minWidth: 64 })}>
+          <NavLink key={p} to={p} style={({ isActive }) => ({ flex: 1, textAlign: 'center', padding: '10px 4px', fontSize: 12, textDecoration: 'none', color: isActive ? 'var(--brand-600)' : 'var(--text-muted)', fontWeight: 700, minWidth: 64 })}>
             {label}
           </NavLink>
         ))}

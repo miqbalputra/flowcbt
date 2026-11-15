@@ -30,7 +30,7 @@ export default function LoginPage() {
         <h1 style={{ margin: 0 }}>FlowCBT</h1>
         <ThemeToggle />
       </div>
-      <p style={{ color: 'var(--muted)' }}>Login siswa dengan akun</p>
+      <p style={{ color: 'var(--text-muted)' }}>Login siswa dengan akun</p>
       <Card>
         <form onSubmit={submit} style={{ display: 'grid', gap: 12 }}>
           <label>Kode sekolah

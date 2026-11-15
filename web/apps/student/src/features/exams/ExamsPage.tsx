@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api, useApiQuery, logout as logoutAll, QueryError } from '@flowcbt/api-client';
-import { Badge, Button, Card, ThemeToggle, Spinner } from '@flowcbt/ui';
+import { Badge, Button, Card, ThemeToggle, SkeletonList } from '@flowcbt/ui';
 import { fmtDateTime, fmtDuration } from '@flowcbt/shared';
 
 // Dashboard siswa (FR-6.1): sedang dibuka / akan datang / selesai.
@@ -20,7 +20,7 @@ export default function ExamsPage() {
           <Button variant="ghost" onClick={logout}>Keluar</Button>
         </div>
       </div>
-      {isLoading && <Spinner />}
+      {isLoading && <SkeletonList rows={4} height={28} gap={14} />}
       {error && <QueryError error={error} onRetry={refetch} />}
       <div style={{ display: 'grid', gap: 12 }}>
         {(exams || []).map((e) => (
@@ -28,7 +28,7 @@ export default function ExamsPage() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               <div>
                 <strong>{e.name}</strong> <Badge>{e.subject}</Badge>
-                <div style={{ fontSize: 13, color: 'var(--muted)' }}>
+                <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
                   {fmtDateTime(e.open_at)} – {fmtDateTime(e.close_at)} · durasi {e.duration_minutes} menit · kode {e.exam_code}
                 </div>
               </div>

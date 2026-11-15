@@ -78,7 +78,7 @@ export default function ExamWizardPage() {
           <span key={label} role="listitem" style={{
             fontSize: 12, fontWeight: 700, padding: '4px 10px', borderRadius: 999,
             border: '1px solid ' + (i === step ? 'var(--brand-600)' : i < step ? 'var(--ok)' : 'var(--muted)'),
-            color: i === step ? 'var(--brand-600)' : i < step ? 'var(--ok)' : 'var(--muted)',
+            color: i === step ? 'var(--brand-600)' : i < step ? 'var(--ok)' : 'var(--text-muted)',
             background: i === step ? 'var(--brand-100)' : 'transparent',
           }}>
             {i < step ? '✓ ' : ''}{i + 1}. {label}
@@ -100,7 +100,7 @@ export default function ExamWizardPage() {
         {step === 1 && (
           <div>
             <p>Paket soal: <strong>{(sets || []).find((s) => s.id === f.question_set_id)?.title || '-'}</strong></p>
-            <p style={{ color: 'var(--muted)' }}>Tambah/ubah soal dilakukan di halaman Bank Soal, lalu publish di sana.</p>
+            <p style={{ color: 'var(--text-muted)' }}>Tambah/ubah soal dilakukan di halaman Bank Soal, lalu publish di sana.</p>
           </div>
         )}
         {step === 2 && (

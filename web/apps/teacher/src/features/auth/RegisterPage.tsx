@@ -27,7 +27,7 @@ export default function RegisterPage() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h1 style={{ margin: 0 }}>Daftar FlowCBT</h1><ThemeToggle />
       </div>
-      <p style={{ color: 'var(--muted)' }}>Buat akun sekolah/lembaga — langsung dapat paket Gratis/Trial (1–10 siswa, 1 ujian, 14 hari).</p>
+      <p style={{ color: 'var(--text-muted)' }}>Buat akun sekolah/lembaga — langsung dapat paket Gratis/Trial (1–10 siswa, 1 ujian, 14 hari).</p>
       <Card>
         <form onSubmit={submit} style={{ display: 'grid', gap: 10 }}>
           <label>Nama lengkap<Input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>

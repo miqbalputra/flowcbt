@@ -1,20 +1,23 @@
 import React from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useApiQuery } from '@flowcbt/api-client';
-import { Card, Badge } from '@flowcbt/ui';
+import { Card, Badge, SkeletonTableRows } from '@flowcbt/ui';
 import { fmtDateTime } from '@flowcbt/shared';
 
 // Track record siswa (FR-3.7): seluruh ujian, nilai, status.
 export default function StudentDetailPage() {
   const { id } = useParams();
-  const { data: tr } = useApiQuery<any>(['track-' + id], `/students/${id}/track-record`);
+  const { data: tr, isLoading } = useApiQuery<any>(['track-' + id], `/students/${id}/track-record`);
   return (
     <div>
-      <h1 style={{ fontSize: 22 }}>{tr?.name} <span style={{ color: 'var(--muted)', fontSize: 14 }}>{tr?.student_code}</span></h1>
+      <h1 style={{ fontSize: 22 }}>{tr?.name} <span style={{ color: 'var(--text-muted)', fontSize: 14 }}>{tr?.student_code}</span></h1>
       <Card style={{ marginTop: 12 }}>
         <table className="table">
           <thead><tr><th>Ujian</th><th>Mapel</th><th>Percobaan</th><th>Nilai</th><th>Penalti</th><th>Status</th><th>Waktu</th></tr></thead>
-          <tbody>
+          {isLoading
+            ? <SkeletonTableRows cols={7} rows={4} />
+            : (
+            <tbody>
             {(tr?.attempts || []).map((a: any, i: number) => (
               <tr key={i}>
                 <td>{a.exam_name}</td><td>{a.subject}</td><td>#{a.attempt_no}</td>
@@ -23,8 +26,9 @@ export default function StudentDetailPage() {
                 <td>{fmtDateTime(a.started_at)}</td>
               </tr>
             ))}
-            {(tr?.attempts || []).length === 0 && <tr><td colSpan={7} style={{ color: 'var(--muted)' }}>Belum ada ujian.</td></tr>}
+            {(tr?.attempts || []).length === 0 && <tr><td colSpan={7} style={{ color: 'var(--text-muted)' }}>Belum ada ujian.</td></tr>}
           </tbody>
+            )}
         </table>
       </Card>
       <p style={{ marginTop: 10 }}><Link to="/students">← Kembali ke daftar siswa</Link></p>

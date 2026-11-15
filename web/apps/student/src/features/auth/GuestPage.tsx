@@ -32,7 +32,7 @@ export default function GuestPage() {
         <h1 style={{ margin: 0 }}>FlowCBT</h1>
         <ThemeToggle />
       </div>
-      <p style={{ color: 'var(--muted)' }}>Masuk tanpa akun (peserta ujian)</p>
+      <p style={{ color: 'var(--text-muted)' }}>Masuk tanpa akun (peserta ujian)</p>
       <Card>
         <form onSubmit={submit} style={{ display: 'grid', gap: 12 }}>
           <label>Kode ujian

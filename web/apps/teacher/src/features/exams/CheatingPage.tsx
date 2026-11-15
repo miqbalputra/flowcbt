@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { api, useApiQuery } from '@flowcbt/api-client';
-import { Button, Card, Badge, useToast } from '@flowcbt/ui';
+import { Button, Card, Badge, useToast, SkeletonList } from '@flowcbt/ui';
 import { fmtDateTime } from '@flowcbt/shared';
 
 // Laporan kecurangan per ujian (FR-5.8C): linimasa pelanggaran + keputusan guru (Valid / Batalkan penalti / Diskualifikasi).
 export default function CheatingPage() {
   const { id } = useParams();
   const toast = useToast();
-  const { data: rows, refetch } = useApiQuery<any[]>(['cheat-' + id], `/exams/${id}/cheating-report`);
+  const { data: rows, refetch, isLoading } = useApiQuery<any[]>(['cheat-' + id], `/exams/${id}/cheating-report`);
 
   const decide = async (attemptId: string, decision: string) => {
     try {
@@ -22,12 +22,13 @@ export default function CheatingPage() {
     <div>
       <h1 style={{ fontSize: 22 }}>Laporan Kecurangan</h1>
       <div style={{ display: 'grid', gap: 10, marginTop: 12 }}>
-        {(rows || []).map((r) => (
+        {isLoading && <SkeletonList rows={3} height={26} />}
+        {!isLoading && (rows || []).map((r) => (
           <Card key={r.attempt_id}>
             <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
               <div>
                 <strong>{r.name}</strong> <Badge tone="danger">{r.violation_count} pelanggaran</Badge> <Badge tone={r.cheating_status === 'flagged' ? 'danger' : 'muted'}>{r.cheating_status}</Badge>
-                <div style={{ fontSize: 13, color: 'var(--muted)' }}>Penalti: {r.penalty_points} · Nilai akhir: {r.final_score ?? '-'}</div>
+                <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>Penalti: {r.penalty_points} · Nilai akhir: {r.final_score ?? '-'}</div>
               </div>
               <div style={{ display: 'flex', gap: 6 }}>
                 <Button variant="ghost" onClick={() => decide(r.attempt_id, 'valid')}>Valid</Button>
@@ -45,7 +46,7 @@ export default function CheatingPage() {
             </table>
           </Card>
         ))}
-        {(rows || []).length === 0 && <Card>Tidak ada pelanggaran tercatat.</Card>}
+        {!isLoading && (rows || []).length === 0 && <Card>Tidak ada pelanggaran tercatat.</Card>}
       </div>
     </div>
   );

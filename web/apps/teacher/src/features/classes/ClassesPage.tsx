@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { api, useApiQuery, useApiMutation } from '@flowcbt/api-client';
-import { Button, Input, Card, Modal, useToast, Badge } from '@flowcbt/ui';
+import { Button, Input, Card, Modal, useToast, Badge, SkeletonTableRows } from '@flowcbt/ui';
 
 // CRUD kelas (FR-3.1).
 export default function ClassesPage() {
   const toast = useToast();
-  const { data: classes, refetch, error } = useApiQuery<any[]>(['classes'], '/classes');
+  const { data: classes, refetch, error, isLoading } = useApiQuery<any[]>(['classes'], '/classes');
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ name: '', academic_year: '2026/2027' });
   const create = useApiMutation(async (f: any) => { await api('POST', '/classes', f); });
@@ -28,15 +28,19 @@ export default function ClassesPage() {
       <Card style={{ marginTop: 12, padding: 0, overflow: 'hidden' }}>
         <table className="table">
           <thead><tr><th>Nama</th><th>Tahun ajaran</th><th>Siswa aktif</th><th></th></tr></thead>
-          <tbody>
+          {isLoading
+            ? <SkeletonTableRows cols={4} rows={4} />
+            : (
+            <tbody>
             {(classes || []).map((c) => (
               <tr key={c.id}>
                 <td><strong>{c.name}</strong></td><td>{c.academic_year}</td><td>{c.student_count}</td>
                 <td><Button variant="ghost" onClick={async () => { await api('DELETE', `/classes/${c.id}`); refetch(); }}>Arsipkan</Button></td>
               </tr>
             ))}
-            {!error && (classes || []).length === 0 && <tr><td colSpan={4} style={{ color: 'var(--muted)' }}>Belum ada kelas.</td></tr>}
+            {!error && (classes || []).length === 0 && <tr><td colSpan={4} style={{ color: 'var(--text-muted)' }}>Belum ada kelas.</td></tr>}
           </tbody>
+            )}
         </table>
       </Card>
       <Modal open={open} onClose={() => setOpen(false)} title="Kelas baru">

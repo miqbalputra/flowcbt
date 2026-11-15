@@ -3,7 +3,7 @@
 // fetch gagal 401 → refresh sekali (single-flight) → ulangi request asli sekali.
 import React from 'react';
 import { useMutation, useQuery, useQueryClient, QueryClient, QueryCache, QueryClientProvider } from '@tanstack/react-query';
-import { Card, Badge, useToast } from '@flowcbt/ui';
+import { Card, Badge, useToast, SkeletonList } from '@flowcbt/ui';
 
 const BASE = (import.meta as any).env?.VITE_API_BASE || 'http://127.0.0.1:8080/api/v1';
 const REFRESH_KEY = 'flowcbt-refresh';
@@ -162,7 +162,21 @@ function QueryErrorToast() {
 
 // ---- State utilitas untuk halaman: loading & error konsisten ----
 export function QueryLoading({ label = 'Memuat…' }: { label?: string }) {
-  return <Card><span style={{ color: 'var(--muted)' }}>{label}</span></Card>;
+  return (
+    <Card aria-busy="true" style={{ display: 'grid', gap: 8 }}>
+      {label && <span style={{ color: 'var(--text-muted)' }}>{label}</span>}
+      <SkeletonList rows={3} />
+    </Card>
+  );
+}
+
+// Gate query: loading → skeleton, error → QueryError, sisanya render children.
+// Pakai di halaman daftar agar state loading/error konsisten (FR-11.5).
+export type QueryState = { isLoading: boolean; error: unknown; refetch?: () => void };
+export function QueryGate({ query, skeleton, children }: { query: QueryState; skeleton?: React.ReactNode; children: React.ReactNode }) {
+  if (query.isLoading) return <>{skeleton ?? <QueryLoading />}</>;
+  if (query.error) return <QueryError error={query.error} onRetry={query.refetch} />;
+  return <>{children}</>;
 }
 
 export function QueryError({ error, onRetry }: { error: unknown; onRetry?: () => void }) {

@@ -12,7 +12,7 @@ export default function StartPage() {
   const [token, setToken] = useState('');
   const [agreed, setAgreed] = useState(false);
   const [busy, setBusy] = useState(false);
-  const { data: exams } = useApiQuery<any[]>(['my-exams'], '/me/exams');
+  const { data: exams, isLoading: lExams } = useApiQuery<any[]>(['my-exams'], '/me/exams');
   const exam = (exams || []).find((e) => e.exam_id === id);
 
   const start = async () => {
@@ -43,8 +43,8 @@ export default function StartPage() {
 
   return (
     <div style={{ maxWidth: 560, margin: '6vh auto', padding: 16 }}>
-      <h1 style={{ fontSize: 22 }}>{exam?.name || 'Mulai Ujian'}</h1>
-      <Card>
+      <h1 style={{ fontSize: 22 }}>{exam?.name || (lExams ? 'Memuat ujian…' : 'Mulai Ujian')}</h1>
+      <Card aria-busy={lExams || undefined}>
         <label>Token ujian
           <Input value={token} onChange={(e) => setToken(e.target.value.toUpperCase())} placeholder="6 karakter" maxLength={12} />
         </label>
@@ -62,7 +62,7 @@ export default function StartPage() {
           </label>
         </div>
         <div style={{ marginTop: 12 }}>
-          <Button onClick={start} disabled={busy || !token || !agreed}>
+          <Button onClick={start} disabled={busy || lExams || !exam || !token || !agreed}>
             {busy ? 'Mengunduh soal…' : 'Mulai'}
           </Button>
         </div>

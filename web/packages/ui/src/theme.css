@@ -4,6 +4,7 @@
   --brand-400: #59a3ff; --brand-500: #3381fc; --brand-600: #1d63ed; --brand-700: #154cdb;
   --brand-800: #1841b1; --brand-900: #193a8d;
   --surface: #ffffff; --muted: #f1f5f9; --text: #0f172a;
+  --text-muted: #475569; /* teks sekunder — kontras AA di light (4.5:1+) */
   --danger: #dc2626; --warn: #d97706; --ok: #16a34a;
 }
 .dark {
@@ -11,6 +12,7 @@
   --brand-400: #3358b0; --brand-500: #4a70c9; --brand-600: #6b8cd9; --brand-700: #93aee6;
   --brand-800: #c3d2f3; --brand-900: #e8efff;
   --surface: #0f172a; --muted: #1e293b; --text: #e2e8f0;
+  --text-muted: #94a3b8; /* teks sekunder — kontras AA di dark */
   --danger: #f87171; --warn: #fbbf24; --ok: #4ade80;
 }
 * { box-sizing: border-box; }

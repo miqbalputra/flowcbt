@@ -29,7 +29,7 @@ export default function ExamDetailPage() {
         <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
           <div>
             <h1 style={{ fontSize: 22, margin: 0 }}>{exam.name}</h1>
-            <div style={{ color: 'var(--muted)', fontSize: 13 }}>
+            <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>
               {fmtDateTime(exam.open_at)} – {fmtDateTime(exam.close_at)} · {exam.duration_minutes} menit · <Badge>{exam.status}</Badge>
             </div>
           </div>
@@ -70,7 +70,7 @@ export default function ExamDetailPage() {
                 </td>
               </tr>
             ))}
-            {(participants || []).length === 0 && <tr><td colSpan={4} style={{ color: 'var(--muted)' }}>Belum ada peserta (atur penugasan saat membuat ujian).</td></tr>}
+            {(participants || []).length === 0 && <tr><td colSpan={4} style={{ color: 'var(--text-muted)' }}>Belum ada peserta (atur penugasan saat membuat ujian).</td></tr>}
           </tbody>
         </table>
       </Card>
@@ -88,7 +88,7 @@ export default function ExamDetailPage() {
                 <td>{a.status === 'awaiting_manual_grading' && <Link to={`/grading/${a.attempt_id}`}>Nilai →</Link>}</td>
               </tr>
             ))}
-            {(attempts?.attempts || []).length === 0 && <tr><td colSpan={7} style={{ color: 'var(--muted)' }}>Belum ada yang mengerjakan.</td></tr>}
+            {(attempts?.attempts || []).length === 0 && <tr><td colSpan={7} style={{ color: 'var(--text-muted)' }}>Belum ada yang mengerjakan.</td></tr>}
           </tbody>
         </table>
       </Card>

@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, useApiQuery, getAccessToken, API_BASE } from '@flowcbt/api-client';
-import { Card, Badge } from '@flowcbt/ui';
+import { Card, Badge, SkeletonTableRows } from '@flowcbt/ui';
 import { fmtDateTime } from '@flowcbt/shared';
 
 // Laporan real-time (FR-9.1–9.5) via SSE + fallback polling 10 dtk.
 export default function LiveReportPage() {
-  const { data: live } = useApiQuery<any[]>(['live'], '/reports/live');
+  const { data: live, isLoading: lLive } = useApiQuery<any[]>(['live'], '/reports/live');
   const [examId, setExamId] = useState<string>('');
   const [parts, setParts] = useState<any[]>([]);
 
@@ -49,7 +49,8 @@ export default function LiveReportPage() {
             {e.name} ({e.subject})
           </button>
         ))}
-        {(live || []).length === 0 && <Card>Tidak ada ujian yang sedang berjalan.</Card>}
+        {(live || []).length === 0 && !lLive && <Card>Tidak ada ujian yang sedang berjalan.</Card>}
+        {lLive && <Card style={{ width: 240 }} aria-busy="true"><span className="skeleton" style={{ width: '80%' }} /></Card>}
       </div>
       {exam && (
         <Card style={{ marginBottom: 12 }}>
@@ -60,7 +61,10 @@ export default function LiveReportPage() {
       <Card style={{ padding: 0, overflow: 'hidden' }}>
         <table className="table">
           <thead><tr><th>Nama</th><th>Kelas</th><th>Status</th><th>Progres</th><th>Terakhir aktiv</th><th>Pelanggaran</th></tr></thead>
-          <tbody>
+          {lLive || (parts.length === 0 && examId)
+            ? <SkeletonTableRows cols={6} rows={5} />
+            : (
+            <tbody>
             {parts.map((p) => (
               <tr key={p.student_id}>
                 <td>{p.name} {p.is_guest && <Badge tone="warn">tamu</Badge>} {p.offline && <Badge tone="danger">offline</Badge>}</td>
@@ -71,8 +75,9 @@ export default function LiveReportPage() {
                 <td>{p.violation_count > 0 && <Badge tone="danger">{p.violation_count} {p.cheating_status === 'flagged' ? 'CURANG' : ''}</Badge>}</td>
               </tr>
             ))}
-            {parts.length === 0 && examId && <tr><td colSpan={6} style={{ color: 'var(--muted)' }}>Memuat…</td></tr>}
-          </tbody>
+            {parts.length === 0 && !examId && <tr><td colSpan={6} style={{ color: 'var(--text-muted)' }}>Pilih ujian di atas.</td></tr>}
+            </tbody>
+            )}
         </table>
       </Card>
     </div>

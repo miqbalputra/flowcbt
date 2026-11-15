@@ -1,13 +1,13 @@
 import React, { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, useApiQuery } from '@flowcbt/api-client';
-import { Button, Card, Modal, useToast, Badge, Input } from '@flowcbt/ui';
+import { Button, Card, Modal, useToast, Badge, Input, SkeletonTableRows } from '@flowcbt/ui';
 import { API_BASE } from '@flowcbt/api-client';
 
 // Manajemen siswa (FR-3.2/3.3/3.4): tabel→kartu di mobile, import 3 langkah (template→preview→commit, AC-10), export.
 export default function StudentsPage() {
   const toast = useToast();
-  const { data: students, refetch, error: errStudents } = useApiQuery<any[]>(['students'], '/students?guests=1');
+  const { data: students, refetch, error: errStudents, isLoading: lStudents } = useApiQuery<any[]>(['students'], '/students?guests=1');
   const { data: classes } = useApiQuery<any[]>(['classes'], '/classes');
   const [q, setQ] = useState('');
   const [classFilter, setClassFilter] = useState('');
@@ -75,7 +75,10 @@ export default function StudentsPage() {
       <Card style={{ padding: 0, overflow: 'hidden' }}>
         <table className="table">
           <thead><tr><th>Nama</th><th>Kode</th><th>Kelas</th><th>JK</th><th>Username</th><th></th></tr></thead>
-          <tbody>
+          {lStudents
+            ? <SkeletonTableRows cols={6} rows={6} />
+            : (
+            <tbody>
             {list.map((s) => (
               <tr key={s.id}>
                 <td><Link to={`/students/${s.id}`}><strong>{s.name}</strong></Link> {s.is_guest && <Badge tone="warn">tamu</Badge>}</td>
@@ -83,8 +86,9 @@ export default function StudentsPage() {
                 <td><Button variant="ghost" disabled={resetting} onClick={() => doResetPassword(s)}>{resetting ? '…' : 'Reset pw'}</Button></td>
               </tr>
             ))}
-            {!errStudents && list.length === 0 && <tr><td colSpan={6} style={{ color: 'var(--muted)' }}>Tidak ada data.</td></tr>}
+            {!errStudents && list.length === 0 && <tr><td colSpan={6} style={{ color: 'var(--text-muted)' }}>Tidak ada data.</td></tr>}
           </tbody>
+            )}
         </table>
       </Card>
 
@@ -137,7 +141,7 @@ export default function StudentsPage() {
       <Modal open={!!credModal} onClose={() => setCredModal(null)} title={`Password baru — ${credModal?.name || ''}`}>
         {credModal && (
           <div style={{ display: 'grid', gap: 10 }}>
-            <p style={{ margin: 0, fontSize: 14, color: 'var(--muted)' }}>Password lama tidak berlaku lagi. Berikan kredensial berikut ke siswa:</p>
+            <p style={{ margin: 0, fontSize: 14, color: 'var(--text-muted)' }}>Password lama tidak berlaku lagi. Berikan kredensial berikut ke siswa:</p>
             <div>
               <strong>Username</strong>
               <div className="card" style={{ padding: '8px 12px', userSelect: 'all' }}>{credModal.username}</div>

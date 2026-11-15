@@ -2,14 +2,14 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Link } from 'react-router-dom';
 import { api, useApiQuery } from '@flowcbt/api-client';
-import { Button, Card, Input, Modal, useToast, Badge } from '@flowcbt/ui';
+import { Button, Card, Input, Modal, useToast, Badge, SkeletonList } from '@flowcbt/ui';
 
 // Daftar paket soal (FR-4.1): cari, buat, duplikasi, arsip, publish/unpublish.
 export default function QuestionSetsPage() {
   const toast = useToast();
   const nav = useNavigate();
   const [q, setQ] = useState('');
-  const { data: sets, refetch, error } = useApiQuery<any[]>(['qs'], '/question-sets');
+  const { data: sets, refetch, error, isLoading } = useApiQuery<any[]>(['qs'], '/question-sets');
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ subject_name: '', title: '', exam_code: '' });
 
@@ -25,12 +25,14 @@ export default function QuestionSetsPage() {
       </div>
       <Input placeholder="Cari paket/mapel…" value={q} onChange={(e) => setQ(e.target.value)} style={{ maxWidth: 300, margin: '10px 0' }} />
       <div style={{ display: 'grid', gap: 10 }}>
-        {list.map((s) => (
+        {isLoading && <SkeletonList rows={4} />}
+        {error && <Card><span style={{ color: 'var(--text-muted)' }}>Gagal memuat paket soal.</span></Card>}
+        {!isLoading && list.map((s) => (
           <Card key={s.id}>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
               <div>
                 <Link to={`/question-sets/${s.id}/edit`}><strong>{s.title}</strong></Link> <Badge>{s.subject_name}</Badge>
-                <div style={{ fontSize: 13, color: 'var(--muted)' }}>kode ujian {s.exam_code} · {s.question_count} soal · {s.max_points} poin</div>
+                <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>kode ujian {s.exam_code} · {s.question_count} soal · {s.max_points} poin</div>
               </div>
               <div style={{ display: 'flex', gap: 6 }}>
                 {s.status === 'published'

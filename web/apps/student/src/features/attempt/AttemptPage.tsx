@@ -197,7 +197,7 @@ export default function AttemptPage() {
       )}
 
       <Card>
-        <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 8 }}>
+        <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 8 }}>
           Soal {idx + 1} dari {questions.length} · {QUESTION_TYPE_LABEL[q.type]} · {q.points} poin
         </div>
         <div dangerouslySetInnerHTML={{ __html: q.body_html }} />
@@ -363,7 +363,7 @@ function MatchingInput({ q, value, flagged, onAnswer, onFlag }: { q: Question; v
           ))}
         </div>
       </div>
-      <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 8 }}>
+      <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 8 }}>
         Pilih item kiri, lalu item kanan untuk memasangkan. Ketuk item yang sudah berpasangan untuk melepasnya.
       </div>
       <FlagButton flagged={flagged} onFlag={onFlag} />

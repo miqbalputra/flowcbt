@@ -74,7 +74,7 @@ function Payments() {
             {(rows || []).map((p) => (
               <tr key={p.order_id}><td>{p.order_id}</td><td>{p.tenant}</td><td>{p.plan}</td><td>Rp {p.amount_idr.toLocaleString('id-ID')}</td><td>{p.provider}</td><td><Badge tone={p.status === 'paid' ? 'ok' : 'muted'}>{p.status}</Badge></td></tr>
             ))}
-            {(rows || []).length === 0 && <tr><td colSpan={6} style={{ color: 'var(--muted)' }}>Belum ada.</td></tr>}
+            {(rows || []).length === 0 && <tr><td colSpan={6} style={{ color: 'var(--text-muted)' }}>Belum ada.</td></tr>}
           </tbody>
         </table>
       </Card>
