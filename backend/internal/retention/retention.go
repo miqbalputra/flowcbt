@@ -32,7 +32,7 @@ func (s *Service) Evaluate(ctx context.Context) error {
 			`SELECT t.id FROM tenants t
 			 WHERE t.status='active'
 			   AND NOT EXISTS (SELECT 1 FROM subscriptions s WHERE s.tenant_id=t.id AND s.status='active' AND s.ends_at > $1 AND s.type='monthly')
-			   AND NOT EXISTS (SELECT 1 FROM exam_credits c WHERE c.tenant_id=t.id AND c.used < c.quantity)`)
+			   AND NOT EXISTS (SELECT 1 FROM exam_credits c WHERE c.tenant_id=t.id AND c.used < c.quantity)`, now)
 		if err != nil {
 			return err
 		}
