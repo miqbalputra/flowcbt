@@ -48,10 +48,10 @@ func (s *Service) liveList(w http.ResponseWriter, r *http.Request) {
 			        (SELECT count(*) FROM exam_participants ep WHERE ep.exam_id=e.id),
 			        (SELECT count(*) FROM attempts a WHERE a.exam_id=e.id AND a.status='in_progress'),
 			        (SELECT count(*) FROM attempts a WHERE a.exam_id=e.id AND a.status NOT IN ('in_progress','cancelled')),
-			        (SELECT count(*) FROM attempts a WHERE a.exam_id=e.id AND a.last_seen_at < $2 - interval '5 minutes' AND a.status='in_progress')
+			        (SELECT count(*) FROM attempts a WHERE a.exam_id=e.id AND a.last_seen_at < $3 AND a.status='in_progress')
 			 FROM exams e JOIN question_sets qs ON qs.id=e.question_set_id
 			 WHERE e.tenant_id=$1 AND e.status='published' AND (e.open_at IS NULL OR e.open_at <= $2) AND (e.close_at IS NULL OR e.close_at >= $2)
-			 ORDER BY e.open_at DESC`, tid, now)
+			 ORDER BY e.open_at DESC`, tid, now, now.Add(-5*time.Minute))
 		if err != nil {
 			return err
 		}
@@ -94,7 +94,7 @@ func (s *Service) writeLive(w http.ResponseWriter, r *http.Request, publish bool
 			`SELECT st.id, st.name, st.student_code, COALESCE(c.name,''), st.is_guest,
 			        COALESCE(a.status,'not_started'), COALESCE(a.answered_count,0),
 			        (SELECT count(*) FROM questions q WHERE q.set_version_id = e.set_version_id),
-			        a.last_seen_at, a.violation_count, a.cheating_status, a.id
+			        a.last_seen_at, COALESCE(a.violation_count,0), COALESCE(a.cheating_status,'none'), a.id
 			 FROM exam_participants ep
 			 JOIN students st ON st.id=ep.student_id
 			 LEFT JOIN classes c ON c.id=st.class_id
