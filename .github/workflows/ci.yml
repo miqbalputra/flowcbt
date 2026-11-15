@@ -12,6 +12,22 @@ jobs:
     defaults:
       run:
         working-directory: backend
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: flowcbt
+        ports:
+          - 55432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: 'postgres://postgres:postgres@127.0.0.1:55432/flowcbt?sslmode=disable'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -24,7 +40,15 @@ jobs:
         run: go build ./...
       - name: Unit tests
         run: go test ./internal/... -count=1
-      - name: "Integration tests (testcontainers: RLS, webhook, sync)"
+      - name: Migrasi
+        run: go run ./cmd/migrate -dir db/migrations up
+      - name: Siapkan role DB untuk test
+        run: |
+          PGPASSWORD=postgres psql -h 127.0.0.1 -p 55432 -U postgres -d flowcbt \
+            -c "ALTER ROLE flowcbt_app LOGIN PASSWORD 'flowcbt_app'"
+          PGPASSWORD=postgres psql -h 127.0.0.1 -p 55432 -U postgres -d flowcbt \
+            -c "ALTER ROLE flowcbt_system LOGIN PASSWORD 'flowcbt_system'"
+      - name: "Integration tests (RLS, webhook, sync)"
         run: go test ./test/integration/... -count=1 -timeout 20m
 
   web:
