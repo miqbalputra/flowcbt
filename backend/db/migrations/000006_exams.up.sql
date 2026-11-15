@@ -48,7 +48,7 @@ CREATE TABLE exams (
   updated_at              timestamptz NOT NULL DEFAULT now(),
   CHECK (close_at IS NULL OR open_at IS NULL OR close_at > open_at),
   CHECK (snapshot_interval_max_s >= snapshot_interval_min_s),
-  CHECK (status = 'draft' OR (open_at IS NOT NULL AND close_at IS NOT NULL AND duration_minutes IS NOT NULL AND set_version_id IS NOT NULL))
+  CHECK (status IN ('draft','cancelled') OR (open_at IS NOT NULL AND close_at IS NOT NULL AND duration_minutes IS NOT NULL AND set_version_id IS NOT NULL))
 );
 CREATE INDEX exams_tenant_status_idx ON exams (tenant_id, status, open_at);
 CREATE INDEX exams_window_idx ON exams (tenant_id, close_at);       -- retensi: close_at ujian terakhir
