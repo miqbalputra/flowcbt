@@ -63,7 +63,7 @@ func activatePayment(ctx context.Context, tx pgx.Tx, orderID string) error {
 		if days != nil {
 			dur = *days
 		}
-		// akhiri SEMUA langganan aktif (trial/free termasuk) — ada unique index satu aktif per tenant
+		// akhiri SEMUA langganan aktif (trial/free incluido) — ada unique index satu aktif per tenant
 		if _, err := tx.Exec(ctx,
 			`UPDATE subscriptions SET status='expired' WHERE tenant_id=$1 AND status='active'`, tenantID); err != nil {
 			return err
