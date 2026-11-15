@@ -148,25 +148,31 @@ func Router(d *Deps) http.Handler {
 	r.Use(httpx.RequestID())
 	r.Use(httpx.Recoverer(d.Log))
 	r.Use(httpx.Logger(d.Log))
+	// CORS: allowlist origin dari CORS_ALLOWED_ORIGINS (wajib di produksi, lihat platform.Config.Validate).
+	// Bearer token dikirim lewat header, bukan cookie → AllowCredentials false; wildcard hanya untuk dev tanpa cookie.
+	corsOrigins := d.Cfg.CORSAllowedOrigins
+	if len(corsOrigins) == 0 {
+		corsOrigins = []string{"*"} // dev: tidak ada cookie, wildcard aman
+	}
 	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{"*"},
+		AllowedOrigins:   corsOrigins,
 		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "Idempotency-Key", "X-Requested-With"},
-		AllowCredentials: true,
+		AllowCredentials: false,
 		MaxAge:           600,
 	}))
 
 	r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteJSON(w, http.StatusOK, map[string]any{"status": "ok", "time": d.Clock.Now()})
 	})
-	r.Get("/internal/active-exams", func(w http.ResponseWriter, r *http.Request) {
+	r.Get("/internal/active-exams", d.internalHandler(func(w http.ResponseWriter, r *http.Request) {
 		var n int
 		_ = d.DB.WithSystemTx(r.Context(), func(tx pgx.Tx) error {
 			return tx.QueryRow(r.Context(),
 				`SELECT count(*) FROM exams WHERE status='published' AND open_at <= now() AND close_at >= now()`).Scan(&n)
 		})
 		httpx.WriteJSON(w, http.StatusOK, map[string]any{"active_exams": n})
-	})
+	}))
 
 	r.Route("/api/v1", func(r chi.Router) {
 		d.Auth.Routes(r)
@@ -246,4 +252,23 @@ func Router(d *Deps) http.Handler {
 		})
 	})
 	return r
+}
+
+// internalHandler memproteksi endpoint /internal/*: di produksi wajib bearer INTERNAL_TOKEN
+// (dipakai deploy freeze Coolify — PRD 18.7); di dev tanpa token tidak boleh di prod.
+func (d *Deps) internalHandler(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if d.Cfg.Env == "production" {
+			got := ""
+			if h := r.Header.Get("Authorization"); len(h) > 7 && h[:7] == "Bearer " {
+				got = h[7:]
+			}
+			if d.Cfg.InternalToken == "" || got != d.Cfg.InternalToken {
+				d.Log.Warn("internal endpoint diakses tanpa token valid", "ip", r.RemoteAddr)
+				httpx.WriteError(w, httpx.Unauthorized("token internal tidak valid"))
+				return
+			}
+		}
+		next(w, r)
+	}
 }

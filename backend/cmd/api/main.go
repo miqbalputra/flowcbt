@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -15,6 +16,10 @@ import (
 
 func main() {
 	cfg := platform.LoadConfig()
+	if err := cfg.Validate(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 	log := platform.NewLogger(cfg.Env)
 
 	deps := server.NewDeps(cfg, log)

@@ -1,8 +1,11 @@
 package platform
 
 import (
+	"errors"
+	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -41,6 +44,9 @@ type Config struct {
 	MidtransIsProduction bool
 	MayarAPIKey    string
 	WebhookBaseURL string
+	// Keamanan produksi
+	CORSAllowedOrigins []string // allowlist origin; WAJIB di-set di produksi (CORS_ALLOWED_ORIGINS)
+	InternalToken      string   // bearer token /internal/* (deploy freeze); WAJIB di-set di produksi
 }
 
 func getenv(k, def string) string {
@@ -102,5 +108,45 @@ func LoadConfig() Config {
 		MidtransIsProduction: getbool("MIDTRANS_IS_PRODUCTION", false),
 		MayarAPIKey:   getenv("MAYAR_API_KEY", ""),
 		WebhookBaseURL: getenv("WEBHOOK_BASE_URL", "http://localhost:8080"),
+		CORSAllowedOrigins: splitNonEmpty(os.Getenv("CORS_ALLOWED_ORIGINS")),
+		InternalToken: getenv("INTERNAL_TOKEN", ""),
 	}
+}
+
+func splitNonEmpty(s string) []string {
+	if s == "" {
+		return nil
+	}
+	var out []string
+	for _, p := range strings.Split(s, ",") {
+		if t := strings.TrimSpace(p); t != "" {
+			out = append(out, t)
+		}
+	}
+	return out
+}
+
+// Validate menolak konfigurasi lemah secara fail-fast (bagian dengan risiko tinggi).
+// Dev tetap bisa jalan dengan default; produksi (APP_ENV=production) wajib eksplisit.
+func (c Config) Validate() error {
+	if c.Env != "production" {
+		return nil
+	}
+	var errs []error
+	if c.JWTSecret == "dev-insecure-secret-change-me" || len(c.JWTSecret) < 32 {
+		errs = append(errs, errors.New("JWT_SECRET tidak aman: wajib >= 32 karakter acak dan bukan nilai default"))
+	}
+	if c.AppDBPassword == "flowcbt_app" || c.SystemDBPass == "flowcbt_system" {
+		errs = append(errs, errors.New("password DB role masih nilai default: set APP_DB_PASSWORD & SYSTEM_DB_PASSWORD"))
+	}
+	if len(c.CORSAllowedOrigins) == 0 {
+		errs = append(errs, errors.New("CORS_ALLOWED_ORIGINS wajib di-set (allowlist origin aplikasi web)"))
+	}
+	if c.InternalToken == "" || len(c.InternalToken) < 32 {
+		errs = append(errs, errors.New("INTERNAL_TOKEN wajib di-set (>= 32 karakter) untuk proteksi /internal/*"))
+	}
+	if len(errs) == 0 {
+		return nil
+	}
+	return fmt.Errorf("konfigurasi produksi tidak valid: %w", errors.Join(errs...))
 }

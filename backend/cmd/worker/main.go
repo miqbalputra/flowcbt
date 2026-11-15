@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -16,6 +17,10 @@ import (
 // pembersihan snapshot, rekonsiliasi. Di dev berjalan in-process (ticker); produksi bisa diganti asynq/Redis.
 func main() {
 	cfg := platform.LoadConfig()
+	if err := cfg.Validate(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 	log := platform.NewLogger(cfg.Env)
 	deps := server.NewDeps(cfg, log)
 	if deps == nil {
