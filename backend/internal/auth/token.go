@@ -54,14 +54,14 @@ func randomToken() string {
 	return base64.RawURLEncoding.EncodeToString(b)
 }
 
-// IssuePair membuat access token + menyimpan refresh token (rotasi, family_id untuk deteksi reuse — FR-1.6).
-func (i *Issuer) IssuePair(ctx context.Context, q platform.Queryer, tenantID, subjectType, role, subjectID, device, ip, ua string) (*TokenPair, error) {
+// IssuePair membuat access token + menyimpan refresh token. family dipertahankan sama
+// sepanjang rantai rotasi agar deteksi reuse (FR-1.6) bekerja; login baru membuat family baru.
+func (i *Issuer) IssuePair(ctx context.Context, q platform.Queryer, family, tenantID, subjectType, role, subjectID, device, ip, ua string) (*TokenPair, error) {
 	access, err := i.IssueAccess(subjectID, role, tenantID, device)
 	if err != nil {
 		return nil, err
 	}
 	raw := randomToken()
-	family := platform.NewID()
 	exp := i.Clock.Now().Add(i.RefreshTTL)
 	_, err = q.Exec(ctx,
 		`INSERT INTO refresh_tokens (tenant_id, subject_type, user_id, student_id, family_id, token_hash, device_hash, ip, user_agent, expires_at)
@@ -114,19 +114,19 @@ func (i *Issuer) Rotate(ctx context.Context, q platform.Queryer, rawRefresh stri
 	if tenantID != nil {
 		tenantIDStr = *tenantID
 	}
-	if revokedAt != nil || time.Now().After(expiresAt) {
-		return nil, httpx.Unauthorized("refresh token tidak berlaku")
-	}
-	// deteksi reuse: bila token lama (sudah dipakai) dipakai lagi, cabut seluruh family
-	if revokedAt == nil {
-		// tandai yang ini sebagai sudah dipakai
-	}
-	// Cek apakah sudah ada token lain di family yang sudah dipakai (reuse detection)
-	var usedCount int
-	_ = q.QueryRow(ctx, `SELECT count(*) FROM refresh_tokens WHERE family_id = $1 AND revoked_at IS NOT NULL`, family).Scan(&usedCount)
-	if usedCount > 0 {
-		_, _ = q.Exec(ctx, `UPDATE refresh_tokens SET revoked_at = now() WHERE family_id = $1 AND revoked_at IS NULL`, family)
+	if revokedAt != nil {
+		// token sudah pernah dipakai/dicabut (rotasi/logout) → ini reuse: cabut seluruh family (FR-1.6).
+		// Revoke lewat koneksi system langsung (di luar tx pemanggil) agar tidak ikut ter-rollback
+		// saat error dikembalikan.
+		if i.DB != nil {
+			_, _ = i.DB.System.Exec(ctx, `UPDATE refresh_tokens SET revoked_at = now() WHERE family_id = $1 AND revoked_at IS NULL`, family)
+		} else {
+			_, _ = q.Exec(ctx, `UPDATE refresh_tokens SET revoked_at = now() WHERE family_id = $1 AND revoked_at IS NULL`, family)
+		}
 		return nil, httpx.Unauthorized("penggunaan ulang refresh token terdeteksi; sesi dicabut")
+	}
+	if time.Now().After(expiresAt) {
+		return nil, httpx.Unauthorized("refresh token tidak berlaku")
 	}
 	_, _ = q.Exec(ctx, `UPDATE refresh_tokens SET revoked_at = now() WHERE id = $1`, id)
 
@@ -145,7 +145,7 @@ func (i *Issuer) Rotate(ctx context.Context, q platform.Queryer, rawRefresh stri
 	if subjectType == "user" {
 		_ = q.QueryRow(ctx, `SELECT role FROM users WHERE id = $1`, subjectID).Scan(&role)
 	}
-	return i.IssuePair(ctx, q, tenantIDStr, subjectType, role, subjectID, dev, "", "")
+	return i.IssuePair(ctx, q, family, tenantIDStr, subjectType, role, subjectID, dev, "", "")
 }
 
 func (i *Issuer) Revoke(ctx context.Context, q platform.Queryer, rawRefresh string) error {
