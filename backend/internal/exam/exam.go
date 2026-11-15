@@ -281,6 +281,7 @@ func (s *Service) get(w http.ResponseWriter, r *http.Request) {
 	tid := httpx.TenantIDFrom(r.Context())
 	id := chi.URLParam(r, "id")
 	var e Exam
+	var token *string
 	err := s.DB.WithTenantTx(r.Context(), tid, func(tx pgx.Tx) error {
 		return tx.QueryRow(r.Context(),
 			`SELECT e.id, e.question_set_id, qs.title, e.name, e.status, e.open_at, e.close_at, e.duration_minutes,
@@ -294,11 +295,14 @@ func (s *Service) get(w http.ResponseWriter, r *http.Request) {
 				&e.ClosePolicy, &e.LoginMode, &e.MaxAttempts, &e.ScorePolicy, &e.PassingScore, &e.ShowScoreImmediately, &e.ShowReview,
 				&e.ShowExplanations, &e.ShuffleQuestions, &e.ShuffleOptions, &e.FreeNavigation, &e.RequireAllAnswered,
 				&e.AnticheatEnabled, &e.LeaveToleranceSeconds, &e.PenaltyMode, &e.PenaltyValue, &e.PenaltyMax, &e.FlagThreshold,
-				&e.AutoSubmitThreshold, &e.CameraEnabled, &e.CameraDenyPolicy, &e.QuotaSource, &e.PublishedAt, &e.CreatedAt, &e.Token)
+				&e.AutoSubmitThreshold, &e.CameraEnabled, &e.CameraDenyPolicy, &e.QuotaSource, &e.PublishedAt, &e.CreatedAt, &token)
 	})
 	if err != nil {
 		httpx.WriteError(w, httpx.NotFound("ujian tidak ditemukan"))
 		return
+	}
+	if token != nil {
+		e.Token = *token
 	}
 	httpx.WriteJSON(w, http.StatusOK, e)
 }
@@ -613,7 +617,7 @@ func (s *Service) extendTime(w http.ResponseWriter, r *http.Request) {
 			return err
 		}
 		if _, err := tx.Exec(r.Context(),
-			`UPDATE attempts SET deadline_at = deadline_at + ($1 || ' seconds')::interval, extra_time_seconds = extra_time_seconds + $1
+			`UPDATE attempts SET deadline_at = deadline_at + make_interval(secs => $1), extra_time_seconds = extra_time_seconds + $1
 			 WHERE tenant_id=$2 AND exam_id=$3 AND student_id=$4 AND status='in_progress'`, in.Seconds, tid, id, sid); err != nil {
 			return err
 		}
