@@ -376,8 +376,9 @@ func (s *Service) publish(w http.ResponseWriter, r *http.Request) {
 		// draft baru = clone kosong? sesuai PRD: mengubah soal setelah publish = clone ke draft baru.
 		// Simpan: question_sets.status='published', draft_version_id tetap menunjuk versi lama (sekarang published) —
 		// untuk edit berikutnya, buat draft baru saat ada perubahan (lihat updateQuestion: bila published, clone dulu).
+		// draft lama (sekarang kosong setelah soal dipindah) dipakai terus sebagai draft aktif
 		if _, err := tx.Exec(r.Context(),
-			`UPDATE question_sets SET status='published', published_version_id=$1 WHERE id=$2`, verID, id); err != nil {
+			`UPDATE question_sets SET status='published', published_version_id=$1, draft_version_id=$2 WHERE id=$3`, verID, draftVer, id); err != nil {
 			return err
 		}
 		s.Audit.Log(r.Context(), tx, tid, "user", actor, "question_set.publish", "question_set", id, map[string]any{"version_id": verID, "questions": qcount}, "")
@@ -411,6 +412,22 @@ func (s *Service) unpublish(w http.ResponseWriter, r *http.Request) {
 		}
 		if used > 0 {
 			return httpx.Conflict("ALREADY_USED", "versi ini sudah dipakai ujian aktif; tidak bisa unpublish")
+		}
+		// kembalikan konten versi published ke draft agar bisa dipublish ulang
+		var draftVer *string
+		_ = tx.QueryRow(r.Context(), `SELECT draft_version_id FROM question_sets WHERE tenant_id=$1 AND id=$2`, tid, id).Scan(&draftVer)
+		if draftVer != nil {
+			if _, err := tx.Exec(r.Context(),
+				`INSERT INTO questions (tenant_id, set_version_id, order_no, type, stimulus_id, body_html, options_json, answer_key_json, rubric_json, points, scoring_mode, partial_wrong_penalty, shuffle_options, explanation_html, media_ids)
+				 SELECT tenant_id, $1, order_no, type, NULL, body_html, options_json, answer_key_json, rubric_json, points, scoring_mode, partial_wrong_penalty, shuffle_options, explanation_html, media_ids
+				 FROM questions WHERE set_version_id=$2`, *draftVer, *pubVer); err != nil {
+				return err
+			}
+			if _, err := tx.Exec(r.Context(),
+				`INSERT INTO stimuli (tenant_id, set_version_id, order_no, title, content_html, media_ids)
+				 SELECT tenant_id, $1, order_no, title, content_html, media_ids FROM stimuli WHERE set_version_id=$2`, *draftVer, *pubVer); err != nil {
+				return err
+			}
 		}
 		if _, err := tx.Exec(r.Context(),
 			`UPDATE question_sets SET status='draft', published_version_id=NULL WHERE tenant_id=$1 AND id=$2`, tid, id); err != nil {
