@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -422,6 +423,21 @@ func (s *Service) handleWebhook(w http.ResponseWriter, r *http.Request, provider
 	if processed {
 		_, _ = s.DB.System.Exec(r.Context(),
 			`UPDATE payment_webhook_events SET processed_at=now() WHERE provider=$1 AND event_id=$2`, providerName, eventID)
+		// notifikasi in-app ke owner bahwa pembayaran berhasil (FR-13)
+		if s.Notify != nil {
+			var m map[string]any
+			if json.Unmarshal(payload, &m) == nil {
+				if oid, _ := m["order_id"].(string); oid != "" {
+					var tid, uid, payStatus string
+					_ = s.DB.System.QueryRow(r.Context(),
+						`SELECT p.tenant_id, COALESCE(u.id::text,''), p.status FROM payments p LEFT JOIN users u ON u.tenant_id=p.tenant_id AND u.role='owner' WHERE p.order_id=$1`, oid).
+						Scan(&tid, &uid, &payStatus)
+					if tid != "" && uid != "" && payStatus == "paid" {
+						s.Notify(r.Context(), tid, uid, "payment", "Pembayaran berhasil", "Paket/langganan Anda sudah aktif. Terima kasih!", map[string]any{"order_id": oid})
+					}
+				}
+			}
+		}
 	}
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
