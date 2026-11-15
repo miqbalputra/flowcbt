@@ -1,0 +1,25 @@
+/* Token warna FlowCBT — light default, dark via .dark (FR-11.1, kontras WCAG AA) */
+:root {
+  --brand-50: #eef6ff; --brand-100: #d9eaff; --brand-200: #bcdbff; --brand-300: #8ec4ff;
+  --brand-400: #59a3ff; --brand-500: #3381fc; --brand-600: #1d63ed; --brand-700: #154cdb;
+  --brand-800: #1841b1; --brand-900: #193a8d;
+  --surface: #ffffff; --muted: #f1f5f9; --text: #0f172a;
+  --danger: #dc2626; --warn: #d97706; --ok: #16a34a;
+}
+.dark {
+  --brand-50: #0b1530; --brand-100: #12224a; --brand-200: #1a3168; --brand-300: #25448c;
+  --brand-400: #3358b0; --brand-500: #4a70c9; --brand-600: #6b8cd9; --brand-700: #93aee6;
+  --brand-800: #c3d2f3; --brand-900: #e8efff;
+  --surface: #0f172a; --muted: #1e293b; --text: #e2e8f0;
+  --danger: #f87171; --warn: #fbbf24; --ok: #4ade80;
+}
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; margin: 0; }
+body {
+  background: var(--surface); color: var(--text);
+  font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-size: 16px; line-height: 1.5;
+}
+button { font: inherit; }
+a { color: var(--brand-600); }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
