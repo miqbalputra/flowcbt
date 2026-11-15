@@ -315,3 +315,29 @@ func TestWebhookIdempotency(t *testing.T) {
 	}
 	t.Log("PASS: webhook idempoten (event sama → 1× proses)")
 }
+
+// FR-1.6: bila refresh token lama dipakai ulang (reuse), seluruh family dicabut.
+func TestRefreshReuseRevokesFamily(t *testing.T) {
+	db := testDB(t)
+	ctx := context.Background()
+	tid := newTenant(t, db, uniq("TSF"))
+	sysExec(t, db, `INSERT INTO users (tenant_id, role, name, email, password_hash, email_verified_at) VALUES ($1,'owner','O',('of' || $2 || '@f.test'),'x',now())`, tid, tid)
+	var uid string
+	sysQueryRow(t, db, `SELECT id FROM users WHERE tenant_id=$1`, []any{tid}, &uid)
+	issuer := &auth.Issuer{DB: db, Clock: platform.NewClock(), Secret: []byte("test-secret"), AccessTTL: time.Minute, RefreshTTL: time.Hour}
+	p1, err := issuer.IssuePair(ctx, db.System, platform.NewIDString(), tid, "user", "owner", uid, "", "", "")
+	if err != nil {
+		t.Fatalf("issue: %v", err)
+	}
+	p2, err := issuer.Rotate(ctx, db.System, p1.RefreshToken)
+	if err != nil {
+		t.Fatalf("rotasi pertama harus berhasil: %v", err)
+	}
+	if _, err := issuer.Rotate(ctx, db.System, p1.RefreshToken); err == nil {
+		t.Fatalf("FR-1.6 GAGAL: reuse token lama harus ditolak")
+	}
+	if _, err := issuer.Rotate(ctx, db.System, p2.RefreshToken); err == nil {
+		t.Fatalf("FR-1.6 GAGAL: setelah reuse, seluruh family (token baru) harus dicabut")
+	}
+	t.Log("FR-1.6 PASS: reuse refresh token → seluruh family dicabut")
+}
