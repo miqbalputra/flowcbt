@@ -4,7 +4,9 @@ import (
 	"context"
 	"time"
 		"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 
@@ -62,7 +64,21 @@ func editableVersion(ctx context.Context, tx pgx.Tx, tenantID, setID string) (st
 			return "", err
 		}
 	}
-	if draftVer != nil && cnt > 0 {
+	if draftVer != nil {
+		// sudah ada draft: bila masih kosong, clone konten published ke draft itu (jangan buat draft baru — ada unique index satu draft)
+		if cnt == 0 && pubVer != nil {
+			if _, err := tx.Exec(ctx,
+				`INSERT INTO questions (tenant_id, set_version_id, order_no, type, stimulus_id, body_html, options_json, answer_key_json, rubric_json, points, scoring_mode, partial_wrong_penalty, shuffle_options, explanation_html, media_ids)
+				 SELECT tenant_id, $1, order_no, type, NULL, body_html, options_json, answer_key_json, rubric_json, points, scoring_mode, partial_wrong_penalty, shuffle_options, explanation_html, media_ids
+				 FROM questions WHERE set_version_id=$2`, *draftVer, *pubVer); err != nil {
+				return "", err
+			}
+			if _, err := tx.Exec(ctx,
+				`INSERT INTO stimuli (tenant_id, set_version_id, order_no, title, content_html, media_ids)
+				 SELECT tenant_id, $1, order_no, title, content_html, media_ids FROM stimuli WHERE set_version_id=$2`, *draftVer, *pubVer); err != nil {
+				return "", err
+			}
+		}
 		return *draftVer, nil
 	}
 	if pubVer == nil {
@@ -507,7 +523,7 @@ func (s *Service) addStimulus(w http.ResponseWriter, r *http.Request) {
 			return err
 		}
 		return tx.QueryRow(r.Context(),
-			`INSERT INTO stimuli (tenant_id, set_version_id, order_no, title, content_html, media_ids) VALUES ($1,$2,$3,$4,$5,COALESCE($6,'{}')) RETURNING id`,
+			`INSERT INTO stimuli (tenant_id, set_version_id, order_no, title, content_html, media_ids) VALUES ($1,$2,$3,$4,$5,COALESCE($6::uuid[],'{}'::uuid[])) RETURNING id`,
 			tid, verID, order, in.Title, httpx.SanitizeHTML(in.ContentHTML), in.MediaIDs).Scan(&id)
 	})
 	if err != nil {
@@ -531,7 +547,7 @@ func (s *Service) updateStimulus(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	err := s.DB.WithTenantTx(r.Context(), tid, func(tx pgx.Tx) error {
 		tag, err := tx.Exec(r.Context(),
-			`UPDATE stimuli SET title=$1, content_html=$2, media_ids=$3 WHERE tenant_id=$4 AND id=$5`,
+			`UPDATE stimuli SET title=$1, content_html=$2, media_ids=$3::uuid[] WHERE tenant_id=$4 AND id=$5`,
 			in.Title, httpx.SanitizeHTML(in.ContentHTML), in.MediaIDs, tid, id)
 		if err != nil {
 			return err
@@ -634,13 +650,10 @@ type byteReader struct{ b []byte }
 
 func (r *byteReader) Read(p []byte) (int, error) {
 	if len(r.b) == 0 {
-		return 0, fmt.Errorf("EOF")
+		return 0, io.EOF
 	}
 	n := copy(p, r.b)
 	r.b = r.b[n:]
-	if n == 0 {
-		return 0, fmt.Errorf("EOF")
-	}
 	return n, nil
 }
 
@@ -651,7 +664,7 @@ func readAll(r interface{ Read([]byte) (int, error) }) ([]byte, error) {
 		n, err := r.Read(buf)
 		out = append(out, buf[:n]...)
 		if err != nil {
-			if err.Error() == "EOF" {
+			if errors.Is(err, io.EOF) {
 				return out, nil
 			}
 			return out, err
