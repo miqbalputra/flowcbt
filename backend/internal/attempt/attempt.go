@@ -738,11 +738,14 @@ func (s *Service) result(w http.ResponseWriter, r *http.Request) {
 		var passed *bool
 		var showScore, showReview, showExpl bool
 		var released *time.Time
+		var vcount int
+		var cheat string
 		if err := tx.QueryRow(r.Context(),
 			`SELECT a.student_id, a.status, a.exam_id, a.raw_score, a.max_score, a.penalty_points, a.final_score, a.score_provisional, a.passed,
-			        e.show_score_immediately, e.show_review, e.show_explanations, e.scores_released_at
+			        e.show_score_immediately, e.show_review, e.show_explanations, e.scores_released_at,
+			        COALESCE(a.violation_count,0), COALESCE(a.cheating_status,'none')
 			 FROM attempts a JOIN exams e ON e.id=a.exam_id WHERE a.tenant_id=$1 AND a.id=$2`, tid, attemptID).
-			Scan(&studentID, &status, &examID, &raw, &max, &penalty, &final, &provisional, &passed, &showScore, &showReview, &showExpl, &released); err != nil {
+			Scan(&studentID, &status, &examID, &raw, &max, &penalty, &final, &provisional, &passed, &showScore, &showReview, &showExpl, &released, &vcount, &cheat); err != nil {
 			return httpx.NotFound("attempt tidak ditemukan")
 		}
 		if claims.Role == "student" && studentID != claims.Sub {
@@ -752,6 +755,7 @@ func (s *Service) result(w http.ResponseWriter, r *http.Request) {
 			"attempt_id": attemptID, "exam_id": examID, "status": status,
 			"raw_score": raw, "max_score": max, "penalty_points": penalty, "final_score": final,
 			"provisional": provisional, "passed": passed,
+			"violation_count": vcount, "cheating_status": cheat,
 		}
 		canShow := showScore || released != nil
 		out["score_visible"] = canShow && status != "in_progress" && status != "pending_sync"
@@ -803,7 +807,7 @@ func (s *Service) AutoSubmitExpired(ctx context.Context) (int, error) {
 	var n int
 	err := s.DB.WithSystemTx(ctx, func(tx pgx.Tx) error {
 		rws, err := tx.Query(ctx,
-			`SELECT id, tenant_id FROM attempts WHERE status='in_progress' AND deadline_at < now() - $1`, DeadlineTolerance)
+			`SELECT id, tenant_id FROM attempts WHERE status='in_progress' AND deadline_at < now() - make_interval(secs => $1)`, DeadlineTolerance.Seconds())
 		if err != nil {
 			return err
 		}
