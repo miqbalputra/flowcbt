@@ -1,0 +1,3 @@
+DROP TABLE IF EXISTS one_time_tokens;
+DROP TABLE IF EXISTS users;
+DROP TABLE IF EXISTS tenants;
