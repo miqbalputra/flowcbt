@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend:
+    name: Backend — vet, build, test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.x'
+          cache-dependency-path: backend/go.sum
+      - name: Vet
+        run: go vet ./...
+      - name: Build
+        run: go build ./...
+      - name: Unit tests
+        run: go test ./internal/... -count=1
+      - name: Integration tests (testcontainers: RLS, webhook, sync)
+        run: go test ./test/integration/... -count=1 -timeout 20m
+
+  web:
+    name: Web — typecheck, build, test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Enable pnpm
+        run: corepack enable && pnpm --version
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Build (tsc + vite kedua app)
+        run: pnpm -r build
+      - name: Tests
+        run: pnpm -r --if-present test
