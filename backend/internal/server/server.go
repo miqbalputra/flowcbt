@@ -209,9 +209,14 @@ func Router(d *Deps) http.Handler {
 		})
 		r.Route("/attempts", func(r chi.Router) {
 			r.Use(httpx.AuthN())
+			// GET /{id} dipakai siswa (pemulihan, cek kepemilikan di handler) dan guru;
+			// didaftarkan sekali agar tidak tertimpa grup guru (RequireTenant menolak student).
+			r.Group(func(r chi.Router) {
+				r.Use(httpx.RequireRole("student", "owner", "teacher"))
+				r.Get("/{id}", d.AttemptGet)
+			})
 			r.Group(func(r chi.Router) {
 				r.Use(httpx.RequireRole("student"))
-				r.Get("/{id}", d.AttemptGet)
 				r.Post("/{id}/answers:sync", d.AttemptSync)
 				r.Post("/{id}/submit", d.AttemptSubmit)
 				r.Post("/{id}/violations", d.AttemptViolations)
@@ -220,7 +225,6 @@ func Router(d *Deps) http.Handler {
 			r.Group(func(r chi.Router) {
 				r.Use(httpx.RequireTenant())
 				r.Use(httpx.RequireRole("owner", "teacher"))
-				r.Get("/{id}", d.AttemptGet)
 				r.Get("/{id}/grading", d.AttemptGrading)
 				r.Put("/{id}/answers/{qid}/score", d.AttemptPutScore)
 				r.Put("/{id}/cheating-decision", d.AttemptCheatingDecision)
