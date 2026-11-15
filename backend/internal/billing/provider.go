@@ -2,8 +2,6 @@ package billing
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -65,9 +63,9 @@ func activatePayment(ctx context.Context, tx pgx.Tx, orderID string) error {
 		if days != nil {
 			dur = *days
 		}
-		// akhiri langganan aktif (jika ada), buat yang baru
+		// akhiri SEMUA langganan aktif (trial/free termasuk) — ada unique index satu aktif per tenant
 		if _, err := tx.Exec(ctx,
-			`UPDATE subscriptions SET status='expired' WHERE tenant_id=$1 AND status='active' AND type='monthly'`, tenantID); err != nil {
+			`UPDATE subscriptions SET status='expired' WHERE tenant_id=$1 AND status='active'`, tenantID); err != nil {
 			return err
 		}
 		if _, err := tx.Exec(ctx,
