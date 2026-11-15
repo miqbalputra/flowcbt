@@ -276,9 +276,9 @@ func (s *Service) addQuestion(w http.ResponseWriter, r *http.Request) {
 			return err
 		}
 		if in.MediaIDs == nil {
-			in.MediaIDs = []string{}
-		}
-		if in.OrderNo <= 0 {
+		in.MediaIDs = []string{}
+	}
+	if in.OrderNo <= 0 {
 			if err := tx.QueryRow(r.Context(), `SELECT COALESCE(max(order_no),0)+1 FROM questions WHERE set_version_id=$1`, verID).Scan(&orderNo); err != nil {
 				return err
 			}
