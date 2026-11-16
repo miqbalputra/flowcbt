@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { api, useApiQuery } from '@flowcbt/api-client';
+import { api, useApiQuery, apiDownload } from '@flowcbt/api-client';
 import { Button, Card, Input, Textarea, Modal, useToast, Badge } from '@flowcbt/ui';
 import { QUESTION_TYPE_LABEL, type Question, type QuestionType } from '@flowcbt/shared';
 
@@ -85,7 +85,7 @@ function ImportForm({ setId, onDone }: { setId: string; onDone: () => void }) {
   const ref = React.useRef<HTMLInputElement>(null);
   return (
     <div style={{ display: 'grid', gap: 10 }}>
-      <a href={(import.meta as any).env?.VITE_API_BASE + '/question-sets/import/template'}><Button variant="ghost">Unduh template</Button></a>
+      <Button variant="ghost" onClick={() => apiDownload('/question-sets/import/template', 'template-soal.xlsx').catch((e) => toast(e.message, 'danger'))}>Unduh template</Button>
       <input ref={ref} type="file" accept=".xlsx" />
       <Button onClick={async () => {
         const f = ref.current?.files?.[0];

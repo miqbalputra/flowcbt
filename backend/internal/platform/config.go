@@ -145,6 +145,9 @@ func (c Config) Validate() error {
 	if c.InternalToken == "" || len(c.InternalToken) < 32 {
 		errs = append(errs, errors.New("INTERNAL_TOKEN wajib di-set (>= 32 karakter) untuk proteksi /internal/*"))
 	}
+	if c.PaymentProvider == "mock" {
+		errs = append(errs, errors.New("PAYMENT_PROVIDER=mock tidak boleh di produksi (webhook mock mengaktifkan paket tanpa pembayaran)"))
+	}
 	if len(errs) == 0 {
 		return nil
 	}

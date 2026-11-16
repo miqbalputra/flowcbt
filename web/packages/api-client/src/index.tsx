@@ -107,6 +107,25 @@ export async function restoreSession(): Promise<boolean> {
   return refreshOnce();
 }
 
+// Unduh file endpoint export laporan/template (H-9): <a href> tidak membawa Bearer token
+// sehingga selalu 401 — unduh via fetch ber-token lalu simpan sebagai blob.
+export async function apiDownload(path: string, filename: string): Promise<void> {
+  const res = await rawFetch('GET', path);
+  if (!res.ok) {
+    const text = await res.text();
+    throw parseErr(res, text);
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 // Logout gabungan: revoke refresh token di server (idempoten) lalu bersihkan klien.
 export async function logout() {
   const rt = getRefreshToken();

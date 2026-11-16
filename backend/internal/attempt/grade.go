@@ -136,12 +136,11 @@ func (s *Service) gradeAttempt(ctx context.Context, tenantID, attemptID, reason 
 			cheatStatus = "flagged"
 		}
 		if _, err := tx.Exec(ctx,
-			`UPDATE attempts SET status=$1, submit_reason=$2, submitted_at=COALESCE(submitted_at, now()),
+			`UPDATE attempts SET status=$1, submit_reason=COALESCE($2, submit_reason), submitted_at=COALESCE(submitted_at, now()),
 			    raw_score=$3, max_score=$4, penalty_points=$5, final_score=$6, score_provisional=$7, passed=$8,
 			    violation_count=$9, cheating_status = CASE WHEN cheating_status IN ('disqualified') THEN cheating_status ELSE $10 END
 			 WHERE id=$11`,
-			newStatus, nullStr2(reason), raw, max, penalty, final, provisional, passed, vCount, cheatStatus, attemptID); err != nil {
-			return err
+			newStatus, nullStr2(reason), raw, max, penalty, final, provisional, passed, vCount, cheatStatus, attemptID); err != nil {			return err
 		}
 		// sesi dikunci saat submit (FR-1.6)
 		if _, err := tx.Exec(ctx,

@@ -3,7 +3,8 @@ package midtrans
 
 import (
 	"context"
-	"crypto/sha256"
+	"crypto/sha512"
+	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -78,8 +79,9 @@ func (p *Provider) VerifySignature(ctx context.Context, provider string, body []
 	orderID, _ := m["order_id"].(string)
 	status, _ := m["status_code"].(string)
 	gross, _ := m["gross_amount"].(string)
-	sum := sha256.Sum256([]byte(orderID + status + gross + p.ServerKey))
-	return hex.EncodeToString(sum[:]) == signature
+	// signature_key = sha512(order_id + status_code + gross_amount + serverKey) — dokumen Midtrans
+	sum := sha512.Sum512([]byte(orderID + status + gross + p.ServerKey))
+	return subtle.ConstantTimeCompare([]byte(hex.EncodeToString(sum[:])), []byte(signature)) == 1
 }
 
 // HandleWebhook: status settlement/capture → aktifkan paket.

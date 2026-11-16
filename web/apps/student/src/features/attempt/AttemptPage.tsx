@@ -18,7 +18,7 @@ export default function AttemptPage() {
   const [showNav, setShowNav] = useState(false);
   const [online, setOnline] = useState(navigator.onLine);
   const [pending, setPending] = useState(0);
-  const [left, setLeft] = useState<number>(0);
+  const [left, setLeft] = useState<number | null>(null);
   const [warned, setWarned] = useState(0);
   const seqRef = useRef(0);
   const clockRef = useRef<ServerClock | null>(null);
@@ -43,6 +43,10 @@ export default function AttemptPage() {
       }
       setAtt(a);
       startedPerfRef.current = a.startedPerf;
+      // Kumpulan jawaban remote juga dipakai untuk re-kalibrasi jam (performance.now
+      // reset ke ~0 pada dokumen baru, sehingga startedPerf sesi lama basi).
+      let remoteServerNow: number | null = null;
+      const recoveredAtPerf = performance.now();
       clockRef.current = calibrate(a.serverNowIso, a.startedPerf);
       // pulihkan jawaban yang sudah tersimpan lokal
       const outbox = await db.outbox.where('attemptId').equals(id!).toArray();
@@ -60,7 +64,14 @@ export default function AttemptPage() {
           if (!map[ans.question_id]) map[ans.question_id] = { payload: ans.answer_json, flagged: ans.flagged };
         }
         seqRef.current = Math.max(maxSeq, ...(remote.answers || []).map((a: any) => a.seq || 0));
+        if (remote.server_now) remoteServerNow = Date.parse(remote.server_now);
       } catch { /* offline: pakai lokal saja */ }
+      // re-kalibrasi: jam lama memakai basePerf dokumen sebelumnya (bocor sisa waktu)
+      if (remoteServerNow !== null) {
+        clockRef.current = calibrate(new Date(remoteServerNow).toISOString(), recoveredAtPerf);
+        startedPerfRef.current = recoveredAtPerf;
+        try { await db.attempts.update(id!, { startedPerf: recoveredAtPerf, serverNowIso: new Date(remoteServerNow).toISOString() }); } catch { /* abaikan */ }
+      }
       setAnswers(map);
     })();
   }, [id]);
@@ -100,6 +111,7 @@ export default function AttemptPage() {
   // timer hitung mundur (FR-5.2) dari deadline server + auto-submit lokal saat habis (AC-5)
   useEffect(() => {
     if (!att || !clockRef.current) return;
+    setLeft(deadlineCountdownMs(att.deadlineIso, clockRef.current));
     const t = setInterval(() => {
       setLeft(deadlineCountdownMs(att.deadlineIso, clockRef.current!));
     }, 500);
@@ -107,7 +119,12 @@ export default function AttemptPage() {
   }, [att]);
 
   useEffect(() => {
-    if (att && left <= 0 && att.status === 'in_progress') {
+    // guard integritas: attempt sudah submitted/pending_sync → bukan halaman soal (H2)
+    if (att && att.status !== 'in_progress') nav(`/attempt/${id}/done`, { replace: true });
+  }, [att, id]);
+
+  useEffect(() => {
+    if (att && left !== null && left <= 0 && att.status === 'in_progress') {
       void doAutoSubmit();
     }
   }, [left, att]);
@@ -186,7 +203,7 @@ export default function AttemptPage() {
       {/* header sticky: nama ujian, timer, koneksi, tema (FR-6.3) */}
       <div style={{ position: 'sticky', top: 0, background: 'var(--surface)', zIndex: 10, padding: '10px 0', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
         <strong style={{ flex: 1, minWidth: 120 }}>{packet.exam.name}</strong>
-        <Badge tone={left < 60000 ? 'danger' : 'brand'}>⏱ {fmtDuration(left / 1000)}</Badge>
+        <Badge tone={left !== null && left < 60000 ? 'danger' : 'brand'}>⏱ {fmtDuration((left || 0) / 1000)}</Badge>
         <ConnectionBadge online={online} pending={pending} />
         <ThemeToggle />
       </div>

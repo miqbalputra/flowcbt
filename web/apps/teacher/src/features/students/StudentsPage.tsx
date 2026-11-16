@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { api, useApiQuery } from '@flowcbt/api-client';
+import { api, useApiQuery, apiDownload } from '@flowcbt/api-client';
 import { Button, Card, Modal, useToast, Badge, Input, SkeletonTableRows } from '@flowcbt/ui';
 import { API_BASE } from '@flowcbt/api-client';
 
@@ -59,9 +59,9 @@ export default function StudentsPage() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
         <h1 style={{ fontSize: 22 }}>Siswa</h1>
         <div style={{ display: 'flex', gap: 8 }}>
-          <a href={`${API_BASE}/students/import/template`}><Button variant="ghost">Unduh template</Button></a>
+          <Button variant="ghost" onClick={() => apiDownload('/students/import/template', 'template-siswa.xlsx').catch((e) => toast(e.message, 'danger'))}>Unduh template</Button>
           <Button variant="ghost" onClick={() => setImportOpen(true)}>Import</Button>
-          <a href={`${API_BASE}/students/export`}><Button variant="ghost">Export</Button></a>
+          <Button variant="ghost" onClick={() => apiDownload('/students/export', 'siswa.xlsx').catch((e) => toast(e.message, 'danger'))}>Export</Button>
           <Button onClick={() => setAddOpen(true)}>+ Siswa</Button>
         </div>
       </div>

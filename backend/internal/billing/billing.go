@@ -208,14 +208,17 @@ func (s *Service) ConsumeForPublish(ctx context.Context, tenantID, examID string
 			source, refID = "monthly", subID
 			return nil
 		}
-		// 2) trial dengan sisa kuota
+		// 2) trial dengan sisa kuota — guard kondisional anti race (H1)
 		var trialID string
-		var quota, used int
 		if err := tx.QueryRow(ctx,
-			`SELECT id, exam_quota, exams_used FROM subscriptions WHERE tenant_id=$1 AND status='active' AND type='trial' AND ends_at > now() AND exam_quota > exams_used LIMIT 1`,
-			tenantID).Scan(&trialID, &quota, &used); err == nil {
-			if _, err := tx.Exec(ctx, `UPDATE subscriptions SET exams_used = exams_used + 1 WHERE id=$1`, trialID); err != nil {
+			`SELECT id FROM subscriptions WHERE tenant_id=$1 AND status='active' AND type='trial' AND ends_at > now() AND exam_quota > exams_used LIMIT 1`,
+			tenantID).Scan(&trialID); err == nil {
+			tag, err := tx.Exec(ctx, `UPDATE subscriptions SET exams_used = exams_used + 1 WHERE id=$1 AND exams_used < exam_quota`, trialID)
+			if err != nil {
 				return err
+			}
+			if tag.RowsAffected() == 0 {
+				return httpx.Err(httpx.CodeQuotaExceeded, "kuota ujian trial habis; upgrade untuk publish", 402)
 			}
 			source, refID = "trial", trialID
 			return nil
@@ -232,8 +235,13 @@ func (s *Service) ConsumeForPublish(ctx context.Context, tenantID, examID string
 		if err != nil {
 			return httpx.Err(httpx.CodeQuotaExceeded, "tidak ada kredit ujian yang cukup untuk jumlah siswa saat ini; beli paket sesuai tier", 402)
 		}
-		if _, err := tx.Exec(ctx, `UPDATE exam_credits SET used = used + 1 WHERE id=$1`, creditID); err != nil {
+		// guard kondisional anti race atomik: qty guard di WHERE + cek RowsAffected (H1)
+		tag, err := tx.Exec(ctx, `UPDATE exam_credits SET used = used + 1 WHERE id=$1 AND used < quantity`, creditID)
+		if err != nil {
 			return err
+		}
+		if tag.RowsAffected() == 0 {
+			return httpx.Err(httpx.CodeQuotaExceeded, "kredit ujian tidak tersedia; beli paket sesuai tier", 402)
 		}
 		source, refID = "credit", creditID
 		return nil
@@ -247,29 +255,58 @@ func (s *Service) ConsumeForPublish(ctx context.Context, tenantID, examID string
 // RefundForUnpublish mengembalikan kuota bila unpublish sebelum ada yang mengerjakan (PRD 3.2).
 func (s *Service) RefundForUnpublish(ctx context.Context, tenantID, examID string) error {
 	return s.DB.WithTenantTx(ctx, tenantID, func(tx pgx.Tx) error {
-		var source string
-		var refID *string
-		var refunded *time.Time
-		if err := tx.QueryRow(ctx,
-			`SELECT quota_source, quota_ref_id, quota_refunded_at FROM exams WHERE tenant_id=$1 AND id=$2`, tenantID, examID).
-			Scan(&source, &refID, &refunded); err != nil {
-			return err
+		_, err := RefundQuotaTx(ctx, tx, tenantID, examID)
+		return err
+	})
+}
+
+// RefundQuotaTx mengembalikan kuota ujian pada transaksi yang SAMA dengan pengosongan
+// quota_source/quota_ref_id — WAJIB dipanggil SEBELUM kolom quota di-null-kan, karena
+// sumber refund dibaca dari baris exam (K-2: panggilan post-commit dulu membaca NULL).
+func RefundQuotaTx(ctx context.Context, tx pgx.Tx, tenantID, examID string) (bool, error) {
+	var source string
+	var refID *string
+	var refunded *time.Time
+	if err := tx.QueryRow(ctx,
+		`SELECT quota_source, quota_ref_id, quota_refunded_at FROM exams WHERE tenant_id=$1 AND id=$2`, tenantID, examID).
+		Scan(&source, &refID, &refunded); err != nil {
+		return false, err
+	}
+	if refID == nil || refunded != nil {
+		return false, nil
+	}
+	switch source {
+	case "trial":
+		if _, err := tx.Exec(ctx, `UPDATE subscriptions SET exams_used = GREATEST(exams_used-1,0) WHERE id=$1`, *refID); err != nil {
+			return false, err
 		}
-		if refID == nil || refunded != nil {
-			return nil
+	case "credit":
+		if _, err := tx.Exec(ctx, `UPDATE exam_credits SET used = GREATEST(used-1,0) WHERE id=$1`, *refID); err != nil {
+			return false, err
 		}
+	}
+	if _, err := tx.Exec(ctx, `UPDATE exams SET quota_refunded_at = now() WHERE id=$1`, examID); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// RefundForConsume mengembalikan kuota yang baru dikonsumsi ConsumeForPublish untuk
+// kompensasi gagal publish (H1) — refund langsung ke baris sumber, BUKAN membaca ulang
+// exams.quota_ref_id yang bisa sudah di-set penerbit lain saat race.
+func (s *Service) RefundForConsume(ctx context.Context, tenantID, source, refID string) error {
+	return s.DB.WithTenantTx(ctx, tenantID, func(tx pgx.Tx) error {
 		switch source {
 		case "trial":
-			if _, err := tx.Exec(ctx, `UPDATE subscriptions SET exams_used = GREATEST(exams_used-1,0) WHERE id=$1`, *refID); err != nil {
+			if _, err := tx.Exec(ctx, `UPDATE subscriptions SET exams_used = GREATEST(exams_used-1,0) WHERE id=$1`, refID); err != nil {
 				return err
 			}
 		case "credit":
-			if _, err := tx.Exec(ctx, `UPDATE exam_credits SET used = GREATEST(used-1,0) WHERE id=$1`, *refID); err != nil {
+			if _, err := tx.Exec(ctx, `UPDATE exam_credits SET used = GREATEST(used-1,0) WHERE id=$1`, refID); err != nil {
 				return err
 			}
 		}
-		_, err := tx.Exec(ctx, `UPDATE exams SET quota_refunded_at = now() WHERE id=$1`, examID)
-		return err
+		return nil
 	})
 }
 
@@ -400,6 +437,17 @@ func (s *Service) handleWebhook(w http.ResponseWriter, r *http.Request, provider
 		httpx.WriteError(w, err)
 		return
 	}
+	if !signatureOK {
+		// catat event (forensik/audit) lalu tolak tanpa memproses payload (K-1).
+		_ = s.DB.WithSystemTx(r.Context(), func(tx pgx.Tx) error {
+			_, err := tx.Exec(r.Context(),
+				`INSERT INTO payment_webhook_events (provider, event_id, signature_ok, payload) VALUES ($1,$2,false,$3)
+				 ON CONFLICT (provider, event_id) DO NOTHING`, providerName, eventID, payload)
+			return err
+		})
+		httpx.WriteError(w, httpx.Unauthorized("signature webhook tidak valid"))
+		return
+	}
 	processed := false
 	err = s.DB.WithSystemTx(r.Context(), func(tx pgx.Tx) error {
 		tag, err := tx.Exec(r.Context(),
@@ -444,7 +492,14 @@ func (s *Service) handleWebhook(w http.ResponseWriter, r *http.Request, provider
 
 func (s *Service) webhookMidtrans(w http.ResponseWriter, r *http.Request) {
 	body := readBody(r)
-	sig := r.Header.Get("X-Signature") // Midtrans: signature_key = sha512(order_id+status_code+gross_amount+server_key)
+	// signature_key Midtrans dikirim DI DALAM body notifikasi; fallback header X-Signature
+	var m map[string]any
+	sig := r.Header.Get("X-Signature")
+	if json.Unmarshal(body, &m) == nil {
+		if sk, _ := m["signature_key"].(string); sk != "" {
+			sig = sk
+		}
+	}
 	ok := s.Provider.VerifySignature(r.Context(), "midtrans", body, sig)
 	ev := webhookEventID("midtrans", body)
 	s.handleWebhook(w, r, "midtrans", ev, ok, body)

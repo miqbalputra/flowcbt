@@ -425,24 +425,27 @@ func (s *Service) publish(w http.ResponseWriter, r *http.Request) {
 			nullStr(source), nullAny(refID), tid, id); err != nil {
 			return err
 		}
-		if _, err := tx.Exec(r.Context(),
-			`INSERT INTO exam_tokens (token, tenant_id, exam_id, is_active) VALUES ($1,$2,$3,true)
-			 ON CONFLICT (token) DO NOTHING`, token, tid, id); err != nil {
-			// token tabrakan (sangat jarang) → coba lagi sekali dengan token baru
-			token = platform.RandomToken(6)
-			if _, err := tx.Exec(r.Context(),
-				`INSERT INTO exam_tokens (token, tenant_id, exam_id, is_active) VALUES ($1,$2,$3,true)`, token, tid, id); err != nil {
-				return err
+		token = platform.RandomToken(6)
+		for i := 0; i < 3; i++ {
+			tag, terr := tx.Exec(r.Context(),
+				`INSERT INTO exam_tokens (token, tenant_id, exam_id, is_active) VALUES ($1,$2,$3,true)
+				 ON CONFLICT (token) DO NOTHING`, token, tid, id)
+			if terr != nil {
+				return terr
 			}
+			if tag.RowsAffected() == 1 {
+				break // token unik terpasang (M-9: collision terdeteksi, bukan lolos diam-diam)
+			}
+			token = platform.RandomToken(6)
 		}
 		s.resolveParticipants(r.Context(), tx, tid, id)
 		s.Audit.Log(r.Context(), tx, tid, "user", actor, "exam.publish", "exam", id, map[string]any{"token": token, "quota_source": source}, "")
 		return nil
 	})
 	if err != nil {
-		// rollback konsumsi kuota bila publish gagal
+		// rollback konsumsi kuota bila publish gagal — refund ke sumber yang KITA konsumsi (H1)
 		if s.Billing != nil && source != "" {
-			_ = s.Billing.RefundForUnpublish(r.Context(), tid, id)
+			_ = s.Billing.RefundForConsume(r.Context(), tid, source, refID)
 		}
 		httpx.WriteError(w, err)
 		return
@@ -474,6 +477,12 @@ func (s *Service) unpublish(w http.ResponseWriter, r *http.Request) {
 		if used > 0 {
 			return httpx.Conflict("ALREADY_STARTED", "sudah ada yang mengerjakan; tidak bisa unpublish")
 		}
+		// refund kuota dulu (dibaca dari quota_source/quota_ref_id), baru kolom di-null-kan — satu tx (K-2)
+		if s.Billing != nil {
+			if _, err := billing.RefundQuotaTx(r.Context(), tx, tid, id); err != nil {
+				return err
+			}
+		}
 		if _, err := tx.Exec(r.Context(),
 			`UPDATE exams SET status='draft', published_at=NULL, quota_source=NULL, quota_ref_id=NULL WHERE tenant_id=$1 AND id=$2 AND status='published'`, tid, id); err != nil {
 			return err
@@ -487,9 +496,6 @@ func (s *Service) unpublish(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		httpx.WriteError(w, err)
 		return
-	}
-	if s.Billing != nil {
-		_ = s.Billing.RefundForUnpublish(r.Context(), tid, id)
 	}
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{"ok": true})
 }

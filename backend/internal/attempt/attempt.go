@@ -552,17 +552,21 @@ func (s *Service) syncAnswers(w http.ResponseWriter, r *http.Request) {
 	err := s.DB.WithTenantTx(r.Context(), tid, func(tx pgx.Tx) error {
 		var studentID, status string
 		var deadline time.Time
+		var lastSeq int64
+		var leaveTol int
+		var antiEnabled bool
 		if err := tx.QueryRow(r.Context(),
-			`SELECT student_id, status, deadline_at FROM attempts WHERE tenant_id=$1 AND id=$2`, tid, attemptID).
-			Scan(&studentID, &status, &deadline); err != nil {
+			`SELECT a.student_id, a.status, a.deadline_at, a.last_seq, e.leave_tolerance_seconds, e.anticheat_enabled
+			 FROM attempts a JOIN exams e ON e.id=a.exam_id WHERE a.tenant_id=$1 AND a.id=$2`, tid, attemptID).
+			Scan(&studentID, &status, &deadline, &lastSeq, &leaveTol, &antiEnabled); err != nil {
 			return httpx.NotFound("attempt tidak ditemukan")
 		}
 		if claims.Role == "student" && studentID != claims.Sub {
 			return httpx.Forbidden("bukan attempt Anda")
 		}
-		if status == "graded" || status == "submitted" || status == "awaiting_manual_grading" {
-			// sudah selesai; event tetap dicatat (audit) tapi tidak mengubah jawaban
-		}
+		// H2: event yang sudah selesai (graded/submitted) tetap dicatat untuk audit,
+		// tapi TIDAK mengubah jawaban/bendera — proyeksi hanya untuk attempt aktif.
+		projectable := status == "in_progress" || status == "pending_sync"
 		if status == "cancelled" {
 			return httpx.Err(httpx.CodeAttemptExpired, "attempt sudah dibatalkan", 410)
 		}
@@ -588,11 +592,20 @@ func (s *Service) syncAnswers(w http.ResponseWriter, r *http.Request) {
 			if !accepted {
 				continue // jawaban lewat deadline ditolak & ditandai (AC-5)
 			}
+			// H3: seq monotonik server-side — klien dapat mengirim seq besar/rusak;
+			// clamp agar LWW tidak pernah membuang jawaban berikutnya.
+			seq := lastSeq + 1
+			if ev.Seq > lastSeq {
+				seq = ev.Seq
+			}
 			// proyeksi last-write-wins by seq (FR-7.4)
 			switch ev.Type {
 			case "answer":
 				if ev.QuestionID == "" {
 					continue
+				}
+				if !projectable {
+					continue // H2: tidak mengubah jawaban setelah selesai
 				}
 				_, _ = tx.Exec(r.Context(),
 					`INSERT INTO attempt_answers (tenant_id, attempt_id, question_id, answer_json, seq, updated_at)
@@ -600,8 +613,11 @@ func (s *Service) syncAnswers(w http.ResponseWriter, r *http.Request) {
 					 ON CONFLICT (attempt_id, question_id) DO UPDATE SET
 					   answer_json = CASE WHEN excluded.seq > attempt_answers.seq THEN excluded.answer_json ELSE attempt_answers.answer_json END,
 					   seq = GREATEST(attempt_answers.seq, excluded.seq), updated_at = now()`,
-					tid, attemptID, ev.QuestionID, payloadOrEmpty(ev.Payload), ev.Seq)
+					tid, attemptID, ev.QuestionID, payloadOrEmpty(ev.Payload), seq)
 			case "flag":
+				if !projectable {
+					continue // H2
+				}
 				var p struct {
 					Flagged bool `json:"flagged"`
 				}
@@ -612,13 +628,38 @@ func (s *Service) syncAnswers(w http.ResponseWriter, r *http.Request) {
 					 ON CONFLICT (attempt_id, question_id) DO UPDATE SET
 					   flagged = CASE WHEN excluded.seq > attempt_answers.seq THEN excluded.flagged ELSE attempt_answers.flagged END,
 					   seq = GREATEST(attempt_answers.seq, excluded.seq), updated_at = now()`,
-					tid, attemptID, ev.QuestionID, p.Flagged, ev.Seq)
+					tid, attemptID, ev.QuestionID, p.Flagged, seq)
+			case "violation":
+				// H4: pelanggaran yang disinkron dari outbox offline tetap masuk
+				// attempt_violations (dasar perhitungan penalti di gradeAttempt).
+				var v struct {
+					Type       string `json:"type"`
+					DurationMS int    `json:"duration_ms"`
+					StartedAt  string `json:"started_at"`
+				}
+				_ = json.Unmarshal(ev.Payload, &v)
+				if v.Type == "" {
+					v.Type = "tab_hidden"
+				}
+				startedAt := now
+				if ts, err := parseTime(v.StartedAt); err == nil {
+					startedAt = ts
+				} else if ev.ClientTS != nil {
+					startedAt = *ev.ClientTS
+				}
+				counted := antiEnabled && v.DurationMS > leaveTol*1000
+				_, _ = tx.Exec(r.Context(),
+					`INSERT INTO attempt_violations (tenant_id, attempt_id, client_event_id, type, started_at, duration_ms, counted)
+					 VALUES ($1,$2,$3,$4,$5,$6,$7)
+					 ON CONFLICT (attempt_id, client_event_id) DO NOTHING`,
+					tid, attemptID, ev.ClientEventID, v.Type, startedAt, v.DurationMS, counted)
 			case "submit":
 				submitNow = true
 				reason = "manual"
 			}
-			if ev.Seq > 0 {
-				_, _ = tx.Exec(r.Context(), `UPDATE attempts SET last_seq = GREATEST(last_seq, $1) WHERE id=$2`, ev.Seq, attemptID)
+			if seq > 0 {
+				_, _ = tx.Exec(r.Context(), `UPDATE attempts SET last_seq = GREATEST(last_seq, $1) WHERE id=$2`, seq, attemptID)
+				lastSeq = seq
 			}
 		}
 		_, _ = tx.Exec(r.Context(), `UPDATE attempts SET last_seen_at=now(), answered_count=(SELECT count(*) FROM attempt_answers WHERE attempt_id=$1 AND answer_json IS NOT NULL) WHERE id=$1`, attemptID)
@@ -832,17 +873,39 @@ func (s *Service) AutoSubmitExpired(ctx context.Context) (int, error) {
 	if err != nil {
 		return n, err
 	}
-	// nilai di luar tx per attempt
-	for i := 0; i < n; i++ {
-		// ambil ulang daftar untuk dinilai
+	if g, err := s.GradePendingAttempts(ctx); err != nil {
+		return n, err
+	} else {
+		n += g
 	}
-	// nilai semua yang baru ter-submit
-	rows, _ := s.DB.System.Query(ctx, `SELECT id, tenant_id FROM attempts WHERE status='submitted' AND submit_reason='timeout' AND raw_score IS NULL`)
+	return n, nil
+}
+
+// GradePendingAttempts menilai semua attempt yang sudah selesai pengerjaan tetapi
+// belum punya skor (H5): force-submit guru, submit timeout, atau sync offline
+// yang gagal di tengah jalan — dijalankan worker secara periodik.
+func (s *Service) GradePendingAttempts(ctx context.Context) (int, error) {
+	rows, err := s.DB.System.Query(ctx,
+		`SELECT id, tenant_id FROM attempts
+		 WHERE status IN ('submitted','pending_sync') AND raw_score IS NULL`)
+	if err != nil {
+		return 0, err
+	}
 	defer rows.Close()
+	var ids []struct{ id, tid string }
 	for rows.Next() {
 		var id, tid string
-		_ = rows.Scan(&id, &tid)
-		_ = s.gradeAttempt(ctx, tid, id, "timeout")
+		if err := rows.Scan(&id, &tid); err != nil {
+			return 0, err
+		}
+		ids = append(ids, struct{ id, tid string }{id, tid})
+	}
+	rows.Close()
+	n := 0
+	for _, it := range ids {
+		if err := s.gradeAttempt(ctx, it.tid, it.id, ""); err == nil {
+			n++
+		}
 	}
 	return n, nil
 }

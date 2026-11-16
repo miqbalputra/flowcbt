@@ -44,6 +44,9 @@ type RegisterInput struct {
 
 // Register membuat tenant baru + owner + paket trial (FR-1.1, FR-3.2: trial otomatis, sekali per tenant).
 func (s *Service) Register(ctx context.Context, in RegisterInput, ip, ua string) (map[string]any, error) {
+	if err := validatePassword(in.Password); err != nil {
+		return nil, err
+	}
 	email := strings.ToLower(strings.TrimSpace(in.Email))
 	// anti-penyalahgunaan paket gratis: deteksi duplikasi email/nama/HP (PRD 3.2)
 	var dup int
@@ -271,6 +274,9 @@ func (s *Service) ForgotPassword(ctx context.Context, email string) error {
 }
 
 func (s *Service) ResetPassword(ctx context.Context, raw, newPassword string) error {
+	if err := validatePassword(newPassword); err != nil {
+		return err
+	}
 	pwHash, err := HashPassword(newPassword)
 	if err != nil {
 		return err
@@ -518,6 +524,9 @@ func (s *Service) InviteTeacher(ctx context.Context, tenantID, actorID, email, r
 }
 
 func (s *Service) AcceptInvite(ctx context.Context, raw, name, password string) (map[string]any, error) {
+	if err := validatePassword(password); err != nil {
+		return nil, err
+	}
 	pwHash, err := HashPassword(password)
 	if err != nil {
 		return nil, err

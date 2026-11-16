@@ -47,6 +47,12 @@ func main() {
 		} else if n > 0 {
 			log.Info("auto-submit", "count", n)
 		}
+		g, err := att.GradePendingAttempts(ctx)
+		if err != nil {
+			log.Error("grade-pending", "err", err)
+		} else if g > 0 {
+			log.Info("grade-pending", "count", g)
+		}
 		if err := ret.Evaluate(ctx); err != nil {
 			log.Error("retention evaluate", "err", err)
 		}
@@ -66,6 +72,9 @@ func main() {
 		case <-tickFast.C:
 			if n, err := att.AutoSubmitExpired(ctx); err == nil && n > 0 {
 				log.Info("auto-submit", "count", n)
+			}
+			if g, err := att.GradePendingAttempts(ctx); err == nil && g > 0 {
+				log.Info("grade-pending", "count", g)
 			}
 		case <-tick.C:
 			run()

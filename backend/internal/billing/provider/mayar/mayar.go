@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -18,9 +19,9 @@ import (
 )
 
 type Provider struct {
-	APIKey string
+	APIKey  string
 	BaseURL string // default https://api.mayar.id
-	HTTP   *http.Client
+	HTTP    *http.Client
 }
 
 func (p *Provider) Name() string { return "mayar" }
@@ -67,7 +68,7 @@ func (p *Provider) CreateCheckout(ctx context.Context, req billing.CheckoutReque
 func (p *Provider) VerifySignature(ctx context.Context, provider string, body []byte, signature string) bool {
 	mac := hmac.New(sha256.New, []byte(p.APIKey))
 	mac.Write(body)
-	return hex.EncodeToString(mac.Sum(nil)) == signature
+	return subtle.ConstantTimeCompare([]byte(hex.EncodeToString(mac.Sum(nil))), []byte(signature)) == 1
 }
 
 func (p *Provider) HandleWebhook(ctx context.Context, tx pgx.Tx, payload []byte) error {

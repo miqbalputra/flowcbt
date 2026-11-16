@@ -1,11 +1,12 @@
 import React from 'react';
 import { useParams } from 'react-router-dom';
-import { useApiQuery, API_BASE, QueryError } from '@flowcbt/api-client';
-import { Card, Badge, Button, SkeletonCards, SkeletonTableRows } from '@flowcbt/ui';
+import { useApiQuery, apiDownload, QueryError } from '@flowcbt/api-client';
+import { Card, Badge, Button, SkeletonCards, SkeletonTableRows, useToast } from '@flowcbt/ui';
 
 // Detail laporan ujian (FR-9.8/9.9): statistik + histogram + analisis butir + export.
 export default function ExamReportPage() {
   const { id } = useParams();
+  const toast = useToast();
   const { data: rep, error: errRep, refetch: refetchRep, isLoading: lRep } = useApiQuery<any>(['rep-' + id], `/reports/exams/${id}`);
   const { data: items, isLoading: lItems } = useApiQuery<any[]>(['items-' + id], `/reports/exams/${id}/item-analysis`);
   const { data: attempts, isLoading: lAtt } = useApiQuery<any>(['rep-att-' + id], `/reports/exams/${id}/attempts`);
@@ -22,8 +23,8 @@ export default function ExamReportPage() {
             <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>{rep?.subject} · KKM {rep?.passing_score ?? '-'}</div>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <a href={`${API_BASE}/reports/exams/${id}/export?format=xlsx`}><Button variant="ghost">Export xlsx</Button></a>
-            <a href={`${API_BASE}/reports/exams/${id}/export?format=csv`}><Button variant="ghost">Export csv</Button></a>
+            <Button variant="ghost" onClick={() => apiDownload(`/reports/exams/${id}/export?format=xlsx`, 'rekap-ujian.xlsx').catch((e) => toast(e.message, 'danger'))}>Export xlsx</Button>
+            <Button variant="ghost" onClick={() => apiDownload(`/reports/exams/${id}/export?format=csv`, 'rekap-ujian.csv').catch((e) => toast(e.message, 'danger'))}>Export csv</Button>
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
