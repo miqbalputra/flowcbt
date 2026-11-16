@@ -5,7 +5,7 @@ import React from 'react';
 import { useMutation, useQuery, useQueryClient, QueryClient, QueryCache, QueryClientProvider } from '@tanstack/react-query';
 import { Card, Badge, useToast, SkeletonList } from '@flowcbt/ui';
 
-const BASE = (import.meta as any).env?.VITE_API_BASE || 'http://127.0.0.1:8080/api/v1';
+const BASE = (import.meta as any).env?.VITE_API_BASE || '/api/v1';
 const REFRESH_KEY = 'flowcbt-refresh';
 
 let accessToken: string | null = null;

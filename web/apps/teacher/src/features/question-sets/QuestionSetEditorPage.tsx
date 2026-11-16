@@ -46,7 +46,7 @@ export default function QuestionSetEditorPage() {
         <div style={{ display: 'flex', gap: 8 }}>
           <a href={`${(window as any).__API__ || ''}`}></a>
           <Button variant="ghost" onClick={() => setShowImport(true)}>Import xlsx</Button>
-          <a href={undefined as any} onClick={(e) => { e.preventDefault(); window.location.href = (import.meta as any).env?.VITE_API_BASE + '/question-sets/' + id + '/export'; }}><Button variant="ghost">Export xlsx</Button></a>
+          <a href={undefined as any} onClick={(e) => { e.preventDefault(); apiDownload(`/question-sets/${id}/export`, 'paket-soal.xlsx').catch((err) => toast(err.message, 'danger')); }}><Button variant="ghost">Export xlsx</Button></a>
           <Button onClick={publish} disabled={set?.status === 'published'}>Publish</Button>
           <Button onClick={() => setEdit({ type: 'mcq', body_html: '', options_json: [{ id: 'A', html: '' }, { id: 'B', html: '' }], answer_key_json: { correct: 'A' }, points: 1, scoring_mode: 'all_or_nothing', partial_wrong_penalty: true, shuffle_options: true, media_ids: [] })}>+ Soal</Button>
         </div>
