@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '@flowcbt/api-client';
-import { Button, Card, Badge, BottomSheet, ConnectionBadge, useToast, ThemeToggle } from '@flowcbt/ui';
+import { Button, Card, Badge, BottomSheet, ConnectionBadge, useToast, ThemeToggle, Icon } from '@flowcbt/ui';
 import { fmtDuration, QUESTION_TYPE_LABEL, type ExamPacket, type Question, type SyncEvent } from '@flowcbt/shared';
 import { db, LocalAttempt } from '../offline/db';
 import { calibrate, deadlineCountdownMs, drainOutbox, newEventId, connState, type ServerClock } from '../offline/engine';
@@ -199,37 +199,56 @@ export default function AttemptPage() {
   const state = connState(online, pending);
 
   return (
-    <div style={{ maxWidth: 760, margin: '0 auto', padding: '0 12px 90px' }}>
+    <div className="app-wrap">
       {/* header sticky: nama ujian, timer, koneksi, tema (FR-6.3) */}
-      <div style={{ position: 'sticky', top: 0, background: 'var(--surface)', zIndex: 10, padding: '10px 0', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-        <strong style={{ flex: 1, minWidth: 120 }}>{packet.exam.name}</strong>
-        <Badge tone={left !== null && left < 60000 ? 'danger' : 'brand'}>⏱ {fmtDuration((left || 0) / 1000)}</Badge>
+      <div className="st-head" style={{ alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <strong style={{ flex: 1, minWidth: 100, fontSize: 15 }}>{packet.exam.name}</strong>
+        <span className={'timer-chip' + (left !== null && left < 60000 ? ' low' : '')}>
+          <Icon name="clock" size={15} />
+          {fmtDuration((left || 0) / 1000)}
+        </span>
         <ConnectionBadge online={online} pending={pending} />
         <ThemeToggle />
       </div>
+      <div style={{ height: 12 }} />
       {warned > 0 && (
-        <div style={{ background: 'var(--danger)', color: '#fff', borderRadius: 10, padding: '8px 12px', marginBottom: 8, fontSize: 14 }}>
-          ⚠️ Pelanggaran ke-{warned} terdeteksi (keluar aplikasi). Sisa toleransi: {Math.max(0, (packet.exam.anticheat.flag_threshold ?? 3) - warned)}.
+        <div className="banner banner-danger" role="alert" style={{ marginBottom: 12 }}>
+          <strong>Pelanggaran ke-{warned} tercatat</strong> — Anda meninggalkan halaman ujian.
+          Sisa kesempatan sebelum dilaporkan: {Math.max(0, (packet.exam.anticheat.flag_threshold ?? 3) - warned)}.
         </div>
       )}
 
       <Card>
-        <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 8 }}>
-          Soal {idx + 1} dari {questions.length} · {QUESTION_TYPE_LABEL[q.type]} · {q.points} poin
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+          <span className="card-sub">
+            Soal <strong style={{ color: 'var(--text)' }}>{idx + 1}</strong> dari {questions.length}
+          </span>
+          <span style={{ display: 'inline-flex', gap: 6 }}>
+            <Badge tone="muted">{QUESTION_TYPE_LABEL[q.type]}</Badge>
+            <Badge tone="brand">{q.points} poin</Badge>
+          </span>
         </div>
-        <div dangerouslySetInnerHTML={{ __html: q.body_html }} />
+        <div className="q-body" dangerouslySetInnerHTML={{ __html: q.body_html }} />
         <QuestionInput q={q} value={answers[q.id]?.payload} flagged={answers[q.id]?.flagged} onAnswer={(p) => setAnswer(q.id, p)} onFlag={() => toggleFlag(q.id)} />
       </Card>
 
-      <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
-        <Button variant="ghost" disabled={idx === 0} onClick={() => setIdx(idx - 1)}>← Sebelumnya</Button>
-        <Button variant="ghost" onClick={() => setShowNav(true)}>☰ Daftar Soal ({Object.keys(answers).filter((k) => answers[k].payload != null).length}/{questions.length})</Button>
-        <Button variant="ghost" disabled={idx === questions.length - 1} onClick={() => setIdx(idx + 1)}>Berikutnya →</Button>
-        <Button variant="danger" style={{ marginLeft: 'auto' }} onClick={() => nav(`/attempt/${id}/review`)}>Selesai</Button>
+      <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
+        <Button variant="ghost" disabled={idx === 0} onClick={() => setIdx(idx - 1)}>
+          <Icon name="chevron-left" /> Sebelumnya
+        </Button>
+        <Button variant="ghost" onClick={() => setShowNav(true)}>
+          <Icon name="list" /> Daftar ({Object.keys(answers).filter((k) => answers[k].payload != null).length}/{questions.length})
+        </Button>
+        <Button variant="ghost" disabled={idx === questions.length - 1} onClick={() => setIdx(idx + 1)}>
+          Berikutnya <Icon name="chevron-right" />
+        </Button>
+        <Button style={{ marginLeft: 'auto' }} onClick={() => nav(`/attempt/${id}/review`)}>
+          <Icon name="check" /> Selesai
+        </Button>
       </div>
 
       <BottomSheet open={showNav} onClose={() => setShowNav(false)} title="Daftar Soal">
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(48px, 1fr))', gap: 8 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(56px, 1fr))', gap: 9 }}>
           {questions.map((qq, i) => {
             const a = answers[qq.id];
             const answered = a?.payload != null;
@@ -237,16 +256,21 @@ export default function AttemptPage() {
               <button
                 key={qq.id}
                 onClick={() => { setIdx(i); setShowNav(false); }}
-                style={{
-                  minHeight: 48, minWidth: 48, borderRadius: 10, border: '2px solid ' + (i === idx ? 'var(--brand-600)' : answered ? 'var(--ok)' : 'var(--muted)'),
-                  background: a?.flagged ? 'var(--warn)' : 'var(--surface)', color: 'var(--text)', fontWeight: 700,
-                }}
-                aria-label={`Soal ${i + 1}${answered ? ', sudah dijawab' : ''}${a?.flagged ? ', ragu-ragu' : ''}`}
+                className={'q-nav' + (answered ? ' answered' : '') + (a?.flagged ? ' flagged' : '') + (i === idx ? ' current' : '')}
+                aria-label={`Soal ${i + 1}${answered ? ', sudah dijawab' : ''}${a?.flagged ? ', ditandai ragu-ragu' : ''}`}
+                aria-current={i === idx}
               >
-                {i + 1}{a?.flagged ? ' ⚑' : answered ? ' ✓' : ''}
+                {i + 1}
+                {a?.flagged && <span className="st-ic" aria-hidden="true"><Icon name="flag" size={10} /></span>}
+                {!a?.flagged && answered && <svg className="svg-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m4.5 12.5 5 5 10-11" /></svg>}
               </button>
             );
           })}
+        </div>
+        <div style={{ display: 'flex', gap: 14, marginTop: 12, fontSize: 12.5, color: 'var(--text-muted)', flexWrap: 'wrap' }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><span style={{ width: 12, height: 12, borderRadius: 4, background: 'var(--ok-bg)', border: '1.5px solid var(--ok)', display: 'inline-block' }} /> Terjawab</span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><span style={{ width: 12, height: 12, borderRadius: 4, background: 'var(--surface)', border: '1.5px solid var(--muted-2)', display: 'inline-block' }} /> Kosong</span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><span style={{ width: 12, height: 12, borderRadius: 4, background: 'var(--warn-bg)', border: '1.5px solid var(--warn)', display: 'inline-block' }} /> Ragu-ragu</span>
         </div>
       </BottomSheet>
     </div>
@@ -259,18 +283,16 @@ function QuestionInput({ q, value, flagged, onAnswer, onFlag }: { q: Question; v
     case 'mcq': {
       const opts = q.options_json as { id: string; html: string }[];
       return (
-        <div style={{ display: 'grid', gap: 8, marginTop: 12 }}>
+        <div style={{ display: 'grid', gap: 9, marginTop: 14 }}>
           {opts.map((o) => (
             <button
               key={o.id}
               onClick={() => onAnswer({ selected: o.id })}
-              style={{
-                minHeight: 48, textAlign: 'left', padding: '10px 14px', borderRadius: 10, cursor: 'pointer',
-                border: '2px solid ' + (value?.selected === o.id ? 'var(--brand-600)' : 'var(--muted)'),
-                background: value?.selected === o.id ? 'var(--brand-100)' : 'var(--surface)', color: 'var(--text)',
-              }}
+              className={'q-opt' + (value?.selected === o.id ? ' selected' : '')}
+              aria-pressed={value?.selected === o.id}
             >
-              <strong>{o.id}.</strong> <span dangerouslySetInnerHTML={{ __html: o.html }} />
+              <span className="opt-key" aria-hidden="true">{o.id}</span>
+              <span dangerouslySetInnerHTML={{ __html: o.html }} />
             </button>
           ))}
           <FlagButton flagged={flagged} onFlag={onFlag} />
@@ -282,14 +304,11 @@ function QuestionInput({ q, value, flagged, onAnswer, onFlag }: { q: Question; v
       const sel: string[] = value?.selected || [];
       const toggle = (id: string) => onAnswer({ selected: sel.includes(id) ? sel.filter((x) => x !== id) : [...sel, id] });
       return (
-        <div style={{ display: 'grid', gap: 8, marginTop: 12 }}>
+        <div style={{ display: 'grid', gap: 9, marginTop: 14 }}>
           {opts.map((o) => (
-            <button key={o.id} onClick={() => toggle(o.id)} style={{
-              minHeight: 48, textAlign: 'left', padding: '10px 14px', borderRadius: 10, cursor: 'pointer',
-              border: '2px solid ' + (sel.includes(o.id) ? 'var(--brand-600)' : 'var(--muted)'),
-              background: sel.includes(o.id) ? 'var(--brand-100)' : 'var(--surface)', color: 'var(--text)',
-            }}>
-              <strong>{sel.includes(o.id) ? '☑' : '☐'} {o.id}.</strong> <span dangerouslySetInnerHTML={{ __html: o.html }} />
+            <button key={o.id} onClick={() => toggle(o.id)} className={'q-opt' + (sel.includes(o.id) ? ' selected' : '')} aria-pressed={sel.includes(o.id)}>
+              <span className="opt-key" aria-hidden="true">{sel.includes(o.id) ? <Icon name="check" size={14} /> : '\u00A0'}</span>
+              <span dangerouslySetInnerHTML={{ __html: o.html }} />
             </button>
           ))}
           <FlagButton flagged={flagged} onFlag={onFlag} />
@@ -346,42 +365,36 @@ function MatchingInput({ q, value, flagged, onAnswer, onFlag }: { q: Question; v
   };
 
   return (
-    <div style={{ marginTop: 12 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-        <div style={{ display: 'grid', gap: 8 }}>
+    <div style={{ marginTop: 14 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9 }}>
+        <div style={{ display: 'grid', gap: 9 }}>
           {opts.left.map((l) => {
             const pr = pairedLeft.get(l.id);
             return (
-              <button key={l.id} onClick={() => tapLeft(l.id)} aria-pressed={picked === l.id} aria-label={pr ? 'item kiri, sudah berpasangan; ketuk untuk melepas' : 'item kiri'} style={{
-                minHeight: 48, padding: '10px', borderRadius: 10, cursor: 'pointer', textAlign: 'left',
-                border: '2px solid ' + (picked === l.id ? 'var(--warn)' : pr ? 'var(--brand-600)' : 'var(--muted)'),
-                background: pr ? 'var(--brand-100)' : 'var(--surface)', color: 'var(--text)',
-              }}>
-                <span dangerouslySetInnerHTML={{ __html: l.html }} />
-                {pr && <Badge tone="ok">→ {shortText(opts.right.find((r) => r.id === pr)?.html || '')}</Badge>}
+              <button key={l.id} onClick={() => tapLeft(l.id)} aria-pressed={picked === l.id} aria-label={pr ? 'item kiri, sudah berpasangan; ketuk untuk melepas' : 'item kiri'} className={'q-opt' + (picked === l.id ? ' flagged' : '') + (pr ? ' selected' : '')}>
+                <div>
+                  <span dangerouslySetInnerHTML={{ __html: l.html }} />
+                  {pr && <div style={{ marginTop: 6 }}><Badge tone="ok"><Icon name="chevron-right" /> {shortText(opts.right.find((r) => r.id === pr)?.html || '')}</Badge></div>}
+                </div>
               </button>
             );
           })}
         </div>
-        <div style={{ display: 'grid', gap: 8 }}>
+        <div style={{ display: 'grid', gap: 9 }}>
           {opts.right.map((r) => (
             <button
               key={r.id}
               onClick={() => tapRight(r.id)}
               aria-label="item kanan"
-              style={{
-                minHeight: 48, padding: '10px', borderRadius: 10, cursor: 'pointer', textAlign: 'left',
-                border: '2px solid ' + (pairedRight.has(r.id) ? 'var(--brand-600)' : 'var(--muted)'),
-                background: pairedRight.has(r.id) ? 'var(--brand-100)' : 'var(--surface)', color: 'var(--text)',
-              }}
+              className={'q-opt' + (pairedRight.has(r.id) ? ' selected' : '')}
             >
               <span dangerouslySetInnerHTML={{ __html: r.html }} />
             </button>
           ))}
         </div>
       </div>
-      <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 8 }}>
-        Pilih item kiri, lalu item kanan untuk memasangkan. Ketuk item yang sudah berpasangan untuk melepasnya.
+      <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 9 }}>
+        Pilih item di kiri, lalu pasangannya di kanan. Ketuk item yang sudah berpasangan untuk melepasnya.
       </div>
       <FlagButton flagged={flagged} onFlag={onFlag} />
     </div>
@@ -430,8 +443,9 @@ function DebouncedTextField({ value, onCommit, placeholder, multiline = false }:
 
 function FlagButton({ flagged, onFlag }: { flagged?: boolean; onFlag: () => void }) {
   return (
-    <button onClick={onFlag} style={{ marginTop: 10, minHeight: 44, borderRadius: 10, border: '1px solid var(--muted)', background: flagged ? 'var(--warn)' : 'var(--surface)', color: 'var(--text)', padding: '8px 14px' }}>
-      {flagged ? '⚑ Ragu-ragu (batal)' : '⚑ Tandai ragu-ragu'}
+    <button onClick={onFlag} className="q-opt" style={{ marginTop: 10, justifyContent: 'center', minHeight: 46, ...(flagged ? { borderColor: 'var(--warn)', background: 'var(--warn-bg)', color: 'var(--warn-text)' } : {}) }} aria-pressed={!!flagged}>
+      <Icon name="flag" size={15} />
+      {flagged ? 'Tandai ragu-ragu — ketuk untuk batal' : 'Tandai soal ini ragu-ragu'}
     </button>
   );
 }

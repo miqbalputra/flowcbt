@@ -1,7 +1,7 @@
 import React from 'react';
 import { useParams } from 'react-router-dom';
 import { useApiQuery, apiDownload, QueryError } from '@flowcbt/api-client';
-import { Card, Badge, Button, SkeletonCards, SkeletonTableRows, useToast } from '@flowcbt/ui';
+import { Card, Badge, Button, SkeletonCards, SkeletonTableRows, useToast, PageHeader, Icon } from '@flowcbt/ui';
 
 // Detail laporan ujian (FR-9.8/9.9): statistik + histogram + analisis butir + export.
 export default function ExamReportPage() {
@@ -17,17 +17,15 @@ export default function ExamReportPage() {
     <div style={{ display: 'grid', gap: 12 }}>
       {lRep ? <SkeletonCards count={1} /> : (
       <Card>
-        <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
-          <div>
-            <h1 style={{ fontSize: 22, margin: 0 }}>{rep?.name}</h1>
-            <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>{rep?.subject} · KKM {rep?.passing_score ?? '-'}</div>
-          </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <Button variant="ghost" onClick={() => apiDownload(`/reports/exams/${id}/export?format=xlsx`, 'rekap-ujian.xlsx').catch((e) => toast(e.message, 'danger'))}>Export xlsx</Button>
-            <Button variant="ghost" onClick={() => apiDownload(`/reports/exams/${id}/export?format=csv`, 'rekap-ujian.csv').catch((e) => toast(e.message, 'danger'))}>Export csv</Button>
-          </div>
-        </div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
+        <PageHeader
+          title={rep?.name}
+          subtitle={`${rep?.subject || ''} · KKM ${rep?.passing_score ?? '-'}`}
+          actions={<>
+            <Button variant="ghost" onClick={() => apiDownload(`/reports/exams/${id}/export?format=xlsx`, 'rekap-ujian.xlsx').catch((e) => toast(e.message, 'danger'))}><Icon name="download" /> Excel</Button>
+            <Button variant="ghost" onClick={() => apiDownload(`/reports/exams/${id}/export?format=csv`, 'rekap-ujian.csv').catch((e) => toast(e.message, 'danger'))}><Icon name="download" /> CSV</Button>
+          </>}
+        />
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <Badge tone="brand">Peserta: {rep?.count ?? 0}</Badge>
           <Badge tone="ok">Rata-rata: {rep?.avg != null ? Number(rep.avg).toFixed(2) : '-'}</Badge>
           <Badge>Median: {rep?.median != null ? Number(rep.median).toFixed(2) : '-'}</Badge>
@@ -63,7 +61,7 @@ export default function ExamReportPage() {
         </table>
       </Card>
 
-      <Card style={{ padding: 0, overflow: 'hidden' }}>
+      <div className="table-wrap">
         <table className="table">
           <thead><tr><th>Nama</th><th>Kelas</th><th>Percobaan</th><th>Nilai akhir</th><th>Penalti</th><th>Status</th><th>Durasi</th></tr></thead>
           {lAtt
@@ -80,7 +78,7 @@ export default function ExamReportPage() {
             </tbody>
             )}
         </table>
-      </Card>
+      </div>
     </div>
   );
 }

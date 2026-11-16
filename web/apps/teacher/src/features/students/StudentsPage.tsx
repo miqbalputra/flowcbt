@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, useApiQuery, apiDownload } from '@flowcbt/api-client';
-import { Button, Card, Modal, useToast, Badge, Input, SkeletonTableRows } from '@flowcbt/ui';
+import { Button, Card, Modal, useToast, Badge, Input, SkeletonTableRows, PageHeader, EmptyState, Icon } from '@flowcbt/ui';
 import { API_BASE } from '@flowcbt/api-client';
 
 // Manajemen siswa (FR-3.2/3.3/3.4): tabel→kartu di mobile, import 3 langkah (template→preview→commit, AC-10), export.
@@ -56,23 +56,24 @@ export default function StudentsPage() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
-        <h1 style={{ fontSize: 22 }}>Siswa</h1>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <Button variant="ghost" onClick={() => apiDownload('/students/import/template', 'template-siswa.xlsx').catch((e) => toast(e.message, 'danger'))}>Unduh template</Button>
-          <Button variant="ghost" onClick={() => setImportOpen(true)}>Import</Button>
-          <Button variant="ghost" onClick={() => apiDownload('/students/export', 'siswa.xlsx').catch((e) => toast(e.message, 'danger'))}>Export</Button>
-          <Button onClick={() => setAddOpen(true)}>+ Siswa</Button>
-        </div>
-      </div>
-      <div style={{ display: 'flex', gap: 8, margin: '10px 0', flexWrap: 'wrap' }}>
-        <Input placeholder="Cari nama/kode…" value={q} onChange={(e) => setQ(e.target.value)} style={{ maxWidth: 240 }} />
+      <PageHeader
+        title="Siswa"
+        subtitle={`${(students || []).length} siswa terdaftar — termasuk peserta tamu.`}
+        actions={<>
+          <Button variant="ghost" onClick={() => apiDownload('/students/import/template', 'template-siswa.xlsx').catch((e) => toast(e.message, 'danger'))}><Icon name="download" /> Template</Button>
+          <Button variant="ghost" onClick={() => setImportOpen(true)}><Icon name="upload" /> Import</Button>
+          <Button variant="ghost" onClick={() => apiDownload('/students/export', 'siswa.xlsx').catch((e) => toast(e.message, 'danger'))}><Icon name="download" /> Export</Button>
+          <Button onClick={() => setAddOpen(true)}><Icon name="plus" /> Siswa</Button>
+        </>}
+      />
+      <div style={{ display: 'flex', gap: 8, margin: '0 0 12px', flexWrap: 'wrap' }}>
+        <Input placeholder="Cari nama atau kode siswa…" value={q} onChange={(e) => setQ(e.target.value)} style={{ maxWidth: 260 }} />
         <select className="input" style={{ maxWidth: 180 }} value={classFilter} onChange={(e) => setClassFilter(e.target.value)}>
           <option value="">Semua kelas</option>
           {(classes || []).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
       </div>
-      <Card style={{ padding: 0, overflow: 'hidden' }}>
+      <div className="table-wrap">
         <table className="table">
           <thead><tr><th>Nama</th><th>Kode</th><th>Kelas</th><th>JK</th><th>Username</th><th></th></tr></thead>
           {lStudents
@@ -86,11 +87,11 @@ export default function StudentsPage() {
                 <td><Button variant="ghost" disabled={resetting} onClick={() => doResetPassword(s)}>{resetting ? '…' : 'Reset pw'}</Button></td>
               </tr>
             ))}
-            {!errStudents && list.length === 0 && <tr><td colSpan={6} style={{ color: 'var(--text-muted)' }}>Tidak ada data.</td></tr>}
+            {!errStudents && list.length === 0 && <tr><td colSpan={6}><EmptyState icon="students" title="Belum ada siswa">Tambahkan satu per satu, atau import dari file Excel.</EmptyState></td></tr>}
           </tbody>
             )}
         </table>
-      </Card>
+      </div>
 
       <Modal open={importOpen} onClose={() => { setImportOpen(false); setPreview(null); }} title="Import siswa (3 langkah)">
         <div style={{ display: 'grid', gap: 10 }}>
@@ -114,20 +115,20 @@ export default function StudentsPage() {
       </Modal>
 
       <Modal open={addOpen} onClose={() => setAddOpen(false)} title="Tambah siswa">
-        <div style={{ display: 'grid', gap: 10 }}>
-          <label>Nama<Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
-          <label>Jenis kelamin
+        <div style={{ display: 'grid', gap: 14 }}>
+          <label className="field"><span>Nama lengkap</span><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="cth. Ahmad Fauzi" /></label>
+          <label className="field"><span>Jenis kelamin</span>
             <select className="input" value={form.gender} onChange={(e) => setForm({ ...form, gender: e.target.value })}>
-              <option value="L">L</option><option value="P">P</option>
+              <option value="L">Laki-laki</option><option value="P">Perempuan</option>
             </select>
           </label>
-          <label>Kelas
+          <label className="field"><span>Kelas</span>
             <select className="input" value={form.class_id} onChange={(e) => setForm({ ...form, class_id: e.target.value })}>
-              <option value="">Pilih…</option>
+              <option value="">Pilih kelas…</option>
               {(classes || []).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </label>
-          <label>NIS (opsional)<Input value={form.nis} onChange={(e) => setForm({ ...form, nis: e.target.value })} /></label>
+          <label className="field"><span>NIS <em style={{ fontStyle: 'normal', color: 'var(--text-faint)' }}>(opsional)</em></span><Input value={form.nis} onChange={(e) => setForm({ ...form, nis: e.target.value })} /></label>
           <Button onClick={async () => {
             try {
               const r = await api<any>('POST', '/students', form);

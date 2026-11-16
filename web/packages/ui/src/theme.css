@@ -1,27 +1,107 @@
-/* Token warna FlowCBT — light default, dark via .dark (FR-11.1, kontras WCAG AA) */
+/* ============================================================
+   FlowCBT Design Tokens — elegan, tenang, profesional.
+   Light default; dark via .dark pada <html>. Kontras WCAG AA.
+   ============================================================ */
 :root {
-  --brand-50: #eef6ff; --brand-100: #d9eaff; --brand-200: #bcdbff; --brand-300: #8ec4ff;
-  --brand-400: #59a3ff; --brand-500: #3381fc; --brand-600: #1d63ed; --brand-700: #154cdb;
-  --brand-800: #1841b1; --brand-900: #193a8d;
-  --surface: #ffffff; --muted: #f1f5f9; --text: #0f172a;
-  --text-muted: #475569; /* teks sekunder — kontras AA di light (4.5:1+) */
-  --danger: #dc2626; --warn: #d97706; --ok: #16a34a;
+  /* Aksen: indigo matang (bukan ungu neon) */
+  --brand-50:  #eef2ff;
+  --brand-100: #e0e7ff;
+  --brand-200: #c7d2fe;
+  --brand-300: #a5b4fc;
+  --brand-400: #818cf8;
+  --brand-500: #6366f1;
+  --brand-600: #4f46e5;
+  --brand-700: #4338ca;
+  --brand-800: #3730a3;
+  --brand-900: #312e81;
+
+  /* Netral: zinc */
+  --surface:    #ffffff;
+  --surface-2:  #fafafa;   /* latar halaman */
+  --surface-3:  #f4f4f5;   /* latar elemen (hover, chip) */
+  --muted:      #e4e4e7;   /* border halus */
+  --muted-2:    #d4d4d8;   /* border lebih kuat */
+  --text:       #18181b;
+  --text-muted: #52525b;
+  --text-faint: #a1a1aa;
+
+  /* Semantik */
+  --danger:      #dc2626;
+  --danger-bg:   #fef2f2;
+  --danger-text: #991b1b;
+  --warn:        #d97706;
+  --warn-bg:     #fffbeb;
+  --warn-text:   #92400e;
+  --ok:          #059669;
+  --ok-bg:       #ecfdf5;
+  --ok-text:     #065f46;
+
+  /* Elevasi */
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.05);
+  --shadow-md: 0 1px 2px rgba(0,0,0,.04), 0 4px 12px rgba(0,0,0,.06);
+  --shadow-lg: 0 4px 12px rgba(0,0,0,.08), 0 12px 32px rgba(0,0,0,.10);
+
+  /* Bentuk & ritme */
+  --r-sm: 8px;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --ring: 0 0 0 3px rgba(79,70,229,.28);
 }
 .dark {
-  --brand-50: #0b1530; --brand-100: #12224a; --brand-200: #1a3168; --brand-300: #25448c;
-  --brand-400: #3358b0; --brand-500: #4a70c9; --brand-600: #6b8cd9; --brand-700: #93aee6;
-  --brand-800: #c3d2f3; --brand-900: #e8efff;
-  --surface: #0f172a; --muted: #1e293b; --text: #e2e8f0;
-  --text-muted: #94a3b8; /* teks sekunder — kontras AA di dark */
-  --danger: #f87171; --warn: #fbbf24; --ok: #4ade80;
+  --brand-50:  #1e1b4b;
+  --brand-100: #262263;
+  --brand-200: #34307d;
+  --brand-300: #4a46a8;
+  --brand-400: #6d68c4;
+  --brand-500: #8b87db;
+  --brand-600: #a5a2e8; /* teks aksen di dark — lebih terang agar kontras */
+  --brand-700: #c0bef0;
+  --brand-800: #d6d5f6;
+  --brand-900: #eeeefc;
+
+  --surface:    #18181b;
+  --surface-2:  #101012;
+  --surface-3:  #232327;
+  --muted:      #2c2c31;
+  --muted-2:    #3f3f46;
+  --text:       #fafafa;
+  --text-muted: #a1a1aa;
+  --text-faint: #71717a;
+
+  --danger:      #f87171;
+  --danger-bg:   #2b1214;
+  --danger-text: #fecaca;
+  --warn:        #fbbf24;
+  --warn-bg:     #281c07;
+  --warn-text:   #fde68a;
+  --ok:          #34d399;
+  --ok-bg:       #0c221a;
+  --ok-text:     #a7f3d0;
+
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.4);
+  --shadow-md: 0 1px 2px rgba(0,0,0,.4), 0 4px 12px rgba(0,0,0,.35);
+  --shadow-lg: 0 4px 12px rgba(0,0,0,.4), 0 12px 32px rgba(0,0,0,.5);
+  --ring: 0 0 0 3px rgba(139,135,219,.35);
 }
+
+/* ---- Dasar ---- */
 * { box-sizing: border-box; }
 html, body, #root { height: 100%; margin: 0; }
 body {
-  background: var(--surface); color: var(--text);
-  font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  font-size: 16px; line-height: 1.5;
+  background: var(--surface-2);
+  color: var(--text);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: 'cv02','cv03','cv04','cv11'; /* gaya huruf Inter yang lebih rapi jika tersedia */
 }
-button { font: inherit; }
-a { color: var(--brand-600); }
+h1, h2, h3, h4 { margin: 0; font-weight: 650; letter-spacing: -0.015em; }
+button, input, select, textarea { font: inherit; color: inherit; }
+a { color: var(--brand-600); text-decoration: none; }
+.dark a { color: var(--brand-500); }
+a:hover { text-decoration: underline; text-underline-offset: 3px; }
+::placeholder { color: var(--text-faint); }
+:focus-visible { outline: none; box-shadow: var(--ring); border-radius: var(--r-sm); }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }

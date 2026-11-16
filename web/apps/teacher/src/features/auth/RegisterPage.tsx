@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '@flowcbt/api-client';
-import { Button, Input, Card, useToast, ThemeToggle } from '@flowcbt/ui';
+import { Button, Input, Card, useToast, ThemeToggle, Icon, Logo } from '@flowcbt/ui';
 
 const LEVELS = [['paud_tk', 'PAUD/TK'], ['sd_mi', 'SD/MI'], ['smp_mts', 'SMP/MTs'], ['sma_smk_ma', 'SMA/SMK/MA'], ['perguruan_tinggi', 'Perguruan Tinggi'], ['kursus_bimbel', 'Kursus/Bimbel'], ['lainnya', 'Lainnya']];
 
@@ -16,34 +16,62 @@ export default function RegisterPage() {
     setBusy(true);
     try {
       await api('POST', '/auth/register', form, { token: false });
-      toast('Terdaftar! Paket trial 14 hari aktif. Silakan login (di mode dev email otomatis terverifikasi).', 'ok');
+      toast('Pendaftaran berhasil! Paket trial 14 hari aktif. Silakan masuk.', 'ok');
       nav('/login');
     } catch (err: any) {
-      toast(err.message || 'Registrasi gagal', 'danger');
+      toast(err.message || 'Pendaftaran gagal. Coba email berbeda.', 'danger');
     } finally { setBusy(false); }
   };
   return (
-    <div style={{ maxWidth: 460, margin: '6vh auto', padding: 16 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h1 style={{ margin: 0 }}>Daftar FlowCBT</h1><ThemeToggle />
+    <div className="auth-wrap">
+      <div className="auth-topbar"><span /><ThemeToggle /></div>
+      <div className="auth-hero">
+        <Logo />
+        <h1>Daftarkan sekolah Anda</h1>
+        <p>Gratis 14 hari — 1–10 siswa, 1 ujian. Tanpa kartu kredit.</p>
       </div>
-      <p style={{ color: 'var(--text-muted)' }}>Buat akun sekolah/lembaga — langsung dapat paket Gratis/Trial (1–10 siswa, 1 ujian, 14 hari).</p>
       <Card>
-        <form onSubmit={submit} style={{ display: 'grid', gap: 10 }}>
-          <label>Nama lengkap<Input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
-          <label>Email<Input required type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></label>
-          <label>Nomor HP (opsional)<Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></label>
-          <label>Password (min 8)<Input required type="password" minLength={8} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} /></label>
-          <label>Nama sekolah/lembaga<Input required value={form.tenant_name} onChange={(e) => setForm({ ...form, tenant_name: e.target.value })} /></label>
-          <label>Jenjang
+        <form onSubmit={submit} style={{ display: 'grid', gap: 14 }}>
+          <label className="field">
+            <span>Nama lengkap</span>
+            <Input required value={form.name} placeholder="cth. Budi Santoso"
+              onChange={(e) => setForm({ ...form, name: e.target.value })} />
+          </label>
+          <label className="field">
+            <span>Email</span>
+            <Input required type="email" autoComplete="email" placeholder="nama@sekolah.sch.id"
+              value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+          </label>
+          <label className="field">
+            <span>Nomor HP <em style={{ fontStyle: 'normal', color: 'var(--text-faint)' }}>(opsional)</em></span>
+            <Input value={form.phone} placeholder="08xx xxxx xxxx"
+              onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+          </label>
+          <label className="field">
+            <span>Password <em style={{ fontStyle: 'normal', color: 'var(--text-faint)' }}>(minimal 8 huruf)</em></span>
+            <Input required type="password" minLength={8} autoComplete="new-password" placeholder="Buat password yang kuat"
+              value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
+          </label>
+          <label className="field">
+            <span>Nama sekolah / lembaga</span>
+            <Input required value={form.tenant_name} placeholder="cth. SMP Nusantara"
+              onChange={(e) => setForm({ ...form, tenant_name: e.target.value })} />
+          </label>
+          <label className="field">
+            <span>Jenjang</span>
             <select className="input" value={form.level} onChange={(e) => setForm({ ...form, level: e.target.value })}>
               {LEVELS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
             </select>
           </label>
-          <Button type="submit" disabled={busy}>{busy ? 'Mendaftar…' : 'Daftar (Gratis/Trial)'}</Button>
+          <Button type="submit" disabled={busy}>
+            <Icon name="plus" />
+            {busy ? 'Mendaftarkan…' : 'Mulai gratis'}
+          </Button>
         </form>
       </Card>
-      <p style={{ textAlign: 'center' }}><Link to="/login">Sudah punya akun? Masuk</Link></p>
+      <p style={{ textAlign: 'center', marginTop: 18 }}>
+        <Link to="/login">Sudah punya akun? Masuk</Link>
+      </p>
     </div>
   );
 }

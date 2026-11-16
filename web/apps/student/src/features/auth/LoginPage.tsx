@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { api, setAccessToken, setRefreshToken } from '@flowcbt/api-client';
-import { Button, Input, Card, useToast, ThemeToggle } from '@flowcbt/ui';
+import { Button, Input, Card, useToast, ThemeToggle, Icon, Logo } from '@flowcbt/ui';
 
 export default function LoginPage() {
   const nav = useNavigate();
@@ -18,35 +18,42 @@ export default function LoginPage() {
       setRefreshToken(r.tokens.refresh_token);
       nav('/exams');
     } catch (err: any) {
-      toast(err.message || 'Login gagal', 'danger');
+      toast(err.message || 'Login gagal. Periksa kode sekolah, username, dan password Anda.', 'danger');
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <div style={{ maxWidth: 420, margin: '8vh auto', padding: 16 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h1 style={{ margin: 0 }}>FlowCBT</h1>
-        <ThemeToggle />
+    <div className="auth-wrap">
+      <div className="auth-topbar"><span /><ThemeToggle /></div>
+      <div className="auth-hero">
+        <Logo />
+        <h1>Masuk untuk mengerjakan ujian</h1>
+        <p>Gunakan akun yang diberikan sekolah Anda.</p>
       </div>
-      <p style={{ color: 'var(--text-muted)' }}>Login siswa dengan akun</p>
       <Card>
-        <form onSubmit={submit} style={{ display: 'grid', gap: 12 }}>
-          <label>Kode sekolah
-            <Input required value={form.tenant_code} onChange={(e) => setForm({ ...form, tenant_code: e.target.value.toUpperCase() })} placeholder="mis. SBUL4W" />
+        <form onSubmit={submit} style={{ display: 'grid', gap: 14 }}>
+          <label className="field">
+            <span>Kode sekolah</span>
+            <Input required value={form.tenant_code} onChange={(e) => setForm({ ...form, tenant_code: e.target.value.toUpperCase() })} placeholder="cth. 7HERWX" />
           </label>
-          <label>Username
-            <Input required value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} />
+          <label className="field">
+            <span>Username</span>
+            <Input required autoComplete="username" value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} />
           </label>
-          <label>Password
-            <Input required type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
+          <label className="field">
+            <span>Password</span>
+            <Input required type="password" autoComplete="current-password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
           </label>
-          <Button type="submit" disabled={busy}>{busy ? 'Memproses…' : 'Masuk'}</Button>
+          <Button type="submit" disabled={busy}>
+            {busy ? <Icon name="clock" /> : <Icon name="play" />}
+            {busy ? 'Memproses…' : 'Masuk'}
+          </Button>
         </form>
       </Card>
-      <p style={{ textAlign: 'center', marginTop: 16 }}>
-        Tidak punya akun? <Link to="/guest">Masuk sebagai peserta (kode ujian + token)</Link>
+      <p style={{ textAlign: 'center', color: 'var(--text-muted)', marginTop: 18 }}>
+        Tidak punya akun? <Link to="/guest">Masuk dengan kode ujian</Link>
       </p>
     </div>
   );

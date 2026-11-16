@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { api, useApiQuery, useApiMutation } from '@flowcbt/api-client';
-import { Button, Input, Card, Modal, useToast, Badge, SkeletonTableRows } from '@flowcbt/ui';
+import { Button, Input, Modal, useToast, SkeletonTableRows, PageHeader, EmptyState, Icon } from '@flowcbt/ui';
 
 // CRUD kelas (FR-3.1).
 export default function ClassesPage() {
@@ -21,11 +21,12 @@ export default function ClassesPage() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h1 style={{ fontSize: 22 }}>Kelas</h1>
-        <Button onClick={() => setOpen(true)}>+ Kelas</Button>
-      </div>
-      <Card style={{ marginTop: 12, padding: 0, overflow: 'hidden' }}>
+      <PageHeader
+        title="Kelas"
+        subtitle="Kelompokkan siswa per kelas untuk penugasan ujian."
+        actions={<Button onClick={() => setOpen(true)}><Icon name="plus" /> Kelas</Button>}
+      />
+      <div className="table-wrap">
         <table className="table">
           <thead><tr><th>Nama</th><th>Tahun ajaran</th><th>Siswa aktif</th><th></th></tr></thead>
           {isLoading
@@ -38,15 +39,15 @@ export default function ClassesPage() {
                 <td><Button variant="ghost" onClick={async () => { await api('DELETE', `/classes/${c.id}`); refetch(); }}>Arsipkan</Button></td>
               </tr>
             ))}
-            {!error && (classes || []).length === 0 && <tr><td colSpan={4} style={{ color: 'var(--text-muted)' }}>Belum ada kelas.</td></tr>}
+            {!error && (classes || []).length === 0 && <tr><td colSpan={4}><EmptyState icon="classes" title="Belum ada kelas">Buat kelas pertama, lalu isi dengan siswa.</EmptyState></td></tr>}
           </tbody>
             )}
         </table>
-      </Card>
+      </div>
       <Modal open={open} onClose={() => setOpen(false)} title="Kelas baru">
-        <div style={{ display: 'grid', gap: 10 }}>
-          <label>Nama kelas<Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="X IPA 1" /></label>
-          <label>Tahun ajaran<Input value={form.academic_year} onChange={(e) => setForm({ ...form, academic_year: e.target.value })} /></label>
+        <div style={{ display: 'grid', gap: 14 }}>
+          <label className="field"><span>Nama kelas</span><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="cth. IX A" /></label>
+          <label className="field"><span>Tahun ajaran</span><Input value={form.academic_year} onChange={(e) => setForm({ ...form, academic_year: e.target.value })} placeholder="2026/2027" /></label>
           <Button onClick={submit}>Simpan</Button>
         </div>
       </Modal>

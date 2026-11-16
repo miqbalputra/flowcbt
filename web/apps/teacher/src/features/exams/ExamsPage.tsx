@@ -1,18 +1,19 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useApiQuery, QueryError, QueryGate } from '@flowcbt/api-client';
-import { Button, Card, Badge, SkeletonList } from '@flowcbt/ui';
+import { Button, Card, Badge, SkeletonList, PageHeader, EmptyState, Icon } from '@flowcbt/ui';
 import { fmtDateTime } from '@flowcbt/shared';
 
 export default function ExamsPage() {
   const { data: exams, refetch, error, isLoading } = useApiQuery<any[]>(['exams'], '/exams');
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h1 style={{ fontSize: 22 }}>Ujian</h1>
-        <Link to="/exams/new"><Button>+ Ujian baru</Button></Link>
-      </div>
-      <div style={{ display: 'grid', gap: 10, marginTop: 12 }}>
+      <PageHeader
+        title="Ujian"
+        subtitle="Jadwalkan paket soal menjadi sesi ujian."
+        actions={<Link to="/exams/new"><Button><Icon name="plus" /> Ujian Baru</Button></Link>}
+      />
+      <div style={{ display: 'grid', gap: 10 }}>
         {error && <QueryError error={error} onRetry={refetch} />}
         <QueryGate query={{ isLoading, error: null }} skeleton={<SkeletonList rows={4} />}>
           {(exams || []).map((e) => (
@@ -31,7 +32,7 @@ export default function ExamsPage() {
           </Card>
         ))}
         </QueryGate>
-        {!error && !isLoading && (exams || []).length === 0 && <Card>Belum ada ujian. <Link to="/exams/new">Buat sekarang</Link>.</Card>}
+        {!error && !isLoading && (exams || []).length === 0 && <Card><EmptyState icon="exams" title="Belum ada ujian">Pilih paket soal yang sudah dipublish, lalu atur jadwalnya.</EmptyState></Card>}
       </div>
     </div>
   );

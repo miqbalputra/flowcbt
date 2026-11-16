@@ -75,30 +75,30 @@ export default function ReviewPage() {
   };
 
   return (
-    <div style={{ maxWidth: 560, margin: '6vh auto', padding: 16 }}>
+    <div className="app-wrap" style={{ paddingTop: 24, maxWidth: 560 }}>
       <h1 style={{ fontSize: 22 }}>Konfirmasi Selesai</h1>
-      <Card>
+      <Card style={{ marginTop: 12 }}>
         {summary && (
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
             <Badge tone="ok">Terjawab: {summary.answered}/{summary.total}</Badge>
-            <Badge tone="muted">Belum: {summary.total - summary.answered}</Badge>
-            {summary.flagged > 0 && <Badge tone="warn">Ragu-ragu: {summary.flagged}</Badge>}
+            <Badge tone="muted">Belum dijawab: {summary.total - summary.answered}</Badge>
+            {summary.flagged > 0 && <Badge tone="warn">Ditandai ragu-ragu</Badge>}
           </div>
         )}
         {summary && summary.answered < summary.total && (
-          <p style={{ color: 'var(--warn)' }}>Masih ada {summary.total - summary.answered} soal belum dijawab.</p>
+          <div className="banner banner-warn" style={{ marginBottom: 10 }}>Masih ada {summary.total - summary.answered} soal yang belum Anda jawab.</div>
         )}
         {summary && summary.pending > 0 && (
-          <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>{summary.pending} perubahan belum terkirim dan akan dibawa saat pengiriman sekarang.</p>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>{summary.pending} perubahan terakhir akan ikut terkirim sekarang.</p>
         )}
-        <p style={{ fontSize: 14, color: 'var(--text-muted)' }}>
+        <div className={navigator.onLine ? 'banner banner-ok' : 'banner banner-warn'} style={{ fontSize: 14 }}>
           {navigator.onLine
-            ? 'Saat ini online — jawaban akan langsung terkirim ke server.'
-            : 'Saat ini offline — jawaban tersimpan di perangkat dan otomatis terkirim saat koneksi pulih (jangan hapus data browser).'}
-        </p>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <Button variant="ghost" onClick={() => nav(`/attempt/${id}`)}>Kembali</Button>
-          <Button onClick={confirm} disabled={busy}>{busy ? 'Mengirim…' : 'Ya, selesai & kirim'}</Button>
+            ? 'Sedang online — jawaban akan langsung terkirim ke server.'
+            : 'Sedang offline — jawaban tersimpan di perangkat dan otomatis terkirim saat koneksi pulih. Jangan hapus data browser.'}
+        </div>
+        <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+          <Button variant="ghost" onClick={() => nav(`/attempt/${id}`)}>Kembali ke Soal</Button>
+          <Button style={{ marginLeft: 'auto' }} onClick={confirm} disabled={busy}>{busy ? 'Mengirim…' : 'Ya, Selesai & Kirim'}</Button>
         </div>
       </Card>
     </div>

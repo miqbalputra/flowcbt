@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { api, useApiQuery, apiDownload } from '@flowcbt/api-client';
-import { Button, Card, Input, Textarea, Modal, useToast, Badge } from '@flowcbt/ui';
+import { Button, Card, Input, Textarea, Modal, useToast, Badge, Icon } from '@flowcbt/ui';
 import { QUESTION_TYPE_LABEL, type Question, type QuestionType } from '@flowcbt/shared';
 
 // Editor soal (FR-4.4): 5 tipe AKM, autosave draft, tambah/ubah/hapus soal, publish (FR-4.7).
@@ -224,7 +224,7 @@ function MatchingEditor({ form, set }: { form: any; set: (k: string, v: any) => 
         <em>Pasangan benar:</em>
         {opts.left.map((l: any) => (
           <div key={l.id} style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 4 }}>
-            <span>{l.html || l.id}</span> →
+            <span>{l.html || l.id}</span> <Icon name="chevron-right" />
             <select className="input" style={{ maxWidth: 160 }} value={pairs[l.id] || ''} onChange={(e) => setPair(l.id, e.target.value)}>
               <option value="">pilih</option>
               {opts.right.map((r: any) => <option key={r.id} value={r.id}>{r.html || r.id}</option>)}

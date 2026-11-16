@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { api, useApiQuery } from '@flowcbt/api-client';
-import { Button, Card, Badge, SkeletonList } from '@flowcbt/ui';
+import { Button, Card, Badge, SkeletonList, PageHeader, EmptyState, Icon } from '@flowcbt/ui';
 import { fmtDateTime } from '@flowcbt/shared';
 
 // Riwayat ujian & nilai siswa (FR-6.6).
@@ -9,21 +9,30 @@ export default function HistoryPage() {
   const { data: exams, isLoading } = useApiQuery<any[]>(['my-exams'], '/me/exams');
   const done = (exams || []).filter((e) => e.state === 'closed' || e.last_score != null);
   return (
-    <div style={{ maxWidth: 720, margin: '0 auto', padding: 16 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h1 style={{ fontSize: 22 }}>Riwayat & Nilai</h1>
-        <Link to="/exams"><Button variant="ghost">← Ujian</Button></Link>
-      </div>
+    <div className="app-wrap">
+      <PageHeader
+        title="Riwayat & Nilai"
+        subtitle="Seluruh ujian yang pernah Anda ikuti."
+        actions={<Link to="/exams"><Button variant="ghost"><Icon name="chevron-left" /> Ujian</Button></Link>}
+      />
       <div style={{ display: 'grid', gap: 10 }}>
         {isLoading && <SkeletonList rows={3} height={28} gap={14} />}
         {!isLoading && done.map((e) => (
-          <Card key={e.exam_id}>
-            <strong>{e.name}</strong> <Badge>{e.subject}</Badge>
-            <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{fmtDateTime(e.close_at)} · percobaan terpakai: {e.attempts_used}{e.max_attempts ? `/${e.max_attempts}` : ''}</div>
-            {e.last_score != null && <div style={{ marginTop: 4 }}>Nilai: <strong>{e.last_score}</strong></div>}
+          <Card key={e.exam_id} style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+            <span className="st-exam-badge" aria-hidden="true"><Icon name="trophy" /></span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <strong>{e.name}</strong> <Badge tone="muted">{e.subject}</Badge>
+              <div className="card-sub">{fmtDateTime(e.close_at)} · percobaan: {e.attempts_used}{e.max_attempts ? `/${e.max_attempts}` : ''}</div>
+            </div>
+            {e.last_score != null && (
+              <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                <div className="stat-label">Nilai</div>
+                <div style={{ fontSize: 22, fontWeight: 650, fontVariantNumeric: 'tabular-nums' }}>{e.last_score}</div>
+              </div>
+            )}
           </Card>
         ))}
-        {!isLoading && done.length === 0 && <Card>Belum ada riwayat.</Card>}
+        {!isLoading && done.length === 0 && <Card><EmptyState icon="trophy" title="Belum ada riwayat">Selesaikan ujian pertama Anda, nilainya muncul di sini.</EmptyState></Card>}
       </div>
     </div>
   );

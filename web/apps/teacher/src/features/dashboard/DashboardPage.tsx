@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useApiQuery } from '@flowcbt/api-client';
-import { Card, Badge, Button, SkeletonCards } from '@flowcbt/ui';
+import { Card, Badge, Button, SkeletonCards, Icon, PageHeader, StatCard, EmptyState } from '@flowcbt/ui';
 import { fmtDateTime } from '@flowcbt/shared';
 
 // Dashboard guru/admin (FR-2.1/2.2).
@@ -12,59 +12,88 @@ export default function DashboardPage() {
   const { data: sub, isLoading: lSub } = useApiQuery<any>(['sub'], '/billing/subscription');
   const { data: live, isLoading: lLive } = useApiQuery<any[]>(['live'], '/reports/live');
   const running = (live || []);
-  const lastExam = (exams || []).filter((e) => e.status !== 'draft')[0];
   const loadingAny = lExams || lStudents || lSets;
 
+  const shortcuts = [
+    { to: '/question-sets', icon: 'bank', label: 'Buat Soal' },
+    { to: '/exams/new', icon: 'exams', label: 'Buat Ujian' },
+    { to: '/students', icon: 'upload', label: 'Import Siswa' },
+    { to: '/reports/history', icon: 'report', label: 'Lihat Laporan' },
+  ] as const;
+
   return (
-    <div style={{ display: 'grid', gap: 12 }}>
+    <div style={{ display: 'grid', gap: 16 }}>
+      <PageHeader
+        title="Dashboard"
+        subtitle={sub?.read_only ? 'Akun dalam mode baca-saja.' : 'Ringkasan aktivitas sekolah Anda hari ini.'}
+        actions={running.length > 0 && <Link to="/reports/live"><Button><Icon name="report" /> Pantau Ujian Live</Button></Link>}
+      />
+
       {loadingAny ? (
         <SkeletonCards count={4} />
       ) : (
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
-        <Card><div style={{ color: 'var(--text-muted)', fontSize: 13 }}>Ujian berjalan</div><strong style={{ fontSize: 26 }}>{running.length}</strong></Card>
-        <Card><div style={{ color: 'var(--text-muted)', fontSize: 13 }}>Total ujian</div><strong style={{ fontSize: 26 }}>{(exams || []).length}</strong></Card>
-        <Card><div style={{ color: 'var(--text-muted)', fontSize: 13 }}>Siswa aktif</div><strong style={{ fontSize: 26 }}>{(students || []).length}<span style={{ fontSize: 13, color: 'var(--text-muted)' }}>/{sub?.student_limit ?? 10}</span></strong></Card>
-        <Card><div style={{ color: 'var(--text-muted)', fontSize: 13 }}>Paket soal</div><strong style={{ fontSize: 26 }}>{(sets || []).length}</strong></Card>
-      </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 12 }}>
+          <StatCard label="Ujian sedang berjalan" value={running.length}
+            hint={running.length > 0 ? 'klik Pantau Live di atas' : undefined} />
+          <StatCard label="Total ujian" value={(exams || []).length} />
+          <StatCard label="Siswa aktif" value={(students || []).length}
+            hint={`batas paket: ${sub?.student_limit ?? '—'} siswa`} />
+          <StatCard label="Paket soal" value={(sets || []).length} />
+        </div>
       )}
 
       <Card>
-        <strong>Status langganan</strong>{' '}
+        <div className="card-title" style={{ marginBottom: 12 }}>Status langganan</div>
         {lSub ? (
-          <span style={{ color: 'var(--text-muted)', fontSize: 14 }} aria-busy="true">memuat status…</span>
-        ) : (<>
-        {sub?.monthly_active && <Badge tone="ok">Bulanan aktif s/d {fmtDateTime(sub.monthly_ends_at)}</Badge>}
-        {sub?.trial_active && <Badge tone="brand">Trial — sisa {sub.trial_exams_left} ujian</Badge>}
-        {sub?.credits_left > 0 && <Badge tone="ok">Kredit ujian: {sub.credits_left}</Badge>}
-        {!sub?.has_active_quota && <Badge tone="danger">Kuota habis — <Link to="/billing">upgrade</Link></Badge>}
-        {sub?.read_only && <Badge tone="danger">Mode baca-saja (retensi)</Badge>}
-        </>)}
+          <span className="card-sub" aria-busy="true">Memuat status…</span>
+        ) : (
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {sub?.monthly_active && <Badge tone="ok"><Icon name="check" size={12} />Bulanan aktif s/d {fmtDateTime(sub.monthly_ends_at)}</Badge>}
+            {sub?.trial_active && <Badge tone="brand"><Icon name="clock" size={12} />Trial — sisa {sub.trial_exams_left} ujian</Badge>}
+            {sub?.credits_left > 0 && <Badge tone="ok"><Icon name="check" size={12} />Kredit ujian: {sub.credits_left}</Badge>}
+            {!sub?.has_active_quota && <Badge tone="danger"><Icon name="alert" size={12} />Kuota habis — <Link to="/billing" style={{ color: 'inherit', textDecoration: 'underline' }}>upgrade</Link></Badge>}
+            {sub?.read_only && <Badge tone="danger"><Icon name="alert" size={12} />Mode baca-saja (masa retensi)</Badge>}
+          </div>
+        )}
       </Card>
 
-      <Card>
-        <strong>Pintasan cepat (FR-2.2)</strong>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
-          <Link to="/question-sets"><Button>Buat Soal</Button></Link>
-          <Link to="/exams/new"><Button>Buat Ujian</Button></Link>
-          <Link to="/students"><Button>Import Siswa</Button></Link>
-          <Link to="/reports/history"><Button>Lihat Laporan</Button></Link>
+      <div>
+        <div className="card-title" style={{ marginBottom: 10 }}>Mulai cepat</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 10 }}>
+          {shortcuts.map((s) => (
+            <Link key={s.to} to={s.to} className="quick-link">
+              <Icon name={s.icon} />
+              {s.label}
+            </Link>
+          ))}
         </div>
-      </Card>
+      </div>
 
       {lLive ? (
         <Card aria-busy="true">
-          <strong>Ujian berjalan saat ini</strong>
-          <div style={{ marginTop: 8 }}><span className="skeleton" style={{ width: '60%' }} /></div>
+          <div className="card-title">Ujian berjalan saat ini</div>
+          <div style={{ marginTop: 10 }}><span className="skeleton" style={{ width: '60%' }} /></div>
         </Card>
       ) : running.length > 0 && (
         <Card>
-          <strong>Ujian berjalan saat ini</strong>
+          <div className="card-title" style={{ marginBottom: 8 }}>Ujian berjalan saat ini</div>
           {running.map((e) => (
-            <div key={e.exam_id} style={{ marginTop: 6 }}>
-              <Link to={`/reports/live`}>{e.name}</Link> — {e.subject} · selesai {fmtDateTime(e.close_at)} · {e.in_progress} mengerjakan / {e.total} peserta
+            <div key={e.exam_id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 0', borderTop: '1px solid var(--muted)' }}>
+              <span style={{
+                width: 9, height: 9, borderRadius: 999, background: 'var(--ok)', flexShrink: 0,
+                boxShadow: '0 0 0 3px var(--ok-bg)',
+              }} aria-label="berjalan" />
+              <Link to="/reports/live" style={{ fontWeight: 600 }}>{e.name}</Link>
+              <span className="card-sub">
+                {e.in_progress} dari {e.total} peserta mengerjakan · tutup {fmtDateTime(e.close_at)}
+              </span>
             </div>
           ))}
         </Card>
+      )}
+
+      {!lLive && running.length === 0 && !lExams && (exams || []).length === 0 && (
+        <Card><EmptyState icon="play" title="Belum ada ujian">Buat paket soal pertama Anda, lalu jadwalkan ujian.</EmptyState></Card>
       )}
     </div>
   );

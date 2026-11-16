@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Link } from 'react-router-dom';
 import { api, useApiQuery } from '@flowcbt/api-client';
-import { Button, Card, Input, Modal, useToast, Badge, SkeletonList } from '@flowcbt/ui';
+import { Button, Card, Input, Modal, useToast, Badge, SkeletonList, PageHeader, EmptyState, Icon } from '@flowcbt/ui';
 
 // Daftar paket soal (FR-4.1): cari, buat, duplikasi, arsip, publish/unpublish.
 export default function QuestionSetsPage() {
@@ -17,13 +17,12 @@ export default function QuestionSetsPage() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
-        <h1 style={{ fontSize: 22 }}>Bank Soal</h1>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <Button onClick={() => setOpen(true)}>+ Paket soal</Button>
-        </div>
-      </div>
-      <Input placeholder="Cari paket/mapel…" value={q} onChange={(e) => setQ(e.target.value)} style={{ maxWidth: 300, margin: '10px 0' }} />
+      <PageHeader
+        title="Bank Soal"
+        subtitle="Kumpulan paket soal per mata pelajaran."
+        actions={<Button onClick={() => setOpen(true)}><Icon name="plus" /> Paket Soal</Button>}
+      />
+      <Input placeholder="Cari paket atau mata pelajaran…" value={q} onChange={(e) => setQ(e.target.value)} style={{ maxWidth: 320, margin: '0 0 12px' }} />
       <div style={{ display: 'grid', gap: 10 }}>
         {isLoading && <SkeletonList rows={4} />}
         {error && <Card><span style={{ color: 'var(--text-muted)' }}>Gagal memuat paket soal.</span></Card>}
@@ -44,13 +43,13 @@ export default function QuestionSetsPage() {
             </div>
           </Card>
         ))}
-        {!error && list.length === 0 && <Card>Belum ada paket soal. Klik “+ Paket soal”.</Card>}
+        {!error && list.length === 0 && <Card><EmptyState icon="bank" title="Belum ada paket soal">Buat paket soal pertama — cukup 5 menit.</EmptyState></Card>}
       </div>
       <Modal open={open} onClose={() => setOpen(false)} title="Paket soal baru">
-        <div style={{ display: 'grid', gap: 10 }}>
-          <label>Mata pelajaran<Input value={form.subject_name} onChange={(e) => setForm({ ...form, subject_name: e.target.value })} /></label>
-          <label>Judul paket<Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="UH Bab 1" /></label>
-          <label>Kode ujian (kosongkan untuk otomatis)<Input value={form.exam_code} onChange={(e) => setForm({ ...form, exam_code: e.target.value.toUpperCase() })} /></label>
+        <div style={{ display: 'grid', gap: 14 }}>
+          <label className="field"><span>Mata pelajaran</span><Input value={form.subject_name} onChange={(e) => setForm({ ...form, subject_name: e.target.value })} placeholder="cth. Matematika" /></label>
+          <label className="field"><span>Judul paket</span><Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="cth. Ulangan Harian Bab 1" /></label>
+          <label className="field"><span>Kode ujian <em style={{ fontStyle: 'normal', color: 'var(--text-faint)' }}>(kosongkan untuk otomatis)</em></span><Input value={form.exam_code} onChange={(e) => setForm({ ...form, exam_code: e.target.value.toUpperCase() })} /></label>
           <Button onClick={async () => {
             try {
               const r = await api<any>('POST', '/question-sets', form);

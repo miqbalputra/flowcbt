@@ -1,30 +1,51 @@
 import React from 'react';
 import { useApiQuery } from '@flowcbt/api-client';
-import { Card, ThemeToggle, SkeletonList } from '@flowcbt/ui';
+import { Card, ThemeToggle, SkeletonList, PageHeader, Icon } from '@flowcbt/ui';
 
 // Pengaturan: profil, tema (FR-11.1), info tenant.
 export default function SettingsPage() {
   const { data: me, isLoading } = useApiQuery<any>(['me'], '/auth/me');
+  const roleLabel: Record<string, string> = { admin: 'Admin sekolah', guru: 'Guru', teacher: 'Guru' };
   return (
-    <div style={{ maxWidth: 560, display: 'grid', gap: 12 }}>
-      <h1 style={{ fontSize: 22 }}>Pengaturan</h1>
+    <div style={{ maxWidth: 640, display: 'grid', gap: 14 }}>
+      <PageHeader title="Pengaturan" subtitle="Profil akun dan preferensi tampilan." />
       <Card>
-        <strong>Profil</strong>
+        <div className="card-title" style={{ marginBottom: 10 }}>Profil</div>
         {isLoading ? (
-          <div style={{ marginTop: 10 }}><SkeletonList rows={3} gap={6} /></div>
+          <SkeletonList rows={4} gap={10} />
+        ) : me ? (
+          <div style={{ display: 'grid', gap: 12 }}>
+            <label className="field">
+              <span className="field-label">Nama</span>
+              <input className="input" value={me.name} readOnly />
+            </label>
+            <label className="field">
+              <span className="field-label">Email</span>
+              <input className="input" value={me.email} readOnly />
+            </label>
+            <div style={{ display: 'grid', gap: 12, gridTemplateColumns: '1fr 1fr' }}>
+              <label className="field">
+                <span className="field-label">Peran</span>
+                <input className="input" value={roleLabel[me.role] || me.role} readOnly />
+              </label>
+              <label className="field">
+                <span className="field-label">Sekolah / lembaga</span>
+                <input className="input" value={me.tenant?.name || '-'} readOnly />
+              </label>
+            </div>
+            <div style={{ fontSize: 13, color: 'var(--text-muted)', display: 'flex', gap: 6, alignItems: 'center' }}>
+              <Icon name="info" size={14} /> Kode lembaga: <strong>{me.tenant?.code}</strong> — dibutuhkan siswa saat login tanpa akun.
+            </div>
+          </div>
         ) : (
-        <div style={{ marginTop: 8 }}>
-          <div>Nama: {me?.name}</div>
-          <div>Email: {me?.email}</div>
-          <div>Peran: {me?.role}</div>
-          <div>Sekolah: {me?.tenant?.name} (kode {me?.tenant?.code})</div>
-        </div>
+          <div style={{ color: 'var(--text-muted)' }}>Gagal memuat profil.</div>
         )}
       </Card>
       <Card>
-        <strong>Tema</strong>
-        <div style={{ marginTop: 8, display: 'flex', gap: 8, alignItems: 'center' }}>
-          <ThemeToggle /> <span style={{ color: 'var(--text-muted)', fontSize: 14 }}>terang / gelap / sistem</span>
+        <div className="card-title" style={{ marginBottom: 10 }}>Tampilan</div>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          <ThemeToggle />
+          <span style={{ color: 'var(--text-muted)', fontSize: 14 }}>Terang · Gelap · Ikuti sistem</span>
         </div>
       </Card>
     </div>

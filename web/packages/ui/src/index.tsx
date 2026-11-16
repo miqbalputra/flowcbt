@@ -1,5 +1,8 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import './theme.css';
+import { Icon, Logo, type IconName } from './icons';
+export { Icon, Logo };
+export type { IconName };
 
 // ---- Tema (dark/light/system) — FR-11.1 ----
 type Theme = 'light' | 'dark' | 'system';
@@ -28,14 +31,16 @@ export function useTheme() { return useContext(ThemeCtx); }
 
 export function ThemeToggle() {
   const { theme, setTheme } = useTheme();
+  const next = theme === 'dark' ? 'light' : theme === 'light' ? 'system' : 'dark';
   return (
     <button
-      className="btn"
-      aria-label="Ganti tema"
-      onClick={() => setTheme(theme === 'dark' ? 'light' : theme === 'light' ? 'system' : 'dark')}
-      title={`Tema: ${theme}`}
+      className="btn btn-ghost btn-sm"
+      style={{ borderRadius: 999, padding: 0, width: 34, minHeight: 34, minWidth: 34, border: 'none' }}
+      aria-label={`Ganti tema (sekarang: ${theme})`}
+      title={`Tema: ${theme} — klik untuk ${next}`}
+      onClick={() => setTheme(next)}
     >
-      {theme === 'dark' ? '🌙' : theme === 'light' ? '☀️' : '🖥️'}
+      <Icon name={theme === 'dark' ? 'moon' : theme === 'light' ? 'sun' : 'monitor'} />
     </button>
   );
 }
@@ -129,11 +134,23 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
 }
 export function useToast() { return useContext(ToastCtx); }
 
-// ---- Status koneksi (FR-7.7): 🟢 tersinkron / 🟡 menyinkronkan / 🔴 offline ----
+// ---- Status koneksi (FR-7.7): tersinkron / menyinkronkan / offline (indikator dot + teks) ----
 export function ConnectionBadge({ online, pending }: { online: boolean; pending: number }) {
-  if (!online) return <span className="badge badge-danger" title="Offline — jawaban tersimpan di perangkat">🔴 Offline ({pending})</span>;
-  if (pending > 0) return <span className="badge badge-warn" title="Menyinkronkan">🟡 Menyinkronkan ({pending})</span>;
-  return <span className="badge badge-ok" title="Online & tersinkron">🟢 Tersinkron</span>;
+  if (!online) return (
+    <span className="badge badge-danger" title="Offline — jawaban tersimpan di perangkat">
+      <span className="dot" aria-hidden="true" />Offline{pending > 0 && ` (${pending} menunggu)`}
+    </span>
+  );
+  if (pending > 0) return (
+    <span className="badge badge-warn" title="Menyinkronkan jawaban">
+      <span className="dot pulse" aria-hidden="true" />Menyinkronkan ({pending})
+    </span>
+  );
+  return (
+    <span className="badge badge-ok" title="Online dan tersinkron">
+      <span className="dot" aria-hidden="true" />Tersinkron
+    </span>
+  );
 }
 
 // Perilaku dialog: tutup dengan Esc + focus trap (Tab berputar di dalam dialog)
@@ -170,7 +187,7 @@ export function Modal({ open, onClose, title, children }: { open: boolean; onClo
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal" role="dialog" aria-modal="true" aria-label={title} tabIndex={-1} ref={ref} onClick={(e) => e.stopPropagation()}>
-        <div className="modal-head"><strong>{title}</strong><button className="btn btn-ghost" onClick={onClose} aria-label="tutup">✕</button></div>
+        <div className="modal-head"><strong>{title}</strong><button className="btn btn-ghost btn-sm" style={{ border: 'none' }} onClick={onClose} aria-label="tutup"><Icon name="x" /></button></div>
         <div className="modal-body">{children}</div>
       </div>
     </div>
@@ -184,9 +201,42 @@ export function BottomSheet({ open, onClose, title, children }: { open: boolean;
   return (
     <div className="sheet-backdrop" onClick={onClose}>
       <div className="sheet" role="dialog" aria-modal="true" aria-label={title} tabIndex={-1} ref={ref} onClick={(e) => e.stopPropagation()}>
-        <div className="sheet-head"><strong>{title}</strong><button className="btn btn-ghost" onClick={onClose} aria-label="tutup">✕</button></div>
+        <div className="sheet-head"><strong>{title}</strong><button className="btn btn-ghost btn-sm" style={{ border: 'none' }} onClick={onClose} aria-label="tutup"><Icon name="x" /></button></div>
         <div className="sheet-body">{children}</div>
       </div>
+    </div>
+  );
+}
+
+// ---- Helper halaman: header, kartu statistik, empty state ----
+export function PageHeader({ title, subtitle, actions }: { title: string; subtitle?: string; actions?: React.ReactNode }) {
+  return (
+    <div className="page-head">
+      <div>
+        <h1>{title}</h1>
+        {subtitle && <p>{subtitle}</p>}
+      </div>
+      {actions && <div className="page-actions">{actions}</div>}
+    </div>
+  );
+}
+
+export function StatCard({ label, value, hint }: { label: string; value: React.ReactNode; hint?: React.ReactNode }) {
+  return (
+    <Card className="stat">
+      <span className="stat-label">{label}</span>
+      <span className="stat-value">{value}</span>
+      {hint && <span className="stat-hint">{hint}</span>}
+    </Card>
+  );
+}
+
+export function EmptyState({ icon = 'inbox', title, children }: { icon?: IconName; title: string; children?: React.ReactNode }) {
+  return (
+    <div className="empty">
+      <Icon name={icon} />
+      <div style={{ fontWeight: 600, color: 'var(--text)' }}>{title}</div>
+      {children && <div style={{ fontSize: 14, marginTop: 4 }}>{children}</div>}
     </div>
   );
 }
