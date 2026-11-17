@@ -56,7 +56,7 @@ export default function QuestionSetsPage() {
         <div style={{ display: 'grid', gap: 14 }}>
           <label className="field"><span>Mata pelajaran</span><Input value={form.subject_name} onChange={(e) => setForm({ ...form, subject_name: e.target.value })} placeholder="cth. Matematika" /></label>
           <label className="field"><span>Judul paket</span><Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="cth. Ulangan Harian Bab 1" /></label>
-          <label className="field"><span>Kode ujian <em style={{ fontStyle: 'normal', color: 'var(--text-faint)' }}>(kosongkan untuk otomatis)</em></span><Input value={form.exam_code} onChange={(e) => setForm({ ...form, exam_code: e.target.value.toUpperCase() })} /></label>
+          <label className="field"><span>Kode ujian <em style={{ fontStyle: 'normal', color: 'var(--text-muted)' }}>(kosongkan untuk otomatis)</em></span><Input value={form.exam_code} onChange={(e) => setForm({ ...form, exam_code: e.target.value.toUpperCase() })} /></label>
           <Button onClick={async () => {
             try {
               const r = await api<any>('POST', '/question-sets', form);

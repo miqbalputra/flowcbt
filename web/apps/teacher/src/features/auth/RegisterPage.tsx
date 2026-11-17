@@ -43,12 +43,12 @@ export default function RegisterPage() {
               value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
           </label>
           <label className="field">
-            <span>Nomor HP <em style={{ fontStyle: 'normal', color: 'var(--text-faint)' }}>(opsional)</em></span>
+            <span>Nomor HP <em style={{ fontStyle: 'normal', color: 'var(--text-muted)' }}>(opsional)</em></span>
             <Input value={form.phone} placeholder="08xx xxxx xxxx"
               onChange={(e) => setForm({ ...form, phone: e.target.value })} />
           </label>
           <label className="field">
-            <span>Password <em style={{ fontStyle: 'normal', color: 'var(--text-faint)' }}>(minimal 8 huruf)</em></span>
+            <span>Password <em style={{ fontStyle: 'normal', color: 'var(--text-muted)' }}>(minimal 8 huruf)</em></span>
             <Input required type="password" minLength={8} autoComplete="new-password" placeholder="Buat password yang kuat"
               value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
           </label>

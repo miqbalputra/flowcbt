@@ -5,9 +5,9 @@
 import { chromium, type Page } from 'playwright';
 import AxeBuilder from '@axe-core/playwright';
 
-const API = 'http://127.0.0.1:8090/api/v1';
-const TEACHER = 'http://127.0.0.1:5173';
-const STUDENT = 'http://127.0.0.1:5174';
+const API = process.env.API_ORIGIN || 'http://127.0.0.1:8090/api/v1';
+const TEACHER = process.env.TEACHER_ORIGIN || 'http://127.0.0.1:5173';
+const STUDENT = process.env.STUDENT_ORIGIN || 'http://127.0.0.1:5174';
 
 async function api(method: string, path: string, body?: any, token?: string) {
   const res = await fetch(API + path, {
@@ -101,6 +101,7 @@ async function main() {
   await spage.goto(STUDENT + '/guest', { waitUntil: 'networkidle' });
   await scan(spage, 'student /guest', findings);
   // login siswa via UI bila form tersedia, lalu scan dashboard/riwayat
+  await spage.goto(STUDENT + '/login', { waitUntil: 'networkidle' });
   try {
     const fields = {
       tenant: spage.getByLabel(/sekolah|kode tenant|kode sekolah|tenant/i).first(),

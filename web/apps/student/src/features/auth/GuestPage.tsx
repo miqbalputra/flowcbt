@@ -60,7 +60,7 @@ export default function GuestPage() {
             <Input required value={form.class_name} onChange={(e) => setForm({ ...form, class_name: e.target.value })} placeholder="cth. IX A" />
           </label>
           <label className="field">
-            <span>NIS <em style={{ fontStyle: 'normal', color: 'var(--text-faint)' }}>(bila diminta guru)</em></span>
+            <span>NIS <em style={{ fontStyle: 'normal', color: 'var(--text-muted)' }}>(bila diminta guru)</em></span>
             <Input value={form.nis} onChange={(e) => setForm({ ...form, nis: e.target.value })} />
           </label>
           <Button type="submit" disabled={busy}>

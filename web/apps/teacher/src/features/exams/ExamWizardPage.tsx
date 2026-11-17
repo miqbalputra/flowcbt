@@ -121,7 +121,7 @@ export default function ExamWizardPage() {
             {(classes || []).map((c) => (
               <label key={c.id} className="check">
                 <input type="checkbox" checked={classIds.includes(c.id)} onChange={(e) => setClassIds(e.target.checked ? [...classIds, c.id] : classIds.filter((x) => x !== c.id))} />
-                <span>{c.name} <em style={{ fontStyle: 'normal', color: 'var(--text-faint)', fontSize: 13 }}>({c.student_count} siswa)</em></span>
+                <span>{c.name} <em style={{ fontStyle: 'normal', color: 'var(--text-muted)', fontSize: 13 }}>({c.student_count} siswa)</em></span>
               </label>
             ))}
           </div>
@@ -144,13 +144,13 @@ export default function ExamWizardPage() {
                 <option value="guest">Hanya tanpa akun (tamu)</option>
               </select>
             </label>
-            <label className="field"><span>Maksimal percobaan <em style={{ fontStyle: 'normal', color: 'var(--text-faint)' }}>(kosong = tak terbatas)</em></span><Input type="number" value={f.max_attempts ?? ''} onChange={(e) => set('max_attempts', e.target.value ? Number(e.target.value) : null)} /></label>
+            <label className="field"><span>Maksimal percobaan <em style={{ fontStyle: 'normal', color: 'var(--text-muted)' }}>(kosong = tak terbatas)</em></span><Input type="number" value={f.max_attempts ?? ''} onChange={(e) => set('max_attempts', e.target.value ? Number(e.target.value) : null)} /></label>
             <label className="field"><span>Nilai akhir jika lebih dari satu percobaan</span>
               <select className="input" value={f.score_policy} onChange={(e) => set('score_policy', e.target.value)}>
                 <option value="highest">Nilai tertinggi</option><option value="last">Nilai terakhir</option><option value="avg">Rata-rata</option>
               </select>
             </label>
-            <label className="field"><span>KKM / ambang kelulusan <em style={{ fontStyle: 'normal', color: 'var(--text-faint)' }}>(opsional)</em></span><Input type="number" min={0} max={100} aria-invalid={err.includes('Nilai lulus')} aria-describedby={err.includes('Nilai lulus') ? 'wizard-error' : undefined} value={f.passing_score ?? ''} onChange={(e) => set('passing_score', e.target.value ? Number(e.target.value) : null)} /></label>
+            <label className="field"><span>KKM / ambang kelulusan <em style={{ fontStyle: 'normal', color: 'var(--text-muted)' }}>(opsional)</em></span><Input type="number" min={0} max={100} aria-invalid={err.includes('Nilai lulus')} aria-describedby={err.includes('Nilai lulus') ? 'wizard-error' : undefined} value={f.passing_score ?? ''} onChange={(e) => set('passing_score', e.target.value ? Number(e.target.value) : null)} /></label>
           </div>
         )}
         {step === 4 && (
