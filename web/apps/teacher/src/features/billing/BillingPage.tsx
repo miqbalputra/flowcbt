@@ -1,20 +1,23 @@
 import React, { useState } from 'react';
-import { api, useApiQuery } from '@flowcbt/api-client';
+import { api, useApiQuery, QueryError } from '@flowcbt/api-client';
 import { Button, Card, Badge, useToast, SkeletonList, SkeletonTableRows, PageHeader, EmptyState, Icon } from '@flowcbt/ui';
 import { fmtDateTime } from '@flowcbt/shared';
 
 // Halaman paket & langganan (FR-10.1–10.3): beli self-service via checkout, riwayat invoice.
 export default function BillingPage() {
-  const { data: plans, isLoading: lPlans } = useApiQuery<any[]>(['plans'], '/plans');
-  const { data: sub, refetch, isLoading: lSub } = useApiQuery<any>(['sub'], '/billing/subscription');
-  const { data: invoices, isLoading: lInv } = useApiQuery<any[]>(['inv'], '/billing/invoices');
+  const { data: plans, isLoading: lPlans, error: ePlans } = useApiQuery<any[]>(['plans'], '/plans');
+  const { data: sub, refetch, isLoading: lSub, error: eSub } = useApiQuery<any>(['sub'], '/billing/subscription');
+  const { data: invoices, isLoading: lInv, error: eInv } = useApiQuery<any[]>(['inv'], '/billing/invoices');
   const [provider, setProvider] = useState('mock');
+  const [checkoutUrl, setCheckoutUrl] = useState('');
   const toast = useToast();
 
   const buy = async (code: string) => {
     try {
       const r = await api<any>('POST', '/billing/checkout', { plan_code: code, provider }, { headers: { 'Idempotency-Key': crypto.randomUUID() } });
-      toast(`Order ${r.order_id} dibuat (Rp ${r.amount_idr.toLocaleString('id-ID')}). Buka tautan pembayaran: ${r.checkout_url}`, 'ok');
+      // A-13: tautan pembayaran ditampilkan permanen, bukan hanya toast 4 detik.
+      setCheckoutUrl(r.checkout_url);
+      toast(`Order ${r.order_id} dibuat (Rp ${r.amount_idr.toLocaleString('id-ID')}).`, 'ok');
       if (provider === 'mock') {
         // sandbox: langsung tandai settlement agar paket aktif (webhook mock)
         await api('POST', '/webhooks/payment/mock', { order_id: r.order_id, transaction_status: 'settlement' }, { token: false });
@@ -35,7 +38,9 @@ export default function BillingPage() {
 
       <Card>
         <div className="card-title">Status langganan</div>
-        {lSub ? (
+        {eSub ? (
+          <QueryError error={eSub} onRetry={refetch} />
+        ) : lSub ? (
           <SkeletonList rows={2} height={22} />
         ) : (
           <div style={{ display: 'grid', gap: 10 }}>
@@ -67,6 +72,14 @@ export default function BillingPage() {
             </select>
           </label>
         </div>
+        {ePlans && <QueryError error={ePlans} />}
+        {checkoutUrl && (
+          <Card style={{ marginTop: 12 }}>
+            <div className="card-title">Tautan pembayaran terakhir</div>
+            <a href={checkoutUrl} target="_blank" rel="noopener noreferrer">{checkoutUrl}</a>
+          </Card>
+        )}
+        {eInv && <QueryError error={eInv} />}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12, marginTop: 12 }}>
           {lPlans && <Card aria-busy="true"><SkeletonList rows={3} height={22} /></Card>}
           {!lPlans && (plans || []).filter((p) => p.type !== 'free').map((p) => (

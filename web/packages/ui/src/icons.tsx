@@ -10,6 +10,10 @@ export type IconName =
   | 'key' | 'inbox' | 'alert' | 'camera' | 'trend'
   | 'user' | 'info' | 'doc' | 'pause' | 'refresh' | 'pencil' | 'zap' | 'alert-triangle' | 'school' | 'square';
 
+// A-16: ikon kembar sebelumnya didefinisikan dua kali dengan path identik.
+const PENCIL_ICON = <><path d="M17 3.5a2.4 2.4 0 0 1 3.5 3.5L8 19.5 3 21l1.5-5L17 3.5Z"/></>;
+const ALERT_ICON = <><path d="M12 3 2.5 20h19L12 3Z"/><path d="M12 10v4.5M12 17.5h.01"/></>;
+
 const paths: Record<IconName, React.ReactNode> = {
   dashboard: <><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></>,
   students: <><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.2 3.4-5 6.5-5s5.7 1.8 6.5 5"/><circle cx="17.5" cy="9" r="2.5"/><path d="M16 15.2c2.8.2 4.8 1.7 5.5 4.3"/></>,
@@ -38,7 +42,7 @@ const paths: Record<IconName, React.ReactNode> = {
   wifi: <><path d="M2.5 9a14.5 14.5 0 0 1 19 0M5.5 12.5a10 10 0 0 1 13 0M8.5 16a5.4 5.4 0 0 1 7 0"/><circle cx="12" cy="19.3" r="1.1"/></>,
   'wifi-off': <><path d="M2.5 9a14.5 14.5 0 0 1 5.2-3.4M11.5 5.1A14.5 14.5 0 0 1 21.5 9M5.5 12.5a10 10 0 0 1 4.9-2.6M14.7 11a10 10 0 0 1 3.8 1.5M8.5 16a5.4 5.4 0 0 1 5.6-.9"/><path d="M12 19.3h.01M3 3l18 18"/></>,
   copy: <><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></>,
-  edit: <><path d="M17 3.5a2.4 2.4 0 0 1 3.5 3.5L8 19.5 3 21l1.5-5L17 3.5Z"/></>,
+  edit: PENCIL_ICON,
   trash: <><path d="M3.5 6.5h17M8.5 6.5V4.8A1.3 1.3 0 0 1 9.8 3.5h4.4a1.3 1.3 0 0 1 1.3 1.3v1.7M18.5 6.5l-.8 13a1.8 1.8 0 0 1-1.8 1.7H8.1a1.8 1.8 0 0 1-1.8-1.7l-.8-13"/></>,
   users: <><circle cx="9" cy="8.5" r="3.5"/><path d="M2.5 20c.8-3.2 3.4-5 6.5-5s5.7 1.8 6.5 5"/><path d="M16 4a3.5 3.5 0 0 1 0 7"/></>,
   calendar: <><rect x="3.5" y="5" width="17" height="16" rx="2"/><path d="M3.5 10h17M8 2.5V7M16 2.5V7"/></>,
@@ -46,7 +50,7 @@ const paths: Record<IconName, React.ReactNode> = {
   play: <><path d="M7 4.5v15l12-7.5-12-7.5Z"/></>,
   key: <><circle cx="7.5" cy="16" r="4.5"/><path d="m11 12.5 9.5-9.5M17 6.5l3 3M14.5 9l2 2"/></>,
   inbox: <><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.5 5.5 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.5-6.5A2 2 0 0 0 16.7 4H7.3a2 2 0 0 0-1.8 1.5Z"/></>,
-  alert: <><path d="M12 3 2.5 20h19L12 3Z"/><path d="M12 10v4.5M12 17.5h.01"/></>,
+  alert: ALERT_ICON,
   camera: <><path d="M2.5 7.5A2 2 0 0 1 4.5 5.5h2l1.7-2h7.6l1.7 2h2a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2h-15a2 2 0 0 1-2-2v-10.5Z"/><circle cx="12" cy="12.5" r="3.5"/></>,
   trend: <><path d="m3 16.5 6-6 4 4 8-8.5"/><path d="M15.5 6H21v5.5"/></>,
   user: <><circle cx="12" cy="8" r="3.5"/><path d="M5 20c.8-3.2 3.7-5 7-5s6.2 1.8 7 5"/></>,
@@ -54,9 +58,9 @@ const paths: Record<IconName, React.ReactNode> = {
   doc: <><path d="M6 2.5h8l4 4V21.5H6V2.5Z"/><path d="M14 2.5V7h4M9 12h6M9 16h6"/></>,
   pause: <><rect x="6" y="4.5" width="4" height="15" rx="1"/><rect x="14" y="4.5" width="4" height="15" rx="1"/></>,
   refresh: <><path d="M20 11a8 8 0 1 0-2.3 6.3"/><path d="M20 4v7h-7"/></>,
-  pencil: <path d="M17 3.5a2.4 2.4 0 0 1 3.5 3.5L8 19.5 3 21l1.5-5L17 3.5Z"/>,
+  pencil: PENCIL_ICON,
   zap: <path d="M13 2.5 4.5 13.5H11l-1 8 8.5-11H12l1-8Z"/>,
-  'alert-triangle': <><path d="M12 3 2.5 20h19L12 3Z"/><path d="M12 10v4.5M12 17.5h.01"/></>,
+  'alert-triangle': ALERT_ICON,
   school: <><path d="M3 9.5 12 4l9 5.5-9 5.5-9-5.5Z"/><path d="M7 12v4.5c0 1.4 2.2 2.5 5 2.5s5-1.1 5-2.5V12"/><path d="M21 10v6"/></>,
   square: <><rect x="6" y="6" width="12" height="12" rx="1.5"/></>,
 };

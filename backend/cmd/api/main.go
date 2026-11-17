@@ -15,6 +15,12 @@ import (
 )
 
 func main() {
+	// C-13: image distroless tidak punya shell/wget. Binary yang sama diperintahkan
+	// Dockerfile HEALTHCHECK untuk memeriksa server lokal lewat mode ini.
+	if len(os.Args) > 1 && os.Args[1] == "-healthcheck" {
+		healthcheck()
+		return
+	}
 	cfg := platform.LoadConfig()
 	if err := cfg.Validate(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -29,7 +35,17 @@ func main() {
 	defer deps.DB.Close()
 
 	r := server.Router(deps)
-	srv := &http.Server{Addr: cfg.HTTPAddr, Handler: r, ReadHeaderTimeout: 10 * time.Second}
+	// C-02: batasi slowloris. WriteTimeout sengaja 0 karena endpoint SSE
+	// (/api/v1/reports/live/stream) butuh koneksi panjang; B-07 akan menambahkan
+	// heartbeat + SetWriteDeadline per-write sebelum timeout diaktifkan kembali.
+	srv := &http.Server{
+		Addr:              cfg.HTTPAddr,
+		Handler:           r,
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		IdleTimeout:       120 * time.Second,
+		WriteTimeout:      0,
+	}
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
@@ -47,4 +63,20 @@ func main() {
 	_ = srv.Shutdown(shutCtx)
 
 	var _ = slog.Default
+}
+
+func healthcheck() {
+	addr := os.Getenv("HEALTHCHECK_ADDR")
+	if addr == "" {
+		addr = "http://127.0.0.1:8080/healthz"
+	}
+	client := &http.Client{Timeout: 3 * time.Second}
+	resp, err := client.Get(addr)
+	if err != nil {
+		os.Exit(1)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= http.StatusInternalServerError {
+		os.Exit(1)
+	}
 }

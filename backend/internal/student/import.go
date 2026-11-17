@@ -29,6 +29,14 @@ type importRow struct {
 	NIS    string
 }
 
+// C-12: ekspos parser produksi agar integration test tidak memakai re-implementasi.
+type ImportRow = importRow
+type ImportError = importError
+
+func ParseImport(r io.Reader, filename string) ([]ImportRow, []ImportError) {
+	return parseImport(r, filename)
+}
+
 func (s *Service) importTemplate(w http.ResponseWriter, r *http.Request) {
 	f := excelize.NewFile()
 	sheet := f.GetSheetName(0)

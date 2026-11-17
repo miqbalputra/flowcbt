@@ -2,8 +2,13 @@ package server
 
 import (
 	"context"
+	"crypto/subtle"
 	"log/slog"
+	"net"
 	"net/http"
+	"strconv"
+	"strings"
+	"time"
 
 	"flowcbt/backend/internal/admin"
 	"flowcbt/backend/internal/attempt"
@@ -25,8 +30,10 @@ import (
 	"flowcbt/backend/internal/student"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // Deps berisi semua layanan yang di-wire ke router.
@@ -37,6 +44,7 @@ type Deps struct {
 	Storage platform.Storage
 	Mailer  platform.Mailer
 	Limiter platform.RateLimiter
+	Metrics *platform.Metrics
 	Clock   platform.Clock
 	Audit   *audit.Writer
 	Hub     *realtime.Hub
@@ -74,13 +82,22 @@ func NewDeps(cfg platform.Config, log *slog.Logger) *Deps {
 		log.Error("db", "err", err)
 		return nil
 	}
+	// B-12: fail-fast nyata — pool DB baru diverifikasi saat startup, bukan saat request pertama.
+	for name, pool := range map[string]*pgxpool.Pool{"app": db.App, "system": db.System} {
+		if err := pool.Ping(ctx); err != nil {
+			log.Error("db ping", "pool", name, "err", err)
+			db.Close()
+			return nil
+		}
+	}
 	storage, err := platform.NewStorage(cfg)
 	if err != nil {
 		log.Error("storage", "err", err)
 		return nil
 	}
 	mailer := platform.NewMailer(cfg, log)
-	limiter := platform.NewRateLimiter(cfg.RedisURL)
+	limiter := platform.NewRateLimiter(cfg.RedisURL, cfg.Env == "production")
+	metrics := platform.NewMetrics()
 	aud := audit.New()
 	hub := realtime.NewHub()
 
@@ -119,12 +136,16 @@ func NewDeps(cfg platform.Config, log *slog.Logger) *Deps {
 	examSvc := &exam.Service{DB: db, Audit: aud, Clock: clock, Billing: billingSvc}
 	attemptSvc := &attempt.Service{DB: db, Audit: aud, Clock: clock}
 	reportSvc := &report.Service{DB: db, Hub: hub, Clock: clock}
+	// B-07: aktivitas siswa langsung memicu update SSE laporan live.
+	attemptSvc.OnLiveChange = func(ctx context.Context, tenantID, examID string) {
+		reportSvc.PublishLive(tenantID, examID)
+	}
 	adminSvc := &admin.Service{DB: db, Clock: clock}
 	retentionSvc := &retention.Service{DB: db, Audit: aud, Mailer: mailer, Storage: storage, Log: log, Clock: clock}
 
 	return &Deps{
 		Cfg: cfg, Log: log, DB: db, Storage: storage, Mailer: mailer,
-		Limiter: limiter, Clock: clock, Audit: aud, Hub: hub,
+		Limiter: limiter, Metrics: metrics, Clock: clock, Audit: aud, Hub: hub,
 		Auth: authSvc, Classroom: &classroom.Service{DB: db, Audit: aud},
 		Student: studentSvc, QuestionBank: qbSvc, Exam: examSvc, Attempt: attemptSvc,
 		Report: reportSvc, Billing: billingSvc, Admin: adminSvc, Notify: notifySvc, Retention: retentionSvc,
@@ -146,6 +167,15 @@ func Router(d *Deps) http.Handler {
 	httpx.SetJWTSecret(d.Cfg.JWTSecret)
 	r := chi.NewRouter()
 	r.Use(httpx.RequestID())
+	// C-05: metrik HTTP (route/status) untuk dashboard & alerting.
+	r.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ww := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
+			next.ServeHTTP(ww, r)
+			route := chi.RouteContext(r.Context()).RoutePattern()
+			d.Metrics.Inc("http_requests_total", platform.HTTPLabel(r.Method, route, ww.Status()))
+		})
+	})
 	r.Use(httpx.Recoverer(d.Log))
 	r.Use(httpx.Logger(d.Log))
 	// CORS: allowlist origin dari CORS_ALLOWED_ORIGINS (wajib di produksi, lihat platform.Config.Validate).
@@ -162,8 +192,38 @@ func Router(d *Deps) http.Handler {
 		MaxAge:           600,
 	}))
 
+	// C-02: liveness tidak boleh bergantung pada DB — jika DB mati dan liveness gagal,
+	// orkestrator akan memantulkan pod yang sebenarnya sedang mencoba recover.
+	r.Get("/livez", func(w http.ResponseWriter, r *http.Request) {
+		httpx.WriteJSON(w, http.StatusOK, map[string]any{"status": "ok", "time": d.Clock.Now()})
+	})
+	// C-05: exposition Prometheus (counter/gauge ringan, tanpa dependency).
+	r.Get("/metrics", func(w http.ResponseWriter, r *http.Request) {
+		if d.Metrics == nil {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		if d.Hub != nil {
+			d.Metrics.Set("sse_dropped_total", float64(d.Hub.DroppedCount()))
+		}
+		d.Metrics.Handler()(w, r)
+	})
+	// /healthz dipertahankan sebagai alias liveness untuk konfigurasi lama.
 	r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteJSON(w, http.StatusOK, map[string]any{"status": "ok", "time": d.Clock.Now()})
+	})
+	// readiness: probe DB. Gagal → 503, orkestrator tidak mengirim traffic.
+	r.Get("/readyz", func(w http.ResponseWriter, r *http.Request) {
+		var one int
+		err := d.DB.WithSystemTx(r.Context(), func(tx pgx.Tx) error {
+			return tx.QueryRow(r.Context(), `SELECT 1`).Scan(&one)
+		})
+		if err != nil || one != 1 {
+			d.Log.Warn("readiness failed", "err", err)
+			httpx.WriteError(w, httpx.Err("NOT_READY", "database belum siap", http.StatusServiceUnavailable))
+			return
+		}
+		httpx.WriteJSON(w, http.StatusOK, map[string]any{"status": "ready", "db": "ok"})
 	})
 	r.Get("/internal/active-exams", d.internalHandler(func(w http.ResponseWriter, r *http.Request) {
 		var n int
@@ -175,6 +235,8 @@ func Router(d *Deps) http.Handler {
 	}))
 
 	r.Route("/api/v1", func(r chi.Router) {
+		// B-06: middleware rate-limit terpasang (sebelumnya hanya didefinisikan).
+		r.Use(rateLimitByPath(d.Limiter))
 		d.Auth.Routes(r)
 		d.Billing.RoutesPublic(r) // /plans & webhook publik
 
@@ -254,6 +316,57 @@ func Router(d *Deps) http.Handler {
 	return r
 }
 
+// rateLimitByPath memasang pembatasan global pada rute yang rawan disalahgunakan.
+// Service-level limiter (login/guest) tetap berjalan dengan ambang lebih ketat.
+func rateLimitByPath(rl platform.RateLimiter) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			p := r.URL.Path
+			var limit int
+			var window time.Duration
+			var key string
+			switch {
+			case strings.HasPrefix(p, "/api/v1/auth/"):
+				limit, window = 30, 10*time.Minute
+				key = "auth|" + clientIP(r)
+			case strings.Contains(p, "/webhooks/"):
+				limit, window = 120, time.Minute
+				key = "webhook|" + clientIP(r)
+			case strings.HasSuffix(p, "/answers:sync"):
+				limit, window = 180, time.Minute
+				key = "sync|" + clientIP(r)
+			default:
+				next.ServeHTTP(w, r)
+				return
+			}
+			ok, retry := rl.Allow(r.Context(), key, limit, window)
+			if !ok {
+				w.Header().Set("Retry-After", strconv.Itoa(int(retry.Seconds())+1))
+				httpx.WriteError(w, httpx.TooManyRequests("terlalu banyak permintaan, coba lagi nanti"))
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// clientIP mempercayai X-Forwarded-For hanya untuk hop pertama (dari proxy internal).
+func clientIP(r *http.Request) string {
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		if i := strings.IndexByte(xff, ','); i >= 0 {
+			xff = xff[:i]
+		}
+		if ip := strings.TrimSpace(xff); ip != "" {
+			return ip
+		}
+	}
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err == nil {
+		return host
+	}
+	return r.RemoteAddr
+}
+
 // internalHandler memproteksi endpoint /internal/*: di produksi wajib bearer INTERNAL_TOKEN
 // (dipakai deploy freeze Coolify — PRD 18.7); di dev tanpa token tidak boleh di prod.
 func (d *Deps) internalHandler(next http.HandlerFunc) http.HandlerFunc {
@@ -263,7 +376,7 @@ func (d *Deps) internalHandler(next http.HandlerFunc) http.HandlerFunc {
 			if h := r.Header.Get("Authorization"); len(h) > 7 && h[:7] == "Bearer " {
 				got = h[7:]
 			}
-			if d.Cfg.InternalToken == "" || got != d.Cfg.InternalToken {
+			if d.Cfg.InternalToken == "" || subtle.ConstantTimeCompare([]byte(got), []byte(d.Cfg.InternalToken)) != 1 {
 				d.Log.Warn("internal endpoint diakses tanpa token valid", "ip", r.RemoteAddr)
 				httpx.WriteError(w, httpx.Unauthorized("token internal tidak valid"))
 				return

@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"runtime/debug"
 	"strings"
 	"time"
 
@@ -15,20 +16,20 @@ import (
 type ctxKey string
 
 const (
-	ctxRequestID ctxKey = "request_id"
-	ctxClaims    ctxKey = "claims"
-	ctxTenantID  ctxKey = "tenant_id"
-	ctxActorType ctxKey = "actor_type"
-	ctxActorID   ctxKey = "actor_id"
+	ctxRequestID  ctxKey = "request_id"
+	ctxClaims     ctxKey = "claims"
+	ctxTenantID   ctxKey = "tenant_id"
+	ctxActorType  ctxKey = "actor_type"
+	ctxActorID    ctxKey = "actor_id"
 	ctxDeviceHash ctxKey = "device_hash"
 )
 
 // Claims adalah payload JWT (FR-1.6).
 type Claims struct {
-	Sub       string `json:"sub"`       // user id atau student id
-	Role      string `json:"role"`      // super_admin | owner | teacher | student
+	Sub       string `json:"sub"`  // user id atau student id
+	Role      string `json:"role"` // super_admin | owner | teacher | student
 	TenantID  string `json:"tid,omitempty"`
-	TokenType string `json:"typ"`       // "access"
+	TokenType string `json:"typ"` // "access"
 	Device    string `json:"dev,omitempty"`
 	jwt.RegisteredClaims
 }
@@ -59,14 +60,25 @@ func ParseToken(tokenStr string) (*Claims, error) {
 	return claims, nil
 }
 
-func RequestID() func(http.Handler) http.Handler { return middleware.RequestID }
+// C-02: chi.RequestID menyimpan rid di context tetapi tidak mengembalikannya ke klien.
+// Balut agar klien bisa menyertakan rid saat melaporkan insiden.
+func RequestID() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return middleware.RequestID(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if rid := middleware.GetReqID(r.Context()); rid != "" {
+				w.Header().Set("X-Request-ID", rid)
+			}
+			next.ServeHTTP(w, r)
+		}))
+	}
+}
 
 func Recoverer(log *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			defer func() {
 				if rec := recover(); rec != nil {
-					log.Error("panic", "err", rec)
+					log.Error("panic", "err", rec, "stack", string(debug.Stack()), "rid", middleware.GetReqID(r.Context()))
 					WriteError(w, Internal(http.ErrAbortHandler))
 				}
 			}()

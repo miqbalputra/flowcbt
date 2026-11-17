@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { api, useApiQuery, useApiMutation } from '@flowcbt/api-client';
+import { api, useApiQuery, useApiMutation, QueryError } from '@flowcbt/api-client';
 import { Button, Input, Modal, useToast, SkeletonTableRows, PageHeader, EmptyState, Icon } from '@flowcbt/ui';
 
 // CRUD kelas (FR-3.1).
@@ -7,6 +7,7 @@ export default function ClassesPage() {
   const toast = useToast();
   const { data: classes, refetch, error, isLoading } = useApiQuery<any[]>(['classes'], '/classes');
   const [open, setOpen] = useState(false);
+  const [toArchive, setToArchive] = useState<any>(null);
   const [form, setForm] = useState({ name: '', academic_year: '2026/2027' });
   const create = useApiMutation(async (f: any) => { await api('POST', '/classes', f); });
 
@@ -26,6 +27,7 @@ export default function ClassesPage() {
         subtitle="Kelompokkan siswa per kelas untuk penugasan ujian."
         actions={<Button onClick={() => setOpen(true)}><Icon name="plus" /> Kelas</Button>}
       />
+      {error && <QueryError error={error} onRetry={refetch} />}
       <div className="table-wrap">
         <table className="table">
           <thead><tr><th>Nama</th><th>Tahun ajaran</th><th>Siswa aktif</th><th></th></tr></thead>
@@ -36,10 +38,10 @@ export default function ClassesPage() {
             {(classes || []).map((c) => (
               <tr key={c.id}>
                 <td><strong>{c.name}</strong></td><td>{c.academic_year}</td><td>{c.student_count}</td>
-                <td><Button variant="ghost" onClick={async () => { await api('DELETE', `/classes/${c.id}`); refetch(); }}>Arsipkan</Button></td>
+                <td><Button variant="ghost" aria-label={`Arsipkan kelas ${c.name}`} onClick={() => setToArchive(c)}>Arsipkan</Button></td>
               </tr>
             ))}
-            {!error && (classes || []).length === 0 && <tr><td colSpan={4}><EmptyState icon="classes" title="Belum ada kelas">Buat kelas pertama, lalu isi dengan siswa.</EmptyState></td></tr>}
+            {!error && !isLoading && (classes || []).length === 0 && <tr><td colSpan={4}><EmptyState icon="classes" title="Belum ada kelas">Buat kelas pertama, lalu isi dengan siswa.</EmptyState></td></tr>}
           </tbody>
             )}
         </table>
@@ -51,6 +53,19 @@ export default function ClassesPage() {
           <Button onClick={submit}>Simpan</Button>
         </div>
       </Modal>
+      {toArchive && (
+        <Modal open onClose={() => setToArchive(null)} title="Arsipkan kelas">
+          <p>Kelas <strong>{toArchive.name}</strong> akan diarsipkan.</p>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 14 }}>
+            <Button variant="ghost" onClick={() => setToArchive(null)}>Batal</Button>
+            <Button variant="danger" onClick={async () => {
+              const c = toArchive; setToArchive(null);
+              try { await api('DELETE', `/classes/${c.id}`); toast(`Kelas ${c.name} diarsipkan`, 'ok'); refetch(); }
+              catch (err: any) { toast(err.message, 'danger'); }
+            }}>Ya, arsipkan</Button>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

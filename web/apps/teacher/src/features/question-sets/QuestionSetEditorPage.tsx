@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { api, useApiQuery, apiDownload } from '@flowcbt/api-client';
 import { Button, Card, Input, Textarea, Modal, useToast, Badge, Icon } from '@flowcbt/ui';
-import { QUESTION_TYPE_LABEL, type Question, type QuestionType } from '@flowcbt/shared';
+import { QUESTION_TYPE_LABEL, sanitizeHtml, statusLabel, statusTone, type Question, type QuestionType } from '@flowcbt/shared';
 
 // Editor soal (FR-4.4): 5 tipe AKM, autosave draft, tambah/ubah/hapus soal, publish (FR-4.7).
 export default function QuestionSetEditorPage() {
@@ -23,10 +23,10 @@ export default function QuestionSetEditorPage() {
     } catch (err: any) { toast(err.message, 'danger'); }
   };
 
+  const [toDelete, setToDelete] = useState<string | null>(null);
   const del = async (qid: string) => {
-    if (!confirm('Hapus soal ini?')) return;
-    await api('DELETE', `/questions/${qid}`);
-    refetch();
+    try { await api('DELETE', `/questions/${qid}`); toast('Soal dihapus', 'ok'); refetch(); }
+    catch (err: any) { toast(err.message, 'danger'); }
   };
 
   const publish = async () => {
@@ -41,12 +41,11 @@ export default function QuestionSetEditorPage() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
         <div>
           <h1 style={{ fontSize: 22, margin: 0 }}>{set?.title}</h1>
-          <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{set?.subject_name} · kode {set?.exam_code} · <Badge tone={set?.status === 'published' ? 'ok' : 'muted'}>{set?.status}</Badge></div>
+          <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{set?.subject_name} · kode {set?.exam_code} · <Badge tone={statusTone(set?.status)}>{statusLabel(set?.status)}</Badge></div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <a href={`${(window as any).__API__ || ''}`}></a>
           <Button variant="ghost" onClick={() => setShowImport(true)}>Import xlsx</Button>
-          <a href={undefined as any} onClick={(e) => { e.preventDefault(); apiDownload(`/question-sets/${id}/export`, 'paket-soal.xlsx').catch((err) => toast(err.message, 'danger')); }}><Button variant="ghost">Export xlsx</Button></a>
+          <Button variant="ghost" onClick={() => apiDownload(`/question-sets/${id}/export`, 'paket-soal.xlsx').catch((err) => toast(err.message, 'danger'))}>Export xlsx</Button>
           <Button onClick={publish} disabled={set?.status === 'published'}>Publish</Button>
           <Button onClick={() => setEdit({ type: 'mcq', body_html: '', options_json: [{ id: 'A', html: '' }, { id: 'B', html: '' }], answer_key_json: { correct: 'A' }, points: 1, scoring_mode: 'all_or_nothing', partial_wrong_penalty: true, shuffle_options: true, media_ids: [] })}>+ Soal</Button>
         </div>
@@ -58,11 +57,11 @@ export default function QuestionSetEditorPage() {
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
               <div>
                 <strong>#{i + 1}</strong> <Badge>{QUESTION_TYPE_LABEL[q.type]}</Badge> <Badge tone="muted">{q.points} poin</Badge>
-                <div dangerouslySetInnerHTML={{ __html: q.body_html }} style={{ marginTop: 4 }} />
+                <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(q.body_html) }} style={{ marginTop: 4 }} />
               </div>
               <div style={{ display: 'flex', gap: 6 }}>
                 <Button variant="ghost" onClick={() => setEdit({ ...q })}>Edit</Button>
-                <Button variant="danger" onClick={() => del(q.id)}>Hapus</Button>
+                <Button variant="danger" aria-label={`Hapus soal nomor ${q.order_no}`} onClick={() => setToDelete(q.id)}>Hapus</Button>
               </div>
             </div>
           </Card>
@@ -76,6 +75,15 @@ export default function QuestionSetEditorPage() {
       <Modal open={showImport} onClose={() => setShowImport(false)} title="Import soal dari template xlsx">
         <ImportForm setId={id!} onDone={() => { setShowImport(false); refetch(); }} />
       </Modal>
+      {toDelete && (
+        <Modal open onClose={() => setToDelete(null)} title="Hapus soal">
+          <p>Soal akan dihapus dari draft paket ini.</p>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 14 }}>
+            <Button variant="ghost" onClick={() => setToDelete(null)}>Batal</Button>
+            <Button variant="danger" onClick={() => { const qid = toDelete; setToDelete(null); void del(qid); }}>Ya, hapus</Button>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }
@@ -206,7 +214,7 @@ function MatchingEditor({ form, set }: { form: any; set: (k: string, v: any) => 
   return (
     <div>
       <strong>Menjodohkan</strong>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 6 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10, marginTop: 6 }}>
         <div>
           <em>Kiri</em>
           {opts.left.map((l: any, i: number) => (

@@ -86,12 +86,12 @@ export default function ReviewPage() {
           </div>
         )}
         {summary && summary.answered < summary.total && (
-          <div className="banner banner-warn" style={{ marginBottom: 10 }}>Masih ada {summary.total - summary.answered} soal yang belum Anda jawab.</div>
+          <div className="banner banner-warn" role="status" aria-live="polite" style={{ marginBottom: 10 }}>Masih ada {summary.total - summary.answered} soal yang belum Anda jawab.</div>
         )}
         {summary && summary.pending > 0 && (
           <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>{summary.pending} perubahan terakhir akan ikut terkirim sekarang.</p>
         )}
-        <div className={navigator.onLine ? 'banner banner-ok' : 'banner banner-warn'} style={{ fontSize: 14 }}>
+        <div className={navigator.onLine ? 'banner banner-ok' : 'banner banner-warn'} role="status" aria-live="polite" style={{ fontSize: 14 }}>
           {navigator.onLine
             ? 'Sedang online — jawaban akan langsung terkirim ke server.'
             : 'Sedang offline — jawaban tersimpan di perangkat dan otomatis terkirim saat koneksi pulih. Jangan hapus data browser.'}

@@ -11,4 +11,6 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
 FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=build /out/worker /worker
 USER nonroot:nonroot
+# C-13: heartbeat ditulis worker tiap ~30 detik; mode -healthcheck memeriksanya.
+HEALTHCHECK --interval=60s --timeout=4s --start-period=45s --retries=3 CMD ["/worker", "-healthcheck"]
 ENTRYPOINT ["/worker"]

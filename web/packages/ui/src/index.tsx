@@ -113,13 +113,17 @@ export function SkeletonTableRows({ cols = 5, rows = 5, style }: { cols?: number
 }
 
 // ---- Toast ----
-const ToastCtx = createContext<(msg: string, tone?: 'ok' | 'danger' | 'muted') => void>(() => {});
+// A-02: opsi `duration` (ms). 0 = persist — dipakai untuk info penting seperti
+// tautan checkout yang tidak boleh hilang setelah 4 detik.
+export interface ToastOptions { duration?: number }
+const ToastCtx = createContext<(msg: string, tone?: 'ok' | 'danger' | 'muted', opts?: ToastOptions) => void>(() => {});
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<{ id: number; msg: string; tone: string }[]>([]);
-  const push = (msg: string, tone: 'ok' | 'danger' | 'muted' = 'muted') => {
+  const push = (msg: string, tone: 'ok' | 'danger' | 'muted' = 'muted', opts: ToastOptions = {}) => {
     const id = Date.now() + Math.random();
     setItems((xs) => [...xs, { id, msg, tone }]);
-    setTimeout(() => setItems((xs) => xs.filter((x) => x.id !== id)), 4000);
+    const duration = opts.duration ?? 4000;
+    if (duration > 0) setTimeout(() => setItems((xs) => xs.filter((x) => x.id !== id)), duration);
   };
   return (
     <ToastCtx.Provider value={push}>

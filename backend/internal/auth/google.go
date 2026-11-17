@@ -31,15 +31,20 @@ func (g GoogleTokeninfoVerifier) Verify(ctx context.Context, idToken string) (st
 		return "", "", fmt.Errorf("tokeninfo status %d", resp.StatusCode)
 	}
 	var payload struct {
-		Sub   string `json:"sub"`
-		Email string `json:"email"`
-		Aud   string `json:"aud"`
+		Sub           string `json:"sub"`
+		Email         string `json:"email"`
+		Aud           string `json:"aud"`
+		EmailVerified string `json:"email_verified"` // tokeninfo mengembalikan string "true"/"false"
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
 		return "", "", err
 	}
 	if g.ClientID != "" && !strings.EqualFold(payload.Aud, g.ClientID) {
 		return "", "", fmt.Errorf("aud tidak cocok")
+	}
+	// B-09: jangan percaya akun Google dengan email belum terverifikasi.
+	if !strings.EqualFold(payload.EmailVerified, "true") {
+		return "", "", fmt.Errorf("email Google belum terverifikasi")
 	}
 	return payload.Sub, payload.Email, nil
 }

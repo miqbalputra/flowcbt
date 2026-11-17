@@ -1,5 +1,15 @@
 import { req } from './http.mjs';
-const ok = (name, cond, extra='') => console.log((cond ? 'PASS' : 'FAIL') + ' | ' + name + (extra ? ' | ' + extra : ''));
+
+// C-11: kumpulkan kegagalan dan akhiri dengan exit code non-nol.
+// Sebelumnya helper ini hanya console.log, sehingga `set -e` di smoke.sh tidak pernah
+// menangkap kegagalan dan CI menganggap smoke selalu hijau.
+let failures = 0;
+let total = 0;
+const ok = (name, cond, extra='') => {
+  total++;
+  if (!cond) failures++;
+  console.log((cond ? 'PASS' : 'FAIL') + ' | ' + name + (extra ? ' | ' + extra : ''));
+};
 
 // 1. guru baru + tenant trial
 const email = 'guru' + Date.now() + '@s.sch.id';
@@ -83,8 +93,7 @@ const answers = [
 ];
 r = await req('POST', `/api/v1/attempts/${attemptId}/answers:sync`, {events: answers}, ST);
 ok('sync batch 1', r.status === 200 && r.body.data.acked.length === 5, JSON.stringify(r.body.data?.acked?.length));
-const evs2 = answers.map(e => ({...e})); // kirim ulang batch sama (duplikat client_event_id? pakai id sama)
-const answersDup = answers.map((e,i) => ({...e}));
+const answersDup = answers.map((e) => ({...e})); // kirim ulang batch sama (idempoten via client_event_id)
 r = await req('POST', `/api/v1/attempts/${attemptId}/answers:sync`, {events: answersDup}, ST);
 ok('sync duplikat → ACK tanpa duplikasi (AC-3)', r.status === 200 && r.body.data.acked.every(a => a.duplicate === true), JSON.stringify(r.body.data?.acked?.map(a=>a.duplicate)));
 
@@ -166,7 +175,26 @@ if (GT) {
   ok('tamu melihat ujian', r.status === 200 && r.body.data?.length === 1);
 }
 
-// 17. RLS isolasi tenant (AC-9): guru tenant A akses resource tenant B → 404
-r = await req('POST', '/api/v1/auth/register', {name:'Guru Lain', email: 'lain' + Date.now() + '@s.sch.id', password:'password123', tenant_name:'Sekolah Beda ' + Date.now(), level:'sd_mi'});
-r = await req('POST', '/api/v1/auth/login', {email: 'lain' + (await 0, 0) + '', password:'x'}).catch(()=>({status:0}));
-console.log('--- DONE ---');
+// 17. RLS isolasi tenant (AC-9): resource tenant A tidak boleh terbaca dari tenant B.
+const otherEmail = 'lain' + Date.now() + '@s.sch.id';
+r = await req('POST', '/api/v1/auth/register', {name:'Guru Lain', email: otherEmail, password:'password123', tenant_name:'Sekolah Beda ' + Date.now(), level:'sd_mi'});
+ok('register tenant B', r.status === 201, JSON.stringify(r.body.error || {}));
+r = await req('POST', '/api/v1/auth/login', {email: otherEmail, password:'password123'});
+const TB = r.body.data?.tokens?.access_token;
+ok('login tenant B', r.status === 200 && !!TB);
+
+// Kontrol: pemilik resource tetap bisa membacanya.
+r = await req('GET', `/api/v1/question-sets/${qsId}`, null, T);
+ok('tenant A bisa baca resource sendiri', r.status === 200 && r.body.data?.id === qsId);
+
+// Uji utama: tenant B memakai ID tenant A harus ditolak (404/403), bukan mendapat datanya.
+r = await req('GET', `/api/v1/question-sets/${qsId}`, null, TB);
+ok('RLS: tenant B tidak bisa baca resource tenant A', r.status === 404 || r.status === 403, 'status=' + r.status);
+r = await req('GET', `/api/v1/classes/${classId}`, null, TB);
+ok('RLS: tenant B tidak bisa baca kelas tenant A', r.status === 404 || r.status === 403, 'status=' + r.status);
+
+console.log(`--- DONE (${total - failures}/${total} lulus) ---`);
+if (failures > 0) {
+  console.error(`SMOKE GAGAL: ${failures} assertion tidak lulus`);
+  process.exit(1);
+}

@@ -30,16 +30,16 @@ type Service struct {
 }
 
 type Plan struct {
-	ID          string `json:"id"`
-	Code        string `json:"code"`
-	Name        string `json:"name"`
-	Type        string `json:"type"` // free | per_exam | monthly
-	PriceIDR    int    `json:"price_idr"`
-	StudentMin  int    `json:"student_min"`
-	StudentMax  int    `json:"student_max"`
-	ExamQuota   *int   `json:"exam_quota"`
-	DurationDays *int  `json:"duration_days"`
-	IsActive    bool   `json:"is_active"`
+	ID           string `json:"id"`
+	Code         string `json:"code"`
+	Name         string `json:"name"`
+	Type         string `json:"type"` // free | per_exam | monthly
+	PriceIDR     int    `json:"price_idr"`
+	StudentMin   int    `json:"student_min"`
+	StudentMax   int    `json:"student_max"`
+	ExamQuota    *int   `json:"exam_quota"`
+	DurationDays *int   `json:"duration_days"`
+	IsActive     bool   `json:"is_active"`
 }
 
 // RoutesPublic: endpoint tanpa auth (daftar paket & webhook pembayaran).
@@ -107,18 +107,18 @@ func (s *Service) StudentLimit(ctx context.Context, tenantID string) (int, int, 
 
 // QuotaStatus ringkasan kuota tenant (dashboard & gating).
 type QuotaStatus struct {
-	HasActiveQuota  bool   `json:"has_active_quota"`
-	MonthlyActive   bool   `json:"monthly_active"`
-	MonthlyEndsAt   string `json:"monthly_ends_at,omitempty"`
-	TrialActive     bool   `json:"trial_active"`
-	TrialExamsLeft  int    `json:"trial_exams_left"`
-	CreditsTotal    int    `json:"credits_total"`
-	CreditsUsed     int    `json:"credits_used"`
-	CreditsLeft     int    `json:"credits_left"`
-	StudentLimit    int    `json:"student_limit"`
-	ActiveStudents  int    `json:"active_students"`
-	AccessEndedAt   string `json:"access_ended_at,omitempty"`
-	ReadOnly        bool   `json:"read_only"`
+	HasActiveQuota bool   `json:"has_active_quota"`
+	MonthlyActive  bool   `json:"monthly_active"`
+	MonthlyEndsAt  string `json:"monthly_ends_at,omitempty"`
+	TrialActive    bool   `json:"trial_active"`
+	TrialExamsLeft int    `json:"trial_exams_left"`
+	CreditsTotal   int    `json:"credits_total"`
+	CreditsUsed    int    `json:"credits_used"`
+	CreditsLeft    int    `json:"credits_left"`
+	StudentLimit   int    `json:"student_limit"`
+	ActiveStudents int    `json:"active_students"`
+	AccessEndedAt  string `json:"access_ended_at,omitempty"`
+	ReadOnly       bool   `json:"read_only"`
 }
 
 func (s *Service) Status(ctx context.Context, tenantID string) (*QuotaStatus, error) {
@@ -199,57 +199,61 @@ func (s *Service) EnsurePublishable(ctx context.Context, tenantID string) error 
 func (s *Service) ConsumeForPublish(ctx context.Context, tenantID, examID string) (string, string, error) {
 	var source, refID string
 	err := s.DB.WithTenantTx(ctx, tenantID, func(tx pgx.Tx) error {
-		// 1) bulanan aktif
-		var subID string
-		var ends time.Time
-		if err := tx.QueryRow(ctx,
-			`SELECT id, ends_at FROM subscriptions WHERE tenant_id=$1 AND status='active' AND type='monthly' AND ends_at > now() LIMIT 1`,
-			tenantID).Scan(&subID, &ends); err == nil {
-			source, refID = "monthly", subID
-			return nil
-		}
-		// 2) trial dengan sisa kuota — guard kondisional anti race (H1)
-		var trialID string
-		if err := tx.QueryRow(ctx,
-			`SELECT id FROM subscriptions WHERE tenant_id=$1 AND status='active' AND type='trial' AND ends_at > now() AND exam_quota > exams_used LIMIT 1`,
-			tenantID).Scan(&trialID); err == nil {
-			tag, err := tx.Exec(ctx, `UPDATE subscriptions SET exams_used = exams_used + 1 WHERE id=$1 AND exams_used < exam_quota`, trialID)
-			if err != nil {
-				return err
-			}
-			if tag.RowsAffected() == 0 {
-				return httpx.Err(httpx.CodeQuotaExceeded, "kuota ujian trial habis; upgrade untuk publish", 402)
-			}
-			source, refID = "trial", trialID
-			return nil
-		}
-		// 3) kredit per ujian (tidak kedaluwarsa), pilih tier dengan student_limit cukup
-		var active int
-		if err := tx.QueryRow(ctx, `SELECT count(*) FROM students WHERE tenant_id=$1 AND status='active' AND merged_into_id IS NULL`, tenantID).Scan(&active); err != nil {
-			return err
-		}
-		var creditID string
-		err := tx.QueryRow(ctx,
-			`SELECT id FROM exam_credits WHERE tenant_id=$1 AND used < quantity AND student_limit >= $2 ORDER BY student_limit ASC LIMIT 1`,
-			tenantID, active).Scan(&creditID)
-		if err != nil {
-			return httpx.Err(httpx.CodeQuotaExceeded, "tidak ada kredit ujian yang cukup untuk jumlah siswa saat ini; beli paket sesuai tier", 402)
-		}
-		// guard kondisional anti race atomik: qty guard di WHERE + cek RowsAffected (H1)
-		tag, err := tx.Exec(ctx, `UPDATE exam_credits SET used = used + 1 WHERE id=$1 AND used < quantity`, creditID)
-		if err != nil {
-			return err
-		}
-		if tag.RowsAffected() == 0 {
-			return httpx.Err(httpx.CodeQuotaExceeded, "kredit ujian tidak tersedia; beli paket sesuai tier", 402)
-		}
-		source, refID = "credit", creditID
-		return nil
+		var err error
+		source, refID, err = ConsumeForPublishTx(ctx, tx, tenantID, examID)
+		return err
 	})
 	if err != nil {
 		return "", "", err
 	}
 	return source, refID, nil
+}
+
+// B-03: variant yang memakai transaksi yang sudah berjalan, agar konsumsi kuota dan
+// UPDATE exam bersifat atomik. Tanpa ini, crash antara keduanya kehilangan kuota.
+func ConsumeForPublishTx(ctx context.Context, tx pgx.Tx, tenantID, examID string) (string, string, error) {
+	_ = examID // disimpan untuk kompatibilitas tanda tangan pemanggil lama
+	// 1) bulanan aktif
+	var subID string
+	var ends time.Time
+	if err := tx.QueryRow(ctx,
+		`SELECT id, ends_at FROM subscriptions WHERE tenant_id=$1 AND status='active' AND type='monthly' AND ends_at > now() LIMIT 1`,
+		tenantID).Scan(&subID, &ends); err == nil {
+		return "monthly", subID, nil
+	}
+	// 2) trial dengan sisa kuota — guard kondisional anti race (H1)
+	var trialID string
+	if err := tx.QueryRow(ctx,
+		`SELECT id FROM subscriptions WHERE tenant_id=$1 AND status='active' AND type='trial' AND ends_at > now() AND exam_quota > exams_used LIMIT 1`,
+		tenantID).Scan(&trialID); err == nil {
+		tag, err := tx.Exec(ctx, `UPDATE subscriptions SET exams_used = exams_used + 1 WHERE id=$1 AND exams_used < exam_quota`, trialID)
+		if err != nil {
+			return "", "", err
+		}
+		if tag.RowsAffected() == 0 {
+			return "", "", httpx.Err(httpx.CodeQuotaExceeded, "kuota ujian trial habis; upgrade untuk publish", 402)
+		}
+		return "trial", trialID, nil
+	}
+	// 3) kredit per ujian (tidak kedaluwarsa), pilih tier dengan student_limit cukup
+	var active int
+	if err := tx.QueryRow(ctx, `SELECT count(*) FROM students WHERE tenant_id=$1 AND status='active' AND merged_into_id IS NULL`, tenantID).Scan(&active); err != nil {
+		return "", "", err
+	}
+	var creditID string
+	if err := tx.QueryRow(ctx,
+		`SELECT id FROM exam_credits WHERE tenant_id=$1 AND used < quantity AND student_limit >= $2 ORDER BY student_limit ASC LIMIT 1`,
+		tenantID, active).Scan(&creditID); err != nil {
+		return "", "", httpx.Err(httpx.CodeQuotaExceeded, "tidak ada kredit ujian yang cukup untuk jumlah siswa saat ini; beli paket sesuai tier", 402)
+	}
+	tag, err := tx.Exec(ctx, `UPDATE exam_credits SET used = used + 1 WHERE id=$1 AND used < quantity`, creditID)
+	if err != nil {
+		return "", "", err
+	}
+	if tag.RowsAffected() == 0 {
+		return "", "", httpx.Err(httpx.CodeQuotaExceeded, "kredit ujian tidak tersedia; beli paket sesuai tier", 402)
+	}
+	return "credit", creditID, nil
 }
 
 // RefundForUnpublish mengembalikan kuota bila unpublish sebelum ada yang mengerjakan (PRD 3.2).
@@ -369,6 +373,21 @@ func (s *Service) checkout(w http.ResponseWriter, r *http.Request) {
 	if idem == "" {
 		idem = platform.NewIDString()
 	}
+	// B-04: replay harus mengembalikan payment yang sudah ada (beserta checkout_url),
+	// bukan membuat checkout baru di gateway lalu menolak dengan 409.
+	var replayID, replayOrder, replayURL, replayPlan string
+	var replayAmount int
+	if err := s.DB.System.QueryRow(r.Context(),
+		`SELECT p.id, p.order_id, p.checkout_url, p.amount_idr, pl.code
+		 FROM payments p JOIN plans pl ON pl.id=p.plan_id
+		 WHERE p.tenant_id=$1 AND p.idempotency_key=$2`, tid, idem).
+		Scan(&replayID, &replayOrder, &replayURL, &replayAmount, &replayPlan); err == nil {
+		httpx.WriteJSON(w, http.StatusOK, map[string]any{
+			"payment_id": replayID, "order_id": replayOrder, "checkout_url": replayURL,
+			"amount_idr": replayAmount, "plan": replayPlan, "replayed": true,
+		})
+		return
+	}
 	provider := in.Provider
 	if provider == "" {
 		provider = s.Provider.Name()
@@ -420,8 +439,18 @@ func (s *Service) checkout(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		if strings.Contains(err.Error(), "payments_idem_uq") || strings.Contains(err.Error(), "duplicate") {
-			httpx.WriteError(w, httpx.Conflict("IDEMPOTENT_REPLAY", "checkout dengan Idempotency-Key ini sudah dibuat"))
-			return
+			// Race: request paralel memenangkan insert — ambil baris pemenang dan kembalikan 200.
+			if qErr := s.DB.System.QueryRow(r.Context(),
+				`SELECT p.id, p.order_id, p.checkout_url, p.amount_idr, pl.code
+				 FROM payments p JOIN plans pl ON pl.id=p.plan_id
+				 WHERE p.tenant_id=$1 AND p.idempotency_key=$2`, tid, idem).
+				Scan(&replayID, &replayOrder, &replayURL, &replayAmount, &replayPlan); qErr == nil {
+				httpx.WriteJSON(w, http.StatusOK, map[string]any{
+					"payment_id": replayID, "order_id": replayOrder, "checkout_url": replayURL,
+					"amount_idr": replayAmount, "plan": replayPlan, "replayed": true,
+				})
+				return
+			}
 		}
 		httpx.WriteError(w, err)
 		return
@@ -463,8 +492,12 @@ func (s *Service) handleWebhook(w http.ResponseWriter, r *http.Request, provider
 		return provider.HandleWebhook(r.Context(), tx, payload)
 	})
 	if err != nil {
+		// B-04: INSERT event ikut rollback saat handler gagal, jadi UPDATE tidak punya baris.
+		// Catat kegagalan sebagai baris terpisah agar bisa diinspeksi & di-replay.
 		_, _ = s.DB.System.Exec(r.Context(),
-			`UPDATE payment_webhook_events SET error=$1 WHERE provider=$2 AND event_id=$3`, err.Error(), providerName, eventID)
+			`INSERT INTO payment_webhook_events (provider, event_id, signature_ok, payload, error)
+			 VALUES ($1,$2,true,$3,$4) ON CONFLICT (provider, event_id) DO NOTHING`,
+			providerName, eventID+"-err-"+platform.NewIDString(), payload, err.Error())
 		httpx.WriteError(w, err)
 		return
 	}
@@ -545,6 +578,8 @@ func (s *Service) ProviderByName(name string) (PaymentProvider, error) {
 }
 
 func readBody(r *http.Request) []byte {
+	// B-04: batasi body webhook agar payload besar tidak membebani server.
+	r.Body = http.MaxBytesReader(nil, r.Body, 1<<20)
 	buf := make([]byte, 0, 4096)
 	tmp := make([]byte, 4096)
 	for {

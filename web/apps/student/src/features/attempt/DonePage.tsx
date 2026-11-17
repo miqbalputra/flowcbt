@@ -11,6 +11,8 @@ export default function DonePage() {
   const [online, setOnline] = useState(navigator.onLine);
   const [pending, setPending] = useState(0);
   const [result, setResult] = useState<any>(null);
+  const [lastAckAt, setLastAckAt] = useState<string | null>(null);
+  const [syncTick, setSyncTick] = useState(0);
 
   useEffect(() => {
     const sync = async () => {
@@ -23,7 +25,10 @@ export default function DonePage() {
             put: async (e) => { await db.outbox.put({ ...e, attemptId: id } as any); },
             deleteMany: async (ids) => { await db.outbox.where('client_event_id').anyOf(ids).delete(); },
           }, async (attemptId, evs) => api('POST', `/attempts/${attemptId}/answers:sync`, { events: evs, submitted: true, submit_reason: 'offline_sync' }), setPending);
-        } catch {}
+          // A-15: ACK server benar-benar diterima — baru tampilkan status "tersinkron".
+          const left = await db.outbox.where('attemptId').equals(id!).count();
+          if (left === 0) setLastAckAt(new Date().toLocaleTimeString('id-ID'));
+        } catch { /* belum tersinkron; panel tetap menunggu */ }
       }
       try { setResult(await api('GET', `/attempts/${id}/result`)); } catch {}
     };
@@ -32,7 +37,7 @@ export default function DonePage() {
     const on = () => { setOnline(true); void sync(); };
     window.addEventListener('online', on);
     return () => { clearInterval(t); window.removeEventListener('online', on); };
-  }, [id]);
+  }, [id, syncTick]);
 
   return (
     <div className="app-wrap" style={{ maxWidth: 560, paddingTop: '18vh' }}>
@@ -45,6 +50,17 @@ export default function DonePage() {
         </span>
         <h1 style={{ fontSize: 24 }}>Selesai</h1>
         <p style={{ margin: '10px 0 0' }}><ConnectionBadge online={online} pending={pending} /></p>
+        {/* A-15: panel status sinkronisasi eksplisit */}
+        <div role="status" aria-live="polite" style={{ width: '100%', fontSize: 13, color: 'var(--text-muted)', background: 'var(--surface-3)', borderRadius: 10, padding: '10px 14px', marginTop: 10 }}>
+          {pending > 0
+            ? `${pending} jawaban menunggu terkirim.`
+            : lastAckAt
+              ? `Semua jawaban tersinkron pukul ${lastAckAt}.`
+              : 'Menunggu konfirmasi server…'}
+          <div style={{ marginTop: 8 }}>
+            <Button variant="ghost" onClick={() => setSyncTick((t) => t + 1)}>Sinkron sekarang</Button>
+          </div>
+        </div>
         {pending > 0 && <p style={{ fontSize: 14, color: 'var(--warn-text)', background: 'var(--warn-bg)', borderRadius: 10, padding: '8px 14px' }}>
           Jawaban tersimpan di perangkat — menunggu internet untuk terkirim ({pending} kelompok data). Jangan hapus data browser.
         </p>}

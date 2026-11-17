@@ -73,10 +73,24 @@ async function main() {
   await page.goto(TEACHER + '/register', { waitUntil: 'networkidle' });
   await scan(page, 'teacher /register', findings);
 
-  for (const p of ['/dashboard', '/students', '/classes', '/question-sets', '/exams', '/reports/history', '/reports/live', '/billing', '/settings']) {
+  const teacherRoutes = [
+    '/dashboard', '/students', '/classes', '/question-sets', '/exams', '/exams/new',
+    '/reports/history', '/reports/live', '/billing', '/settings',
+    '/admin/tenants', '/admin/plans', '/admin/payments', '/admin/metrics',
+  ];
+  for (const p of teacherRoutes) {
     await page.goto(TEACHER + p, { waitUntil: 'networkidle' });
     await scan(page, 'teacher ' + p, findings);
   }
+
+  // A-09: audit dark mode (kontras tombol danger & badge sebelumnya belum teruji).
+  // ThemeProvider memakai 'system' secara default → emulateMedia mengaktifkan .dark.
+  await page.emulateMedia({ colorScheme: 'dark' });
+  for (const p of ['/dashboard', '/question-sets', '/exams', '/billing']) {
+    await page.goto(TEACHER + p, { waitUntil: 'networkidle' });
+    await scan(page, 'teacher(dark) ' + p, findings);
+  }
+  await page.emulateMedia({ colorScheme: 'light' });
   await tctx.close();
 
   // ---- Student app: halaman login via UI ----
@@ -84,6 +98,8 @@ async function main() {
   const spage = await sctx.newPage();
   await spage.goto(STUDENT + '/login', { waitUntil: 'networkidle' });
   await scan(spage, 'student /login', findings);
+  await spage.goto(STUDENT + '/guest', { waitUntil: 'networkidle' });
+  await scan(spage, 'student /guest', findings);
   // login siswa via UI bila form tersedia, lalu scan dashboard/riwayat
   try {
     const fields = {
@@ -129,6 +145,11 @@ async function main() {
   const crit = findings.filter((f) => f.impact === 'critical').length;
   const ser = findings.filter((f) => f.impact === 'serious').length;
   console.log(`\nTotal: ${findings.length} pelanggaran (critical: ${crit}, serious: ${ser})`);
+  // C-11: jadikan audit ini gate yang bisa gagal, bukan sekadar laporan.
+  if (crit + ser > 0) {
+    console.error(`A11Y GAGAL: ${crit} critical, ${ser} serious`);
+    process.exit(1);
+  }
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });

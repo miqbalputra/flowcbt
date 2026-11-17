@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { api, useApiQuery } from '@flowcbt/api-client';
+import { sanitizeHtml } from '@flowcbt/shared';
 import { Button, Card, Input, Textarea, Badge, useToast, SkeletonList, PageHeader, EmptyState, Icon } from '@flowcbt/ui';
 
 // Koreksi manual uraian + override skor (FR-8.3), dengan alasan (audit).
@@ -37,14 +38,14 @@ export default function GradingPage() {
         {!isLoading && (rows || []).map((r, i) => {
           const needGrading = r.type === 'essay' && r.graded_by !== 'manual';
           return (
-            <Card key={r.question_id} style={needGrading ? { borderColor: 'var(--accent)' } : undefined}>
+            <Card key={r.question_id} style={needGrading ? { borderColor: 'var(--brand-500)' } : undefined}>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                 <strong>Soal #{i + 1}</strong> <Badge tone="muted">{r.type}</Badge> <Badge tone="muted">maks {r.points} poin</Badge>
                 {r.graded_by && <Badge tone="ok"><Icon name={r.graded_by === 'auto' ? 'zap' : 'pencil'} /> {r.graded_by === 'auto' ? `otomatis: ${r.auto_score}` : `manual: ${r.score}`}</Badge>}
                 {needGrading && <Badge tone="warn"><Icon name="clock" /> menunggu penilaian</Badge>}
               </div>
-              <div dangerouslySetInnerHTML={{ __html: r.body_html }} style={{ margin: '8px 0' }} />
-              <div className="surface-3" style={{ padding: 10, borderRadius: 'var(--radius-md)' }}>
+              <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(r.body_html) }} style={{ margin: '8px 0' }} />
+              <div className="surface-3" style={{ padding: 10, borderRadius: 'var(--r-md)' }}>
                 <div className="stat-label">Jawaban siswa</div>
                 <div style={{ marginTop: 2 }}>{typeof r.answer === 'object' ? JSON.stringify(r.answer) : String(r.answer ?? '-')}</div>
               </div>

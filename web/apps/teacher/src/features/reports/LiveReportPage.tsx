@@ -19,21 +19,57 @@ export default function LiveReportPage() {
 
   useEffect(() => {
     if (!examId) return;
-    let es: EventSource | null = null;
+    let stopped = false;
+    let controller: AbortController | null = null;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+
     const poll = async () => {
       try {
         const r = await api<any>('GET', `/reports/live/${examId}`);
         setParts(r.participants || []);
-      } catch {}
+      } catch { /* fallback: state terakhir tetap ditampilkan */ }
     };
     void poll();
-    const t = setInterval(poll, 10000); // fallback polling 10 dtk (FR-9.3)
-    try {
-      es = new EventSource(`${API_BASE}/reports/live/stream?examId=${examId}`);
-      // SSE membawa token via query tidak bisa; server dev tanpa auth untuk SSE — tetap coba, fallback polling di atas
-      es.onmessage = () => { void poll(); };
-    } catch {}
-    return () => { clearInterval(t); es?.close(); };
+    const pollTimer = setInterval(poll, 10000); // fallback polling 10 dtk (FR-9.3)
+
+    // B-07: EventSource tidak bisa mengirim header Authorization. Gunakan fetch-stream
+    // agar endpoint SSE tetap terlindungi AuthN, dengan reconnect otomatis.
+    const connect = async () => {
+      if (stopped) return;
+      controller = new AbortController();
+      try {
+        const token = getAccessToken();
+        const res = await fetch(`${API_BASE}/reports/live/stream?examId=${encodeURIComponent(examId)}`, {
+          headers: token ? { Authorization: 'Bearer ' + token } : {},
+          signal: controller.signal,
+          cache: 'no-store',
+        });
+        if (!res.ok || !res.body) throw new Error('SSE stream gagal: ' + res.status);
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buf = '';
+        while (!stopped) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buf += decoder.decode(value, { stream: true });
+          let i: number;
+          while ((i = buf.indexOf('\n\n')) >= 0) {
+            const frame = buf.slice(0, i);
+            buf = buf.slice(i + 2);
+            if (frame.includes('data:')) void poll();
+          }
+        }
+      } catch { /* akan mencoba lagi di bawah */ }
+      if (!stopped) retryTimer = setTimeout(() => void connect(), 3000);
+    };
+    void connect();
+
+    return () => {
+      stopped = true;
+      clearInterval(pollTimer);
+      if (retryTimer) clearTimeout(retryTimer);
+      controller?.abort();
+    };
   }, [examId]);
 
   const exam = (live || []).find((e) => e.exam_id === examId);
@@ -72,10 +108,10 @@ export default function LiveReportPage() {
               <tr key={p.student_id}>
                 <td><strong>{p.name}</strong> {p.is_guest && <Badge tone="warn">tamu</Badge>}</td>
                 <td>{p.class}</td>
-                <td style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                <td><div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                   <Badge tone={p.status === 'in_progress' ? 'brand' : p.status === 'not_started' ? 'muted' : 'ok'}>{p.status === 'in_progress' ? 'Mengerjakan' : p.status === 'not_started' ? 'Belum mulai' : 'Selesai'}</Badge>
                   {p.offline && <Badge tone="danger">offline</Badge>}
-                </td>
+                  </div></td>
                 <td className="num">{p.answered}/{p.total_questions}</td>
                 <td>{fmtDateTime(p.last_seen_at)}</td>
                 <td>{p.violation_count > 0 && <Badge tone="danger">{p.violation_count} pelanggaran{p.cheating_status === 'flagged' ? ' — curang' : ''}</Badge>}</td>

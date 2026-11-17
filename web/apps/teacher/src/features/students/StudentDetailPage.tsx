@@ -2,7 +2,7 @@ import React from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useApiQuery } from '@flowcbt/api-client';
 import { Card, Badge, SkeletonTableRows, Button, PageHeader, EmptyState, Icon } from '@flowcbt/ui';
-import { fmtDateTime } from '@flowcbt/shared';
+import { fmtDateTime, statusLabel, statusTone } from '@flowcbt/shared';
 
 // Track record siswa (FR-3.7): seluruh ujian, nilai, status — melekat ke siswa walau pindah kelas.
 export default function StudentDetailPage() {
@@ -33,7 +33,7 @@ export default function StudentDetailPage() {
                     <td>{a.exam_name}</td><td>{a.subject}</td><td>#{a.attempt_no}</td>
                     <td><strong style={{ fontVariantNumeric: 'tabular-nums' }}>{a.final_score ?? '—'}</strong></td>
                     <td style={{ fontVariantNumeric: 'tabular-nums' }}>{a.penalty_points ? `-${a.penalty_points}` : '—'}</td>
-                    <td><Badge tone={a.status === 'graded' ? 'ok' : 'muted'}>{a.status}</Badge></td>
+                    <td><Badge tone={statusTone(a.status)}>{statusLabel(a.status)}</Badge></td>
                     <td>{fmtDateTime(a.started_at)}</td>
                   </tr>
                 ))}

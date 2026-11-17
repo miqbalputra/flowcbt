@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-		"strings"
+	"strings"
 	"time"
 
 	"flowcbt/backend/internal/audit"
@@ -30,18 +30,21 @@ type Service struct {
 }
 
 type QuestionSet struct {
-	ID            string   `json:"id"`
-	SubjectName   string   `json:"subject_name"`
-	Title         string   `json:"title"`
-	Description   *string  `json:"description,omitempty"`
-	ExamCode      string   `json:"exam_code"`
-	LevelTags     []string `json:"level_tags"`
-	Status        string   `json:"status"`
-	SharedWithTenant bool  `json:"shared_with_tenant"`
-	QuestionCount int       `json:"question_count"`
-	MaxPoints     float64   `json:"max_points"`
-	CreatedAt     time.Time `json:"created_at"`
-	UpdatedAt     time.Time `json:"updated_at"`
+	ID               string   `json:"id"`
+	SubjectName      string   `json:"subject_name"`
+	Title            string   `json:"title"`
+	Description      *string  `json:"description,omitempty"`
+	ExamCode         string   `json:"exam_code"`
+	LevelTags        []string `json:"level_tags"`
+	Status           string   `json:"status"`
+	SharedWithTenant bool     `json:"shared_with_tenant"`
+	QuestionCount    int      `json:"question_count"`
+	MaxPoints        float64  `json:"max_points"`
+	// X-02: bantu klien membedakan konten tampilan vs draft yang sedang diedit.
+	EditableVersionID     *string   `json:"editable_version_id,omitempty"`
+	HasUnpublishedChanges bool      `json:"has_unpublished_changes,omitempty"`
+	CreatedAt             time.Time `json:"created_at"`
+	UpdatedAt             time.Time `json:"updated_at"`
 }
 
 func (s *Service) Routes(r chi.Router) {
@@ -180,14 +183,46 @@ func (s *Service) create(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusCreated, qs)
 }
 
-// currentVersionID mengembalikan versi aktif (draft bila ada, selain itu published terakhir).
-func currentVersionID(ctx context.Context, tx pgx.Tx, tenantID, setID string) (string, string, error) {
-	var verID, status string
-	err := tx.QueryRow(ctx,
-		`SELECT id, status FROM question_set_versions
-		 WHERE question_set_id=$1 AND tenant_id=$2
-		 ORDER BY (status='draft') DESC, version_no DESC LIMIT 1`, setID, tenantID).Scan(&verID, &status)
-	return verID, status, err
+// X-02/B-01: satu helper dipakai untuk dua semantik yang berbeda — "versi editable"
+// dan "konten tampilan". Setelah publish, soal dipindah ke versi published sementara
+// draft lama dikosongkan; mengutamakan draft membuat daftar soal jadi kosong.
+// Pisahkan menjadi dua helper dengan semantik eksplisit.
+
+// displayVersionID mengembalikan konten resmi yang tampil/ diekspor/ disalin:
+// published bila ada, baru draft untuk paket yang belum pernah publish.
+func displayVersionID(ctx context.Context, tx pgx.Tx, tenantID, setID string) (string, error) {
+	draft, pub, err := repoSelectVersions(ctx, tx, tenantID, setID)
+	if err != nil {
+		return "", httpx.NotFound("paket tidak ditemukan")
+	}
+	if pub != nil {
+		return *pub, nil
+	}
+	if draft != nil {
+		return *draft, nil
+	}
+	return "", httpx.NotFound("paket tidak punya versi")
+}
+
+// draftVersionID mengembalikan versi yang boleh di-publish. Versi draft lama memang
+// sengaja dikosongkan saat publish, jadi ini tidak boleh jatuh ke versi published.
+func draftVersionID(ctx context.Context, tx pgx.Tx, tenantID, setID string) (string, error) {
+	id, status, err := repoSelectDraftVersion(ctx, tx, tenantID, setID)
+	if err != nil {
+		return "", httpx.NotFound("paket tidak ditemukan")
+	}
+	if status != "draft" {
+		return "", httpx.BadRequest(httpx.CodeValidation, "draft_version_id tidak menunjuk versi draft")
+	}
+	return id, nil
+}
+
+// versionForRequest: ?version=draft memilih versi editable, selain itu konten tampilan.
+func versionForRequest(r *http.Request, ctx context.Context, tx pgx.Tx, tenantID, setID string) (string, error) {
+	if r.URL.Query().Get("version") == "draft" {
+		return draftVersionID(ctx, tx, tenantID, setID)
+	}
+	return displayVersionID(ctx, tx, tenantID, setID)
 }
 
 func (s *Service) get(w http.ResponseWriter, r *http.Request) {
@@ -195,12 +230,29 @@ func (s *Service) get(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	var qs QuestionSet
 	err := s.DB.WithTenantTx(r.Context(), tid, func(tx pgx.Tx) error {
-		return tx.QueryRow(r.Context(),
+		// X-02: metadata paket published harus mengikuti versi published, bukan draft lama yang dikosongkan.
+		if err := tx.QueryRow(r.Context(),
 			`SELECT qs.id, qs.subject_name, qs.title, qs.description, qs.exam_code, qs.level_tags, qs.status, qs.shared_with_tenant,
 			        COALESCE(v.question_count,0), COALESCE(v.max_points,0), qs.created_at, qs.updated_at
-			 FROM question_sets qs LEFT JOIN question_set_versions v ON v.id=COALESCE(qs.draft_version_id, qs.published_version_id)
+			 FROM question_sets qs LEFT JOIN question_set_versions v ON v.id=COALESCE(qs.published_version_id, qs.draft_version_id)
 			 WHERE qs.tenant_id=$1 AND qs.id=$2`, tid, id).
-			Scan(&qs.ID, &qs.SubjectName, &qs.Title, &qs.Description, &qs.ExamCode, &qs.LevelTags, &qs.Status, &qs.SharedWithTenant, &qs.QuestionCount, &qs.MaxPoints, &qs.CreatedAt, &qs.UpdatedAt)
+			Scan(&qs.ID, &qs.SubjectName, &qs.Title, &qs.Description, &qs.ExamCode, &qs.LevelTags, &qs.Status, &qs.SharedWithTenant, &qs.QuestionCount, &qs.MaxPoints, &qs.CreatedAt, &qs.UpdatedAt); err != nil {
+			return err
+		}
+		var draftVer *string
+		if err := tx.QueryRow(r.Context(), `SELECT draft_version_id FROM question_sets WHERE tenant_id=$1 AND id=$2`, tid, id).Scan(&draftVer); err != nil {
+			return err
+		}
+		qs.EditableVersionID = draftVer
+		if qs.Status == "published" && draftVer != nil {
+			// Draft terisi berarti ada perubahan yang belum di-publish (editableVersion meng-clone konten saat edit pertama).
+			var draftCount int
+			if err := tx.QueryRow(r.Context(), `SELECT count(*) FROM questions WHERE set_version_id=$1`, *draftVer).Scan(&draftCount); err != nil {
+				return err
+			}
+			qs.HasUnpublishedChanges = draftCount > 0
+		}
+		return nil
 	})
 	if err != nil {
 		httpx.WriteError(w, httpx.NotFound("paket soal tidak ditemukan"))
@@ -286,8 +338,8 @@ func (s *Service) duplicate(w http.ResponseWriter, r *http.Request) {
 		if _, err := tx.Exec(r.Context(), `UPDATE question_sets SET draft_version_id=$1 WHERE id=$2`, verID, newID); err != nil {
 			return err
 		}
-		// salin soal dari versi sumber (draft atau published terakhir)
-		srcVer, _, err := currentVersionID(r.Context(), tx, tid, id)
+		// X-02: salin dari konten tampilan (published bila ada), bukan draft lama yang sudah dikosongkan.
+		srcVer, err := displayVersionID(r.Context(), tx, tid, id)
 		if err == nil {
 			_, err = tx.Exec(r.Context(),
 				`INSERT INTO questions (tenant_id, set_version_id, order_no, type, stimulus_id, body_html, options_json, answer_key_json, rubric_json, points, scoring_mode, partial_wrong_penalty, shuffle_options, explanation_html, media_ids)
@@ -329,7 +381,8 @@ func (s *Service) publish(w http.ResponseWriter, r *http.Request) {
 		if status == "archived" {
 			return httpx.BadRequest(httpx.CodeValidation, "paket sudah diarsipkan")
 		}
-		draftVer, draftStatus, err := currentVersionID(r.Context(), tx, tid, id)
+		// X-02: publish wajib mengunci versi draft yang benar, bukan "versi apa pun".
+		draftVer, err := draftVersionID(r.Context(), tx, tid, id)
 		if err != nil {
 			return httpx.BadRequest(httpx.CodeValidation, "paket belum punya versi draft")
 		}
@@ -351,7 +404,6 @@ func (s *Service) publish(w http.ResponseWriter, r *http.Request) {
 		if qcount == 0 {
 			return httpx.BadRequest(httpx.CodeValidation, "paket belum memiliki soal")
 		}
-		_ = draftStatus
 		// versi berikutnya: bekukan draft sebagai published
 		var maxVer int
 		if err := tx.QueryRow(r.Context(), `SELECT COALESCE(max(version_no),0) FROM question_set_versions WHERE question_set_id=$1`, id).Scan(&maxVer); err != nil {
@@ -373,10 +425,9 @@ func (s *Service) publish(w http.ResponseWriter, r *http.Request) {
 			`UPDATE stimuli SET set_version_id=$1 WHERE set_version_id=$2`, verID, draftVer); err != nil {
 			return err
 		}
-		// draft baru = clone kosong? sesuai PRD: mengubah soal setelah publish = clone ke draft baru.
-		// Simpan: question_sets.status='published', draft_version_id tetap menunjuk versi lama (sekarang published) —
-		// untuk edit berikutnya, buat draft baru saat ada perubahan (lihat updateQuestion: bila published, clone dulu).
-		// draft lama (sekarang kosong setelah soal dipindah) dipakai terus sebagai draft aktif
+		// draft lama kini kosong dan tetap dipakai sebagai draft aktif. Saat guru mengedit,
+		// editableVersion meng-clone konten published ke draft ini (FR-4.8), lalu publish
+		// berikutnya memindahkannya lagi. Konten tampilan selalu published_version_id.
 		if _, err := tx.Exec(r.Context(),
 			`UPDATE question_sets SET status='published', published_version_id=$1, draft_version_id=$2 WHERE id=$3`, verID, draftVer, id); err != nil {
 			return err

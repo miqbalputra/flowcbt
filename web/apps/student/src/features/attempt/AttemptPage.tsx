@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '@flowcbt/api-client';
 import { Button, Card, Badge, BottomSheet, ConnectionBadge, useToast, ThemeToggle, Icon } from '@flowcbt/ui';
-import { fmtDuration, QUESTION_TYPE_LABEL, type ExamPacket, type Question, type SyncEvent } from '@flowcbt/shared';
+import { fmtDuration, QUESTION_TYPE_LABEL, sanitizeHtml, stripHtml, type ExamPacket, type Question, type SyncEvent } from '@flowcbt/shared';
 import { db, LocalAttempt } from '../offline/db';
 import { calibrate, deadlineCountdownMs, drainOutbox, newEventId, connState, type ServerClock } from '../offline/engine';
 
@@ -203,14 +203,25 @@ export default function AttemptPage() {
       {/* header sticky: nama ujian, timer, koneksi, tema (FR-6.3) */}
       <div className="st-head" style={{ alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
         <strong style={{ flex: 1, minWidth: 100, fontSize: 15 }}>{packet.exam.name}</strong>
-        <span className={'timer-chip' + (left !== null && left < 60000 ? ' low' : '')}>
+        <span className={'timer-chip' + (left !== null && left < 60000 ? ' low' : '')}
+          role="timer" aria-live="off" aria-label="Sisa waktu pengerjaan">
           <Icon name="clock" size={15} />
           {fmtDuration((left || 0) / 1000)}
+        </span>
+        {/* A-07c: umumkan hanya pada menit penting agar tidak membanjiri screen reader. */}
+        <span className="sr-only" aria-live="assertive">
+          {left !== null && [600000, 300000, 60000].includes(left) ? `Sisa waktu ${fmtDuration(left / 1000)}` : ''}
         </span>
         <ConnectionBadge online={online} pending={pending} />
         <ThemeToggle />
       </div>
       <div style={{ height: 12 }} />
+      {/* A-15: status outbox eksplisit — \"tersimpan lokal\" bukan \"hilang\" */}
+      {pending > 0 && (
+        <div role="status" aria-live="polite" className="banner banner-warn" style={{ marginBottom: 12, fontSize: 13 }}>
+          {pending} jawaban belum terkirim. Tersimpan aman di perangkat dan akan dikirim otomatis saat online.
+        </div>
+      )}
       {warned > 0 && (
         <div className="banner banner-danger" role="alert" style={{ marginBottom: 12 }}>
           <strong>Pelanggaran ke-{warned} tercatat</strong> — Anda meninggalkan halaman ujian.
@@ -228,7 +239,7 @@ export default function AttemptPage() {
             <Badge tone="brand">{q.points} poin</Badge>
           </span>
         </div>
-        <div className="q-body" dangerouslySetInnerHTML={{ __html: q.body_html }} />
+        <div className="q-body" dangerouslySetInnerHTML={{ __html: sanitizeHtml(q.body_html) }} />
         <QuestionInput q={q} value={answers[q.id]?.payload} flagged={answers[q.id]?.flagged} onAnswer={(p) => setAnswer(q.id, p)} onFlag={() => toggleFlag(q.id)} />
       </Card>
 
@@ -292,7 +303,7 @@ function QuestionInput({ q, value, flagged, onAnswer, onFlag }: { q: Question; v
               aria-pressed={value?.selected === o.id}
             >
               <span className="opt-key" aria-hidden="true">{o.id}</span>
-              <span dangerouslySetInnerHTML={{ __html: o.html }} />
+              <span dangerouslySetInnerHTML={{ __html: sanitizeHtml(o.html) }} />
             </button>
           ))}
           <FlagButton flagged={flagged} onFlag={onFlag} />
@@ -308,7 +319,7 @@ function QuestionInput({ q, value, flagged, onAnswer, onFlag }: { q: Question; v
           {opts.map((o) => (
             <button key={o.id} onClick={() => toggle(o.id)} className={'q-opt' + (sel.includes(o.id) ? ' selected' : '')} aria-pressed={sel.includes(o.id)}>
               <span className="opt-key" aria-hidden="true">{sel.includes(o.id) ? <Icon name="check" size={14} /> : '\u00A0'}</span>
-              <span dangerouslySetInnerHTML={{ __html: o.html }} />
+              <span dangerouslySetInnerHTML={{ __html: sanitizeHtml(o.html) }} />
             </button>
           ))}
           <FlagButton flagged={flagged} onFlag={onFlag} />
@@ -366,14 +377,14 @@ function MatchingInput({ q, value, flagged, onAnswer, onFlag }: { q: Question; v
 
   return (
     <div style={{ marginTop: 14 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9 }}>
+      <div className="matching-grid">
         <div style={{ display: 'grid', gap: 9 }}>
           {opts.left.map((l) => {
             const pr = pairedLeft.get(l.id);
             return (
-              <button key={l.id} onClick={() => tapLeft(l.id)} aria-pressed={picked === l.id} aria-label={pr ? 'item kiri, sudah berpasangan; ketuk untuk melepas' : 'item kiri'} className={'q-opt' + (picked === l.id ? ' flagged' : '') + (pr ? ' selected' : '')}>
+              <button key={l.id} onClick={() => tapLeft(l.id)} aria-pressed={picked === l.id} aria-label={`Item kiri: ${stripHtml(l.html)}${pr ? ', sudah berpasangan; ketuk untuk melepas' : ''}`} className={'q-opt' + (picked === l.id ? ' flagged' : '') + (pr ? ' selected' : '')}>
                 <div>
-                  <span dangerouslySetInnerHTML={{ __html: l.html }} />
+                  <span dangerouslySetInnerHTML={{ __html: sanitizeHtml(l.html) }} />
                   {pr && <div style={{ marginTop: 6 }}><Badge tone="ok"><Icon name="chevron-right" /> {shortText(opts.right.find((r) => r.id === pr)?.html || '')}</Badge></div>}
                 </div>
               </button>
@@ -385,10 +396,10 @@ function MatchingInput({ q, value, flagged, onAnswer, onFlag }: { q: Question; v
             <button
               key={r.id}
               onClick={() => tapRight(r.id)}
-              aria-label="item kanan"
+              aria-label={`Item kanan: ${stripHtml(r.html)}`}
               className={'q-opt' + (pairedRight.has(r.id) ? ' selected' : '')}
             >
-              <span dangerouslySetInnerHTML={{ __html: r.html }} />
+              <span dangerouslySetInnerHTML={{ __html: sanitizeHtml(r.html) }} />
             </button>
           ))}
         </div>

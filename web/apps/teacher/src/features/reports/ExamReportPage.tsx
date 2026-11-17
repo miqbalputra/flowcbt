@@ -2,6 +2,7 @@ import React from 'react';
 import { useParams } from 'react-router-dom';
 import { useApiQuery, apiDownload, QueryError } from '@flowcbt/api-client';
 import { Card, Badge, Button, SkeletonCards, SkeletonTableRows, useToast, PageHeader, Icon } from '@flowcbt/ui';
+import { statusLabel, statusTone } from '@flowcbt/shared';
 
 // Detail laporan ujian (FR-9.8/9.9): statistik + histogram + analisis butir + export.
 export default function ExamReportPage() {
@@ -72,7 +73,7 @@ export default function ExamReportPage() {
               <tr key={i}>
                 <td>{a.name}</td><td>{a.class}</td><td>#{a.attempt_no}</td>
                 <td><strong>{a.final_score ?? '-'}</strong></td><td>{a.penalty_points || 0}</td>
-                <td><Badge tone={a.status === 'graded' ? 'ok' : 'muted'}>{a.status}</Badge></td><td>{a.duration_s != null ? `${a.duration_s} dtk` : '-'}</td>
+                <td><Badge tone={statusTone(a.status)}>{statusLabel(a.status)}</Badge></td><td>{a.duration_s != null ? `${a.duration_s} dtk` : '-'}</td>
               </tr>
             ))}
             </tbody>

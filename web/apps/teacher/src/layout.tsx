@@ -28,6 +28,8 @@ export default function Layout() {
 
   return (
     <div style={{ minHeight: '100vh' }}>
+      {/* A-10: skip-link muncul saat menerima fokus keyboard */}
+      <a href="#main" className="skip-link">Lewati ke konten</a>
       {/* Sidebar desktop */}
       <aside className="t-sidebar">
         <div style={{ padding: '18px 16px 14px' }}>
@@ -72,7 +74,7 @@ export default function Layout() {
         </div>
       </header>
 
-      <main className="t-main">
+      <main id="main" className="t-main">
         <Outlet />
       </main>
 

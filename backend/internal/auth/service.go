@@ -31,15 +31,13 @@ func hashOTT(raw string) string {
 	return hex.EncodeToString(sum[:])
 }
 
-
-
 type RegisterInput struct {
-	Name         string `json:"name" validate:"required,min=2,max=120"`
-	Email        string `json:"email" validate:"required,email"`
-	Phone        string `json:"phone"`
-	Password     string `json:"password" validate:"required,min=8,max=72"`
-	TenantName   string `json:"tenant_name" validate:"required,min=2,max=120"`
-	Level        string `json:"level" validate:"required,oneof=paud_tk sd_mi smp_mts sma_smk_ma perguruan_tinggi kursus_bimbel lainnya"`
+	Name       string `json:"name" validate:"required,min=2,max=120"`
+	Email      string `json:"email" validate:"required,email"`
+	Phone      string `json:"phone"`
+	Password   string `json:"password" validate:"required,min=8,max=72"`
+	TenantName string `json:"tenant_name" validate:"required,min=2,max=120"`
+	Level      string `json:"level" validate:"required,oneof=paud_tk sd_mi smp_mts sma_smk_ma perguruan_tinggi kursus_bimbel lainnya"`
 }
 
 // Register membuat tenant baru + owner + paket trial (FR-1.1, FR-3.2: trial otomatis, sekali per tenant).
@@ -186,10 +184,10 @@ func (s *Service) Login(ctx context.Context, in LoginInput, ip, ua string) (*Tok
 	}
 	var (
 		userID, role, pwHash, status string
-		tenantID                       *string // NULL untuk super_admin
-		verified                       *time.Time
-		failed                         int
-		lockedUntil                    *time.Time
+		tenantID                     *string // NULL untuk super_admin
+		verified                     *time.Time
+		failed                       int
+		lockedUntil                  *time.Time
 	)
 	err := s.DB.WithSystemTx(ctx, func(tx pgx.Tx) error {
 		return tx.QueryRow(ctx,
@@ -237,10 +235,19 @@ func (s *Service) Login(ctx context.Context, in LoginInput, ip, ua string) (*Tok
 }
 
 func (s *Service) Refresh(ctx context.Context, rawRefresh string) (*TokenPair, error) {
+	return s.RefreshWithDevice(ctx, rawRefresh, "")
+}
+
+// B-09: varian yang mengikat refresh token ke cookie perangkat.
+func (s *Service) RefreshWithDevice(ctx context.Context, rawRefresh, device string) (*TokenPair, error) {
+	expected := ""
+	if device != "" {
+		expected = hashDevice(device)
+	}
 	var pair *TokenPair
 	err := s.DB.WithSystemTx(ctx, func(tx pgx.Tx) error {
 		var err error
-		pair, err = s.Issuer.Rotate(ctx, tx, rawRefresh)
+		pair, err = s.Issuer.RotateWithDevice(ctx, tx, rawRefresh, expected)
 		return err
 	})
 	return pair, err

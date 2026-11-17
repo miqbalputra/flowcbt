@@ -16,5 +16,12 @@ RUN pnpm -r build
 FROM nginx:1.27-alpine
 COPY apps/teacher/dist /usr/share/nginx/html
 COPY apps/student/dist /usr/share/nginx/html/exam
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# X-05/C-14: template diproses otomatis oleh /docker-entrypoint.d/20-envsubst-on-templates.sh.
+COPY nginx.conf /etc/nginx/templates/default.conf.template
+COPY nginx-security.conf /etc/nginx/conf.d/security-headers.conf
+ENV DOLLAR=$
+ENV API_UPSTREAM=http://api:8080
+ENV CLIENT_MAX_BODY_SIZE=20m
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD wget -q -O /dev/null http://127.0.0.1/healthz || exit 1
 EXPOSE 80

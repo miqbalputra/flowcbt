@@ -41,7 +41,7 @@ export default function LoginPage() {
               value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
           </label>
           <Button type="submit" disabled={busy}>
-            {busy ? <Icon name="clock" /> : <Icon name="logout" />}
+            {busy ? <Icon name="clock" /> : <Icon name="key" />}
             {busy ? 'Memproses…' : 'Masuk'}
           </Button>
         </form>

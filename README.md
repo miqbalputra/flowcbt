@@ -193,3 +193,15 @@ Lalu uji manual: register admin sekolah → verifikasi email (cek inbox SMTP) �
 - Webhook pembayaran idempotent; paket soal ke siswa tidak mengandung kunci jawaban.
 
 Lihat `docs/ADR-001-dev-sandbox.md` untuk perbedaan dev sandbox vs deployment produksi.
+
+## Dokumen operasional
+
+| File | Isi |
+|---|---|
+| `docs/SLO.md` | Target availability, latensi, RPO/RTO, error budget & alert |
+| `docs/RUNBOOK.md` | Langkah penanganan insiden (DB/Redis/storage/purge/outage ujian) |
+| `docs/INCIDENT-TEMPLATE.md` | Template pencatatan insiden & postmortem |
+| `docs/BACKUP-RESTORE.md` | Prosedur backup, restore drill & catatan hasil |
+| `docs/ROLLBACK.md` | Kapan & bagaimana rollback deploy/migrasi |
+| `docs/ADR-002-realtime.md` | Keputusan arsitektur SSE/Redis untuk laporan live |
+| `rencana_update.md` | Rencana perbaikan F0–F3 beserta status temuan |

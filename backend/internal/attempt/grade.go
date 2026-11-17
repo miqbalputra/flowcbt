@@ -9,6 +9,7 @@ import (
 	"flowcbt/backend/internal/httpx"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -18,12 +19,12 @@ func (s *Service) gradeAttempt(ctx context.Context, tenantID, attemptID, reason 
 	return s.DB.WithTenantTx(ctx, tenantID, func(tx pgx.Tx) error {
 		var (
 			examID, setVerID, status string
-			antiEnabled               bool
-			penaltyMode               string
-			penaltyVal, penaltyMax    float64
-			flagThr, autoSub          *int
-			passing                   *float64
-			decimals                  int
+			antiEnabled              bool
+			penaltyMode              string
+			penaltyVal, penaltyMax   float64
+			flagThr, autoSub         *int
+			passing                  *float64
+			decimals                 int
 		)
 		if err := tx.QueryRow(ctx,
 			`SELECT a.exam_id, a.set_version_id, a.status, e.anticheat_enabled, e.penalty_mode, e.penalty_value, e.penalty_max,
@@ -45,10 +46,10 @@ func (s *Service) gradeAttempt(ctx context.Context, tenantID, attemptID, reason 
 		}
 		// muat soal + kunci (hanya di server)
 		type qRow struct {
-			id, qtype, opts, key       string
-			points                     float64
-			scoringMode                string
-			wrongPen                   bool
+			id, qtype, opts, key string
+			points               float64
+			scoringMode          string
+			wrongPen             bool
 		}
 		var qs []qRow
 		rws, err := tx.Query(ctx,
@@ -140,7 +141,8 @@ func (s *Service) gradeAttempt(ctx context.Context, tenantID, attemptID, reason 
 			    raw_score=$3, max_score=$4, penalty_points=$5, final_score=$6, score_provisional=$7, passed=$8,
 			    violation_count=$9, cheating_status = CASE WHEN cheating_status IN ('disqualified') THEN cheating_status ELSE $10 END
 			 WHERE id=$11`,
-			newStatus, nullStr2(reason), raw, max, penalty, final, provisional, passed, vCount, cheatStatus, attemptID); err != nil {			return err
+			newStatus, nullStr2(reason), raw, max, penalty, final, provisional, passed, vCount, cheatStatus, attemptID); err != nil {
+			return err
 		}
 		// sesi dikunci saat submit (FR-1.6)
 		if _, err := tx.Exec(ctx,
@@ -267,12 +269,12 @@ func (s *Service) putScore(w http.ResponseWriter, r *http.Request) {
 func (s *Service) regradeAttempt(ctx context.Context, tenantID, attemptID string) error {
 	return s.DB.WithTenantTx(ctx, tenantID, func(tx pgx.Tx) error {
 		var (
-			examID, status          string
-			penaltyMode             string
-			penaltyVal, penaltyMax  float64
-			antiEnabled             bool
-			passing                 *float64
-			decimals                int
+			examID, status         string
+			penaltyMode            string
+			penaltyVal, penaltyMax float64
+			antiEnabled            bool
+			passing                *float64
+			decimals               int
 		)
 		if err := tx.QueryRow(ctx,
 			`SELECT a.exam_id, a.status, e.penalty_mode, e.penalty_value, e.penalty_max, e.anticheat_enabled, e.passing_score, t.score_decimals
@@ -417,10 +419,10 @@ func (s *Service) addViolations(w http.ResponseWriter, r *http.Request) {
 	attemptID := chi.URLParam(r, "id")
 	var in struct {
 		Violations []struct {
-			ClientEventID string  `json:"client_event_id"`
-			Type          string  `json:"type"`
-			StartedAt     string  `json:"started_at"`
-			DurationMS    int     `json:"duration_ms"`
+			ClientEventID string `json:"client_event_id"`
+			Type          string `json:"type"`
+			StartedAt     string `json:"started_at"`
+			DurationMS    int    `json:"duration_ms"`
 		} `json:"violations"`
 	}
 	if err := httpx.DecodeJSON(r, &in); err != nil {
@@ -428,16 +430,18 @@ func (s *Service) addViolations(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var counted int
+	var liveExamID string
 	err := s.DB.WithTenantTx(r.Context(), tid, func(tx pgx.Tx) error {
-		var studentID, status string
+		var studentID, status, examID string
 		var leaveTol int
 		var antiEnabled bool
 		if err := tx.QueryRow(r.Context(),
-			`SELECT a.student_id, a.status, e.leave_tolerance_seconds, e.anticheat_enabled
+			`SELECT a.student_id, a.status, a.exam_id, e.leave_tolerance_seconds, e.anticheat_enabled
 			 FROM attempts a JOIN exams e ON e.id=a.exam_id WHERE a.tenant_id=$1 AND a.id=$2`, tid, attemptID).
-			Scan(&studentID, &status, &leaveTol, &antiEnabled); err != nil {
+			Scan(&studentID, &status, &examID, &leaveTol, &antiEnabled); err != nil {
 			return httpx.NotFound("attempt tidak ditemukan")
 		}
+		liveExamID = examID
 		if claims.Role == "student" && studentID != claims.Sub {
 			return httpx.Forbidden("bukan attempt Anda")
 		}
@@ -445,18 +449,24 @@ func (s *Service) addViolations(w http.ResponseWriter, r *http.Request) {
 			if v.ClientEventID == "" {
 				continue
 			}
+			// X-03: kolom uuid — validasi di sini juga (jalur violations tidak lewat syncAnswers).
+			evID, err := uuid.Parse(v.ClientEventID)
+			if err != nil {
+				return httpx.BadRequest(httpx.CodeValidation, "client_event_id harus UUID yang valid")
+			}
 			startedAt, _ := parseTime(v.StartedAt)
 			isCounted := antiEnabled && v.DurationMS > leaveTol*1000
-			if isCounted {
-				counted++
-			}
-			_, err := tx.Exec(r.Context(),
+			tag, err := tx.Exec(r.Context(),
 				`INSERT INTO attempt_violations (tenant_id, attempt_id, client_event_id, type, started_at, duration_ms, counted)
 				 VALUES ($1,$2,$3,$4,$5,$6,$7)
 				 ON CONFLICT (attempt_id, client_event_id) DO NOTHING`,
-				tid, attemptID, v.ClientEventID, v.Type, startedAt, v.DurationMS, isCounted)
+				tid, attemptID, evID, v.Type, startedAt, v.DurationMS, isCounted)
 			if err != nil {
 				return err
+			}
+			// Hitung hanya event yang benar-benar baru — duplikat tidak boleh menggandakan penalti.
+			if tag.RowsAffected() > 0 && isCounted {
+				counted++
 			}
 		}
 		if counted > 0 {
@@ -484,6 +494,7 @@ func (s *Service) addViolations(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, err)
 		return
 	}
+	s.notifyLive(r.Context(), tid, liveExamID)
 	// bila ada auto-submit, nilai sekarang
 	_ = s.regradeIfSubmitted(r.Context(), tid, attemptID)
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{"ok": true, "newly_counted": counted})

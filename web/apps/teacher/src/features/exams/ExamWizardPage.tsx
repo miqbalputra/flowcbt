@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api, useApiQuery } from '@flowcbt/api-client';
+import { api, useApiQuery, QueryError } from '@flowcbt/api-client';
 import { Button, Card, Input, useToast, PageHeader, EmptyState, Icon } from '@flowcbt/ui';
 
 // Wizard buat ujian (FR-11): Info → Soal → Peserta → Jadwal → Publish.
@@ -8,7 +8,7 @@ export default function ExamWizardPage() {
   const nav = useNavigate();
   const toast = useToast();
   const [step, setStep] = useState(0);
-  const { data: sets } = useApiQuery<any[]>(['qs-pub'], '/question-sets?status=published');
+  const { data: sets, isLoading: lSets, error: eSets } = useApiQuery<any[]>(['qs-pub'], '/question-sets?status=published');
   const { data: classes } = useApiQuery<any[]>(['classes'], '/classes');
   const [f, setF] = useState<any>({
     name: '', question_set_id: '', open_at: '', close_at: '', duration_minutes: 60,
@@ -36,7 +36,17 @@ export default function ExamWizardPage() {
     if (s === 2 && classIds.length === 0) return 'Pilih minimal satu kelas peserta.';
     if (s === 3) {
       if (!f.duration_minutes || f.duration_minutes < 1) return 'Durasi minimal 1 menit.';
+      if (f.duration_minutes > 240) return 'Durasi maksimal 240 menit.';
+      if (!f.open_at || !f.close_at) return 'Waktu buka dan tutup wajib diisi.';
       if (f.open_at && f.close_at && new Date(f.close_at) <= new Date(f.open_at)) return 'Waktu tutup harus setelah waktu buka.';
+    }
+    if (s === 4) {
+      if (f.passing_score < 0 || f.passing_score > 100) return 'Nilai lulus harus 0–100.';
+      if (f.penalty_value < 0) return 'Penalti tidak boleh negatif.';
+      if (f.penalty_mode === 'points' && f.penalty_value > 100) return 'Penalti poin maksimal 100.';
+      if (f.penalty_mode === 'percent' && f.penalty_value > 100) return 'Penalti persen maksimal 100.';
+      if (f.flag_threshold !== null && f.flag_threshold < 1) return 'Ambang pelanggaran minimal 1.';
+      if (f.max_attempts < 1 || f.max_attempts > 10) return 'Maksimal percobaan harus 1–10.';
     }
     return '';
   };
@@ -50,7 +60,7 @@ export default function ExamWizardPage() {
   const goPrev = () => { setErr(''); setStep(step - 1); };
 
   const createAndPublish = async () => {
-    for (let s = 0; s < 4; s++) {
+    for (let s = 0; s <= 4; s++) {
       const e = stepError(s);
       if (e) { setStep(s); setErr(e); return; }
     }
@@ -92,10 +102,11 @@ export default function ExamWizardPage() {
             <label className="field"><span>Paket soal (sudah dipublish)</span>
               <select className="input" value={f.question_set_id} onChange={(e) => set('question_set_id', e.target.value)}>
                 <option value="">Pilih paket soal…</option>
+                {eSets && <option value="" disabled>Gagal memuat paket soal</option>}
                 {(sets || []).map((s) => <option key={s.id} value={s.id}>{s.title} ({s.subject_name}, {s.question_count} soal)</option>)}
               </select>
             </label>
-            {(sets || []).length === 0 && <EmptyState icon="bank" title="Belum ada paket soal yang dipublish">Buka menu Bank Soal untuk membuat dan mempublish paket soal terlebih dulu.</EmptyState>}
+            {!lSets && !eSets && (sets || []).length === 0 && <EmptyState icon="bank" title="Belum ada paket soal yang dipublish">Buka menu Bank Soal untuk membuat dan mempublish paket soal terlebih dulu.</EmptyState>}
           </div>
         )}
         {step === 1 && (
@@ -119,7 +130,7 @@ export default function ExamWizardPage() {
           <div style={{ display: 'grid', gap: 14 }}>
             <label className="field"><span>Jadwal buka</span><Input type="datetime-local" value={toLocalInput(f.open_at)} onChange={(e) => set('open_at', e.target.value ? new Date(e.target.value).toISOString() : '')} /></label>
             <label className="field"><span>Jadwal tutup</span><Input type="datetime-local" value={toLocalInput(f.close_at)} onChange={(e) => set('close_at', e.target.value ? new Date(e.target.value).toISOString() : '')} /></label>
-            <label className="field"><span>Durasi pengerjaan (menit)</span><Input type="number" value={f.duration_minutes} onChange={(e) => set('duration_minutes', Number(e.target.value))} /></label>
+            <label className="field"><span>Durasi pengerjaan (menit)</span><Input type="number" min={1} max={240} aria-invalid={err.includes('Durasi')} aria-describedby={err.includes('Durasi') ? 'wizard-error' : undefined} value={f.duration_minutes} onChange={(e) => set('duration_minutes', Number(e.target.value))} /></label>
             <label className="field"><span>Jika lewat waktu tutup</span>
               <select className="input" value={f.close_policy} onChange={(e) => set('close_policy', e.target.value)}>
                 <option value="grace">Biarkan selesai sesuai durasi masing-masing</option>
@@ -139,7 +150,7 @@ export default function ExamWizardPage() {
                 <option value="highest">Nilai tertinggi</option><option value="last">Nilai terakhir</option><option value="avg">Rata-rata</option>
               </select>
             </label>
-            <label className="field"><span>KKM / ambang kelulusan <em style={{ fontStyle: 'normal', color: 'var(--text-faint)' }}>(opsional)</em></span><Input type="number" value={f.passing_score ?? ''} onChange={(e) => set('passing_score', e.target.value ? Number(e.target.value) : null)} /></label>
+            <label className="field"><span>KKM / ambang kelulusan <em style={{ fontStyle: 'normal', color: 'var(--text-faint)' }}>(opsional)</em></span><Input type="number" min={0} max={100} aria-invalid={err.includes('Nilai lulus')} aria-describedby={err.includes('Nilai lulus') ? 'wizard-error' : undefined} value={f.passing_score ?? ''} onChange={(e) => set('passing_score', e.target.value ? Number(e.target.value) : null)} /></label>
           </div>
         )}
         {step === 4 && (
@@ -158,7 +169,7 @@ export default function ExamWizardPage() {
                 <option value="points">Kurangi skor (poin, skala 100)</option><option value="percent">Kurangi persen nilai</option><option value="none">Tanpa penalti — hanya catatan</option>
               </select>
             </label>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10 }}>
               <label className="field"><span>Besarnya penalti</span><Input type="number" value={f.penalty_value} onChange={(e) => set('penalty_value', Number(e.target.value))} /></label>
               <label className="field"><span>Batas total penalti</span><Input type="number" value={f.penalty_max} onChange={(e) => set('penalty_max', Number(e.target.value))} /></label>
             </div>
@@ -166,7 +177,7 @@ export default function ExamWizardPage() {
             <label className="check"><input type="checkbox" checked={f.camera_enabled} onChange={(e) => set('camera_enabled', e.target.checked)} /> Proctoring kamera (foto berkala, hanya guru yang melihat)</label>
           </div>
         )}
-        {err && <div role="alert" className="banner banner-danger" style={{ marginTop: 14 }}>{err}</div>}
+        {err && <div id="wizard-error" role="alert" className="banner banner-danger" style={{ marginTop: 14 }}>{err}</div>}
         <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
           <Button variant="ghost" disabled={step === 0} onClick={goPrev}>Kembali</Button>
           {step < 4

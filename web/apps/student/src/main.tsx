@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { ApiProvider, restoreSession } from '@flowcbt/api-client';
 import { ThemeProvider, ToastProvider } from '@flowcbt/ui';
-import '@flowcbt/ui/src/theme.css';
+// theme.css diimpor sekali oleh @flowcbt/ui (index.tsx).
 import '@flowcbt/ui/src/styles.css';
 import App from './app';
 

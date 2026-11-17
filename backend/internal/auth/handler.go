@@ -31,7 +31,7 @@ func (s *Service) Routes(r chi.Router) {
 
 func (s *Service) handleRegister(w http.ResponseWriter, r *http.Request) {
 	var in RegisterInput
-	if err := httpx.DecodeJSON(r, &in); err != nil {
+	if err := httpx.ValidateJSON(r, &in); err != nil {
 		httpx.WriteError(w, err)
 		return
 	}
@@ -60,7 +60,7 @@ func (s *Service) handleVerifyEmail(w http.ResponseWriter, r *http.Request) {
 
 func (s *Service) handleLogin(w http.ResponseWriter, r *http.Request) {
 	var in LoginInput
-	if err := httpx.DecodeJSON(r, &in); err != nil {
+	if err := httpx.ValidateJSON(r, &in); err != nil {
 		httpx.WriteError(w, err)
 		return
 	}
@@ -80,7 +80,11 @@ func (s *Service) handleRefresh(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, err)
 		return
 	}
-	pair, err := s.Refresh(r.Context(), in.RefreshToken)
+	device := ""
+	if c, err := r.Cookie("flowcbt_device"); err == nil {
+		device = c.Value
+	}
+	pair, err := s.RefreshWithDevice(r.Context(), in.RefreshToken, device)
 	if err != nil {
 		httpx.WriteError(w, err)
 		return
@@ -172,7 +176,7 @@ func (s *Service) handleMe(w http.ResponseWriter, r *http.Request) {
 
 func (s *Service) handleStudentLogin(w http.ResponseWriter, r *http.Request) {
 	var in StudentLoginInput
-	if err := httpx.DecodeJSON(r, &in); err != nil {
+	if err := httpx.ValidateJSON(r, &in); err != nil {
 		httpx.WriteError(w, err)
 		return
 	}
@@ -186,7 +190,7 @@ func (s *Service) handleStudentLogin(w http.ResponseWriter, r *http.Request) {
 
 func (s *Service) handleGuestLogin(w http.ResponseWriter, r *http.Request) {
 	var in GuestLoginInput
-	if err := httpx.DecodeJSON(r, &in); err != nil {
+	if err := httpx.ValidateJSON(r, &in); err != nil {
 		httpx.WriteError(w, err)
 		return
 	}

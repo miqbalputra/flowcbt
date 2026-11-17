@@ -17,7 +17,11 @@ function RequireAuth({ children }: { children: React.ReactElement }) {
 
 export default function App() {
   return (
-    <Routes>
+    <>
+      {/* A-10: skip-link untuk keyboard/screen reader */}
+      <a href="#main" className="skip-link">Lewati ke konten</a>
+      <main id="main">
+      <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/guest" element={<GuestPage />} />
       <Route path="/exams" element={<RequireAuth><ExamsPage /></RequireAuth>} />
@@ -27,6 +31,8 @@ export default function App() {
       <Route path="/attempt/:id/done" element={<RequireAuth><DonePage /></RequireAuth>} />
       <Route path="/history" element={<RequireAuth><HistoryPage /></RequireAuth>} />
       <Route path="*" element={<Navigate to="/exams" replace />} />
-    </Routes>
+      </Routes>
+      </main>
+    </>
   );
 }

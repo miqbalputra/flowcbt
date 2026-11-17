@@ -151,18 +151,26 @@ func (s *Service) Reminders(ctx context.Context) error {
 			items = append(items, item{id, pa})
 		}
 		rws.Close()
-		now := s.Clock.Now()
 		for _, it := range items {
 			daysLeft := int(time.Until(it.purgeAfter).Hours() / 24)
-			for _, mark := range []struct {
-				day  int
-				kind string
-			}{{3, "retention.h3"}, {6, "retention.h6"}, {1, "retention.h1"}} {
-				if daysLeft == 7-mark.day+1 || daysLeft == 7-mark.day {
-					// kirim sekali saat sisa hari = mark.day (H+3 artinya 3 hari sebelum purge pada skala H+)
+			for _, mark := range []int{6, 3, 1} {
+				if daysLeft != mark {
+					continue
 				}
+				ref := fmt.Sprint(mark)
+				// Dedupe: satu pengingat per tenant per menit menjelang purge.
+				tag, err := tx.Exec(ctx,
+					`INSERT INTO notice_log (tenant_id, kind, ref) VALUES ($1,'retention.reminder',$2) ON CONFLICT DO NOTHING`,
+					it.id, ref)
+				if err != nil {
+					return err
+				}
+				if tag.RowsAffected() == 0 {
+					continue
+				}
+				s.notify(ctx, tx, it.id, "retention.reminder."+ref,
+					fmt.Sprintf("Data sekolah Anda akan dihapus permanen dalam %d hari. Perpanjang langganan untuk membatalkan.", mark))
 			}
-			_ = now
 		}
 		return nil
 	})
@@ -180,6 +188,9 @@ func (s *Service) notify(ctx context.Context, tx pgx.Tx, tenantID, kind, msg str
 	var email string
 	_ = tx.QueryRow(ctx, `SELECT email FROM users WHERE id=$1`, userID).Scan(&email)
 	if email != "" {
-		_ = s.Mailer.Send(ctx, platform.Mail{To: string(email), Subject: "FlowCBT — pemberitahuan retensi data", Body: msg})
+		// B-10: tulis ke outbox, jangan kirim SMTP di request/worker path secara sinkron.
+		_, _ = tx.Exec(ctx,
+			`INSERT INTO email_outbox (tenant_id, to_email, subject, body, kind)
+			 VALUES ($1,$2,'FlowCBT — pemberitahuan retensi data',$3,'retention')`, tenantID, string(email), msg)
 	}
 }

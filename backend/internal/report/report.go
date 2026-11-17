@@ -3,7 +3,6 @@ package report
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -19,8 +18,8 @@ import (
 )
 
 type Service struct {
-	DB   *platform.DB
-	Hub  *realtime.Hub
+	DB    *platform.DB
+	Hub   *realtime.Hub
 	Clock platform.Clock
 }
 
@@ -122,7 +121,7 @@ func (s *Service) writeLive(w http.ResponseWriter, r *http.Request, publish bool
 				"status": status, "answered": answered, "total_questions": total,
 				"last_seen_at": lastSeen, "violation_count": vcount, "cheating_status": cheat,
 				"attempt_id": attemptID,
-				"offline": lastSeen != nil && time.Since(*lastSeen) > 5*time.Minute,
+				"offline":    lastSeen != nil && time.Since(*lastSeen) > 5*time.Minute,
 			})
 		}
 		return rws.Err()
@@ -134,9 +133,8 @@ func (s *Service) writeLive(w http.ResponseWriter, r *http.Request, publish bool
 	if rows == nil {
 		rows = []map[string]any{}
 	}
-	payload, _ := json.Marshal(map[string]any{"exam_id": examID, "participants": rows, "at": s.Clock.Now()})
-	if publish && s.Hub != nil {
-		s.Hub.Publish("live:"+tid+":"+examID, string(payload))
+	if publish {
+		s.PublishLive(tid, examID)
 	}
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{"exam_id": examID, "participants": rows})
 }
@@ -152,11 +150,16 @@ func (s *Service) liveStream(w http.ResponseWriter, r *http.Request) {
 	s.Hub.SSE(w, r, topic)
 }
 
-// PublishLive dipanggil saat ada perubahan (dari modul attempt/others) — opsional.
+// PublishLive dipanggil dari handler attempt setiap ada jawaban/submit/pelanggaran.
+// B-07: kirim ke topik ujian DAN tenant-wide — subscriber tenant-wide sebelumnya
+// tidak pernah menerima apa pun karena publisher selalu memakai topik ujian.
 func (s *Service) PublishLive(tid, examID string) {
-	if s.Hub != nil {
-		s.Hub.Publish("live:"+tid+":"+examID, "")
+	if s.Hub == nil {
+		return
 	}
+	msg := fmt.Sprintf(`{"at":%q}`, time.Now().UTC().Format(time.RFC3339))
+	s.Hub.Publish("live:"+tid+":"+examID, msg)
+	s.Hub.Publish("live:"+tid, msg)
 }
 
 // history: daftar ujian selesai + filter (FR-9.6/9.7).
@@ -385,8 +388,8 @@ func (s *Service) exportExam(w http.ResponseWriter, r *http.Request) {
 	}
 	type row struct {
 		Name, Code, Class, Status string
-		Final, Raw, Penalty        *float64
-		Submitted                  *time.Time
+		Final, Raw, Penalty       *float64
+		Submitted                 *time.Time
 	}
 	var rows []row
 	var examName string

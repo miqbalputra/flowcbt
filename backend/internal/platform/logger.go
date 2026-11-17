@@ -5,10 +5,11 @@ import (
 	"os"
 )
 
+// NewLogger: JSON di produksi (ramah aggregator/Loki), text di dev (ramah manusia).
+// C-05: level Debug hanya untuk dev.
 func NewLogger(env string) *slog.Logger {
-	h := slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo})
-	if env == "dev" {
-		h = slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug})
+	if env == "production" {
+		return slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	}
-	return slog.New(h)
+	return slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
 }

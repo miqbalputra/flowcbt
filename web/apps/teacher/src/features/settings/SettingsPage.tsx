@@ -23,7 +23,7 @@ export default function SettingsPage() {
               <span className="field-label">Email</span>
               <input className="input" value={me.email} readOnly />
             </label>
-            <div style={{ display: 'grid', gap: 12, gridTemplateColumns: '1fr 1fr' }}>
+            <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))' }}>
               <label className="field">
                 <span className="field-label">Peran</span>
                 <input className="input" value={roleLabel[me.role] || me.role} readOnly />

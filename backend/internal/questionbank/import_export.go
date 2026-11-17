@@ -9,9 +9,9 @@ import (
 	"flowcbt/backend/internal/httpx"
 	"flowcbt/backend/internal/platform"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
 	"github.com/xuri/excelize/v2"
-	"github.com/go-chi/chi/v5"
 )
 
 // Template import soal (PRD 18.2): tipe, pertanyaan, opsi_A..D, kunci, poin, pembahasan.
@@ -241,9 +241,9 @@ func (s *Service) exportSet(w http.ResponseWriter, r *http.Request) {
 		f.SetCellValue(sheet, cell, h)
 	}
 	err := s.DB.WithTenantTx(r.Context(), tid, func(tx pgx.Tx) error {
-		verID, _, err := currentVersionID(r.Context(), tx, tid, setID)
+		verID, err := versionForRequest(r, r.Context(), tx, tid, setID)
 		if err != nil {
-			return httpx.NotFound("paket tidak ditemukan")
+			return err
 		}
 		rws, err := tx.Query(r.Context(),
 			`SELECT type, body_html, options_json, answer_key_json, points, explanation_html FROM questions WHERE set_version_id=$1 ORDER BY order_no`, verID)

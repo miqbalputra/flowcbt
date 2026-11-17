@@ -5,10 +5,19 @@ on:
     branches: [main]
   pull_request:
 
+# C-04: batasi blast radius & antrean deploy ganda.
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   backend:
-    name: Backend — vet, build, test
+    name: Backend — vet, build, test, race, cover, migrasi
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     defaults:
       run:
         working-directory: backend
@@ -40,7 +49,15 @@ jobs:
         run: go build ./...
       - name: Unit tests
         run: go test ./internal/... -count=1
-      - name: Migrasi
+      - name: Race tests (attempt/billing/auth)
+        run: go test -race ./internal/attempt/... ./internal/billing/... ./internal/auth/... -count=1
+      - name: Coverage
+        run: go test ./internal/... -count=1 -coverprofile=coverage.out -covermode=atomic
+      - uses: actions/upload-artifact@v4
+        with:
+          name: go-coverage
+          path: backend/coverage.out
+      - name: Migrasi up
         run: go run ./cmd/migrate -dir db/migrations up
       - name: Siapkan role DB untuk test
         run: |
@@ -48,12 +65,17 @@ jobs:
             -c "ALTER ROLE flowcbt_app LOGIN PASSWORD 'flowcbt_app'"
           PGPASSWORD=postgres psql -h 127.0.0.1 -p 55432 -U postgres -d flowcbt \
             -c "ALTER ROLE flowcbt_system LOGIN PASSWORD 'flowcbt_system'"
-      - name: "Integration tests (RLS, webhook, sync)"
+      - name: "Integration tests (RLS, status tenant, webhook, sync)"
         run: go test ./test/integration/... -count=1 -timeout 20m
+      - name: "Migration down/up rollback check"
+        run: |
+          go run ./cmd/migrate -dir db/migrations down
+          go run ./cmd/migrate -dir db/migrations up
 
   web:
-    name: Web — typecheck, build, test
+    name: Web — typecheck, build, test, sw.js
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: web
@@ -62,6 +84,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
       - name: Enable pnpm
         run: corepack enable && pnpm --version
       - name: Install
@@ -70,3 +94,106 @@ jobs:
         run: pnpm -r build
       - name: Tests
         run: pnpm -r --if-present test
+      # C-11/X-01: jangan sampai syntax error service worker lolos lagi.
+      - name: Service worker syntax
+        run: node --check apps/student/public/sw.js && node --check apps/student/dist/sw.js
+
+  e2e:
+    name: E2E smoke (API + PG ephemeral)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: backend
+    env:
+      DATABASE_URL: 'postgres://postgres:postgres@127.0.0.1:55432/flowcbt?sslmode=disable'
+      APP_ENV: dev
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: flowcbt
+        ports:
+          - 55432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.x'
+          cache-dependency-path: backend/go.sum
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Migrasi
+        working-directory: backend
+        run: go run ./cmd/migrate -dir db/migrations up
+      - name: Siapkan role DB
+        run: |
+          PGPASSWORD=postgres psql -h 127.0.0.1 -p 55432 -U postgres -d flowcbt \
+            -c "ALTER ROLE flowcbt_app LOGIN PASSWORD 'flowcbt_app'"
+          PGPASSWORD=postgres psql -h 127.0.0.1 -p 55432 -U postgres -d flowcbt \
+            -c "ALTER ROLE flowcbt_system LOGIN PASSWORD 'flowcbt_system'"
+      - name: Start API
+        working-directory: backend
+        run: |
+          go run ./cmd/api > /tmp/flowcbt-api.log 2>&1 &
+          for i in $(seq 1 40); do
+            if curl -fsS http://127.0.0.1:8080/healthz > /dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/flowcbt-api.log
+          exit 1
+      - name: Smoke (exit non-zero bila ada FAIL)
+        run: bash scripts/smoke.sh
+
+  deploy-gate:
+    name: Deploy freeze gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [backend, web, e2e, security]
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cek ujian aktif
+        env:
+          API_ORIGIN: ${{ secrets.API_ORIGIN }}
+          INTERNAL_TOKEN: ${{ secrets.INTERNAL_TOKEN }}
+        run: |
+          if [[ -z "${API_ORIGIN:-}" || -z "${INTERNAL_TOKEN:-}" ]]; then
+            echo "Secret API_ORIGIN/INTERNAL_TOKEN belum dikonfigurasi — gate dilewati."
+            exit 0
+          fi
+          bash scripts/check-deploy-freeze.sh
+
+  security:
+    name: Security scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.x'
+          cache-dependency-path: backend/go.sum
+      - name: govulncheck
+        working-directory: backend
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - name: pnpm audit
+        working-directory: web
+        run: corepack enable && pnpm install --frozen-lockfile && pnpm audit --audit-level=high
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

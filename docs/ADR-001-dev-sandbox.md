@@ -2,7 +2,14 @@
 
 Dokumen ini mencatat semua penyimpangan implementasi dari PRD §18.7 (arsitektur deployment)
 yang dipakai selama pengembangan di sandbox, beserta alasannya. Semua penyimpangan ini
-**khusus untuk dev/test lokal**; untuk produksi gunakan `deploy/docker-compose.dev.yml`.
+**khusus untuk dev/test lokal**.
+
+> **C-19 — koreksi penting:** `deploy/docker-compose.dev.yml` **hanya untuk pengembangan**
+> (berisi `POSTGRES_PASSWORD=postgres`, `minioadmin`, Redis tanpa password, dan port yang
+> di-publish ke host). Jangan dipakai di produksi. Untuk produksi, ikuti
+> `deploy/README-coolify.md`: service dikelola Coolify, gambar web memakai
+> `web/Dockerfile.web` + `web/nginx.conf` (build statis, TLS di reverse proxy), dan
+> kredensial disimpan di secret store. Rencana perbaikan lengkap ada di `rencana_update.md`.
 
 | Aspek | PRD / produksi | Implementasi saat ini | Alasan |
 |---|---|---|---|
@@ -16,8 +23,9 @@ yang dipakai selama pengembangan di sandbox, beserta alasannya. Semua penyimpang
 
 ## Yang TIDAK disimpangkan
 
-- Semua 10 migrasi database (000001–000010) sama persis dengan PRD §18.6 (kecuali nilai
-  tambahan `'mock'` pada CHECK constraint seperti tabel di atas).
+- Migrasi database 000001–000010 sama dengan PRD §18.6 (kecuali nilai tambahan `'mock'`
+  pada CHECK constraint seperti tabel di atas). Migrasi **000011** ditambahkan di luar PRD
+  untuk menegakkan status tenant di RLS (lihat `rencana_update.md`, temuan `X-04`).
 - RLS PostgreSQL dengan `app.tenant_id` per transaksi, dua role DB (`flowcbt_app` /
   `flowcbt_system`), diverifikasi oleh integration test AC-9.
 - Semua endpoint API, AC-1..AC-12, skema JWT + rotasi refresh dengan deteksi reuse,

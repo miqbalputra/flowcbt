@@ -1,4 +1,6 @@
 // Tipe bersama frontend (selaras skema backend / PRD Bagian 8-9).
+export { sanitizeHtml, stripHtml } from './sanitize';
+export { statusLabel, statusTone, t, type BadgeTone } from './i18n';
 export type QuestionType = 'mcq' | 'mcq_complex' | 'matching' | 'short_answer' | 'essay';
 
 export interface Option { id: string; html: string }

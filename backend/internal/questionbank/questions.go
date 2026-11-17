@@ -2,13 +2,13 @@ package questionbank
 
 import (
 	"context"
-	"time"
-		"encoding/json"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"flowcbt/backend/internal/httpx"
 	"flowcbt/backend/internal/platform"
@@ -23,20 +23,20 @@ var questionTypes = map[string]bool{
 
 // QuestionDTO sesuai FR-4.3.
 type QuestionDTO struct {
-	ID            string          `json:"id,omitempty"`
-	OrderNo       int             `json:"order_no"`
-	Type          string          `json:"type"`
-	StimulusID    *string         `json:"stimulus_id,omitempty"`
-	BodyHTML      string          `json:"body_html"`
-	OptionsJSON   json.RawMessage `json:"options_json"`
-	AnswerKeyJSON json.RawMessage `json:"answer_key_json"`
-	RubricJSON    json.RawMessage `json:"rubric_json"`
-	Points        float64         `json:"points"`
-	ScoringMode   string          `json:"scoring_mode"`
-	PartialWrongPenalty bool        `json:"partial_wrong_penalty"`
-	ShuffleOptions bool           `json:"shuffle_options"`
-	ExplanationHTML string        `json:"explanation_html"`
-	MediaIDs      []string        `json:"media_ids"`
+	ID                  string          `json:"id,omitempty"`
+	OrderNo             int             `json:"order_no"`
+	Type                string          `json:"type"`
+	StimulusID          *string         `json:"stimulus_id,omitempty"`
+	BodyHTML            string          `json:"body_html"`
+	OptionsJSON         json.RawMessage `json:"options_json"`
+	AnswerKeyJSON       json.RawMessage `json:"answer_key_json"`
+	RubricJSON          json.RawMessage `json:"rubric_json"`
+	Points              float64         `json:"points"`
+	ScoringMode         string          `json:"scoring_mode"`
+	PartialWrongPenalty bool            `json:"partial_wrong_penalty"`
+	ShuffleOptions      bool            `json:"shuffle_options"`
+	ExplanationHTML     string          `json:"explanation_html"`
+	MediaIDs            []string        `json:"media_ids"`
 }
 
 // editableVersion: bila paket published, clone versi published ke draft baru agar soal bisa diubah (FR-4.8).
@@ -116,9 +116,9 @@ func (s *Service) listQuestions(w http.ResponseWriter, r *http.Request) {
 	setID := chi.URLParam(r, "id")
 	var out []map[string]any
 	err := s.DB.WithTenantTx(r.Context(), tid, func(tx pgx.Tx) error {
-		verID, _, err := currentVersionID(r.Context(), tx, tid, setID)
+		verID, err := versionForRequest(r, r.Context(), tx, tid, setID)
 		if err != nil {
-			return httpx.NotFound("paket tidak ditemukan")
+			return err
 		}
 		rws, err := tx.Query(r.Context(),
 			`SELECT id, order_no, type, stimulus_id, body_html, options_json, answer_key_json, rubric_json, points, scoring_mode, partial_wrong_penalty, shuffle_options, explanation_html, media_ids, updated_at
@@ -276,9 +276,9 @@ func (s *Service) addQuestion(w http.ResponseWriter, r *http.Request) {
 			return err
 		}
 		if in.MediaIDs == nil {
-		in.MediaIDs = []string{}
-	}
-	if in.OrderNo <= 0 {
+			in.MediaIDs = []string{}
+		}
+		if in.OrderNo <= 0 {
 			if err := tx.QueryRow(r.Context(), `SELECT COALESCE(max(order_no),0)+1 FROM questions WHERE set_version_id=$1`, verID).Scan(&orderNo); err != nil {
 				return err
 			}
@@ -425,8 +425,8 @@ func (s *Service) deleteQuestion(w http.ResponseWriter, r *http.Request) {
 // reorder: urutan soal via drag & drop (FR-4.4).
 func (s *Service) reorder(w http.ResponseWriter, r *http.Request) {
 	var in struct {
-		SetID     string   `json:"set_id"`
-		Order     []string `json:"question_ids"` // urutan baru
+		SetID string   `json:"set_id"`
+		Order []string `json:"question_ids"` // urutan baru
 	}
 	if err := httpx.DecodeJSON(r, &in); err != nil {
 		httpx.WriteError(w, err)
@@ -470,9 +470,9 @@ func (s *Service) listStimuli(w http.ResponseWriter, r *http.Request) {
 	setID := chi.URLParam(r, "id")
 	var out []map[string]any
 	err := s.DB.WithTenantTx(r.Context(), tid, func(tx pgx.Tx) error {
-		verID, _, err := currentVersionID(r.Context(), tx, tid, setID)
+		verID, err := versionForRequest(r, r.Context(), tx, tid, setID)
 		if err != nil {
-			return httpx.NotFound("paket tidak ditemukan")
+			return err
 		}
 		rws, err := tx.Query(r.Context(), `SELECT id, order_no, title, content_html, media_ids FROM stimuli WHERE set_version_id=$1 ORDER BY order_no`, verID)
 		if err != nil {

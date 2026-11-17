@@ -17,16 +17,48 @@ import (
 	"flowcbt/backend/internal/platform"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
+
+// X-03: tipe event yang dikenal. Nilai asing sebelumnya masuk DB lalu ditolak CHECK,
+// menghasilkan 500; sekarang ditolak di batas sistem sebagai 400.
+var allowedEventTypes = map[string]bool{
+	"answer": true, "flag": true, "nav": true, "submit": true,
+	"violation": true, "focus_lost": true, "online": true, "offline": true, "sync": true,
+}
+
+// validateEventFields memvalidasi dua field yang dulu menyebabkan 500:
+// client_event_id (kolom uuid) dan type (dibatasi CHECK di database).
+func validateEventFields(id, typ string) (uuid.UUID, error) {
+	if id == "" {
+		return uuid.Nil, httpx.BadRequest(httpx.CodeValidation, "client_event_id wajib untuk idempotensi")
+	}
+	evID, err := uuid.Parse(id)
+	if err != nil {
+		return uuid.Nil, httpx.BadRequest(httpx.CodeValidation, "client_event_id harus UUID yang valid")
+	}
+	if !allowedEventTypes[typ] {
+		return uuid.Nil, httpx.BadRequest(httpx.CodeValidation, "tipe event tidak dikenal")
+	}
+	return evID, nil
+}
 
 // DeadlineTolerance adalah toleransi server saat memvalidasi jawaban dari klien offline (AC-5, FR-7.5).
 const DeadlineTolerance = 5 * time.Second
 
 type Service struct {
-	DB     *platform.DB
-	Audit  *audit.Writer
-	Clock  platform.Clock
+	DB    *platform.DB
+	Audit *audit.Writer
+	Clock platform.Clock
+	// B-07: hook untuk memberi tahu modul report bahwa ada aktivitas siswa.
+	OnLiveChange func(ctx context.Context, tenantID, examID string)
+}
+
+func (s *Service) notifyLive(ctx context.Context, tenantID, examID string) {
+	if s.OnLiveChange != nil && examID != "" {
+		s.OnLiveChange(ctx, tenantID, examID)
+	}
 }
 
 // Routes mendaftarkan rute non-/exams (dipanggil dari server).
@@ -38,7 +70,7 @@ func (s *Service) Routes(r chi.Router) {
 
 // ExamRoutes mendaftarkan rute di dalam subrouter /exams (start oleh siswa, regrade oleh guru).
 func (s *Service) ExamRoutes(r chi.Router) {
-	r.Post("/{id}/start", s.start)      // siswa
+	r.Post("/{id}/start", s.start)         // siswa
 	r.Post("/{id}/regrade", s.regradeExam) // guru
 }
 
@@ -235,7 +267,7 @@ func (s *Service) start(w http.ResponseWriter, r *http.Request) {
 			maxAtt = override
 		}
 		if maxAtt != nil && used >= *maxAtt {
-			return httpx.Conflict(httpx.CodeAttemptLimit, "batas percobaan tercapai", )
+			return httpx.Conflict(httpx.CodeAttemptLimit, "batas percobaan tercapai")
 		}
 		// satu sesi aktif per ujian (FR-1.6)
 		var activeAttempt *string
@@ -313,7 +345,7 @@ func (e errResume) Error() string { return "resume active attempt" }
 func (s *Service) writePacket(w http.ResponseWriter, r *http.Request, tid, studentID, attemptID string, resumed bool) {
 	var (
 		examID, examName, setVerID, status string
-		deadline, started                 time.Time
+		deadline, started                  time.Time
 		seed                               int64
 		shufQ, shufO                       bool
 		durMin                             int
@@ -549,17 +581,28 @@ func (s *Service) syncAnswers(w http.ResponseWriter, r *http.Request) {
 	acked := make([]map[string]any, 0, len(in.Events))
 	var submitNow bool
 	var reason string
+	var liveExamID string
 	err := s.DB.WithTenantTx(r.Context(), tid, func(tx pgx.Tx) error {
-		var studentID, status string
+		var studentID, status, examID string
 		var deadline time.Time
 		var lastSeq int64
 		var leaveTol int
 		var antiEnabled bool
 		if err := tx.QueryRow(r.Context(),
-			`SELECT a.student_id, a.status, a.deadline_at, a.last_seq, e.leave_tolerance_seconds, e.anticheat_enabled
+			`SELECT a.student_id, a.status, a.exam_id, a.deadline_at, a.last_seq, e.leave_tolerance_seconds, e.anticheat_enabled
 			 FROM attempts a JOIN exams e ON e.id=a.exam_id WHERE a.tenant_id=$1 AND a.id=$2`, tid, attemptID).
-			Scan(&studentID, &status, &deadline, &lastSeq, &leaveTol, &antiEnabled); err != nil {
+			Scan(&studentID, &status, &examID, &deadline, &lastSeq, &leaveTol, &antiEnabled); err != nil {
 			return httpx.NotFound("attempt tidak ditemukan")
+		}
+		liveExamID = examID
+		// X-03: data lama bisa punya seq jawaban > last_seq akibat replay duplikat.
+		// Jangan pernah menurunkan seq — kalau tidak, LWW akan menolak jawaban baru.
+		var maxAnswerSeq int64
+		if err := tx.QueryRow(r.Context(), `SELECT COALESCE(max(seq),0) FROM attempt_answers WHERE attempt_id=$1`, attemptID).Scan(&maxAnswerSeq); err != nil {
+			return err
+		}
+		if maxAnswerSeq > lastSeq {
+			lastSeq = maxAnswerSeq
 		}
 		if claims.Role == "student" && studentID != claims.Sub {
 			return httpx.Forbidden("bukan attempt Anda")
@@ -571,8 +614,11 @@ func (s *Service) syncAnswers(w http.ResponseWriter, r *http.Request) {
 			return httpx.Err(httpx.CodeAttemptExpired, "attempt sudah dibatalkan", 410)
 		}
 		for _, ev := range in.Events {
-			if ev.ClientEventID == "" {
-				return httpx.BadRequest(httpx.CodeValidation, "client_event_id wajib untuk idempotensi")
+			// X-03: kolom DB bertipe uuid dan type dibatasi CHECK — keduanya dulu
+			// menghasilkan 500; sekarang ditolak sebagai 400 di batas sistem.
+			evID, err := validateEventFields(ev.ClientEventID, ev.Type)
+			if err != nil {
+				return err
 			}
 			// AC-5: validasi deadline + toleransi (otoritas server, FR-7.5)
 			accepted := now.Before(deadline.Add(DeadlineTolerance))
@@ -580,23 +626,25 @@ func (s *Service) syncAnswers(w http.ResponseWriter, r *http.Request) {
 			if !accepted {
 				rejectReason = "past_deadline"
 			}
+			// seq otoritatif server: klien hanya mengirim urutan sebagai diagnostik.
+			seq := lastSeq + 1
 			tag, err := tx.Exec(r.Context(),
 				`INSERT INTO attempt_events (tenant_id, attempt_id, client_event_id, type, payload, client_ts, elapsed_ms, seq, accepted, reject_reason)
 				 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
 				 ON CONFLICT (attempt_id, client_event_id) DO NOTHING`,
-				tid, attemptID, ev.ClientEventID, ev.Type, payloadOrEmpty(ev.Payload), ev.ClientTS, ev.ElapsedMS, ev.Seq, accepted, nullStr2(rejectReason))
+				tid, attemptID, evID, ev.Type, payloadOrEmpty(ev.Payload), ev.ClientTS, ev.ElapsedMS, seq, accepted, nullStr2(rejectReason))
 			if err != nil {
 				return err
 			}
-			acked = append(acked, map[string]any{"client_event_id": ev.ClientEventID, "accepted": accepted, "duplicate": tag.RowsAffected() == 0})
+			if tag.RowsAffected() == 0 {
+				// X-03: retry harus benar-benar idempoten. ACK saja — jangan ulangi
+				// proyeksi LWW dan jangan naikkan last_seq.
+				acked = append(acked, map[string]any{"client_event_id": ev.ClientEventID, "accepted": accepted, "duplicate": true})
+				continue
+			}
+			acked = append(acked, map[string]any{"client_event_id": ev.ClientEventID, "accepted": accepted, "duplicate": false})
 			if !accepted {
 				continue // jawaban lewat deadline ditolak & ditandai (AC-5)
-			}
-			// H3: seq monotonik server-side — klien dapat mengirim seq besar/rusak;
-			// clamp agar LWW tidak pernah membuang jawaban berikutnya.
-			seq := lastSeq + 1
-			if ev.Seq > lastSeq {
-				seq = ev.Seq
 			}
 			// proyeksi last-write-wins by seq (FR-7.4)
 			switch ev.Type {
@@ -652,7 +700,7 @@ func (s *Service) syncAnswers(w http.ResponseWriter, r *http.Request) {
 					`INSERT INTO attempt_violations (tenant_id, attempt_id, client_event_id, type, started_at, duration_ms, counted)
 					 VALUES ($1,$2,$3,$4,$5,$6,$7)
 					 ON CONFLICT (attempt_id, client_event_id) DO NOTHING`,
-					tid, attemptID, ev.ClientEventID, v.Type, startedAt, v.DurationMS, counted)
+					tid, attemptID, evID, v.Type, startedAt, v.DurationMS, counted)
 			case "submit":
 				submitNow = true
 				reason = "manual"
@@ -682,6 +730,10 @@ func (s *Service) syncAnswers(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		httpx.WriteError(w, err)
 		return
+	}
+	// B-07: beri sinyal ke hub SSE — laporan live tidak lagi hanya update saat guru refresh.
+	if len(in.Events) > 0 {
+		s.notifyLive(r.Context(), tid, liveExamID)
 	}
 	// bila submit ikut terkirim pada batch yang sama → nilai sekarang (AC-4: saat online, attempt menjadi submitted)
 	if submitNow {
@@ -734,12 +786,17 @@ func (s *Service) submit(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		ClientEventID string `json:"client_event_id"`
 	}
-	_ = httpx.DecodeJSON(r, &in)
+	if err := httpx.DecodeJSON(r, &in); err != nil {
+		httpx.WriteError(w, err)
+		return
+	}
+	var liveExamID string
 	err := s.DB.WithTenantTx(r.Context(), tid, func(tx pgx.Tx) error {
-		var studentID, status string
-		if err := tx.QueryRow(r.Context(), `SELECT student_id, status FROM attempts WHERE tenant_id=$1 AND id=$2`, tid, attemptID).Scan(&studentID, &status); err != nil {
+		var studentID, status, examID string
+		if err := tx.QueryRow(r.Context(), `SELECT student_id, status, exam_id FROM attempts WHERE tenant_id=$1 AND id=$2`, tid, attemptID).Scan(&studentID, &status, &examID); err != nil {
 			return httpx.NotFound("attempt tidak ditemukan")
 		}
+		liveExamID = examID
 		if studentID != claims.Sub {
 			return httpx.Forbidden("bukan attempt Anda")
 		}
@@ -747,10 +804,14 @@ func (s *Service) submit(w http.ResponseWriter, r *http.Request) {
 			return httpx.Conflict("ALREADY_SUBMITTED", "attempt sudah selesai")
 		}
 		if in.ClientEventID != "" {
+			evID, err := uuid.Parse(in.ClientEventID)
+			if err != nil {
+				return httpx.BadRequest(httpx.CodeValidation, "client_event_id harus UUID yang valid")
+			}
 			_, _ = tx.Exec(r.Context(),
 				`INSERT INTO attempt_events (tenant_id, attempt_id, client_event_id, type, payload, seq, accepted)
 				 VALUES ($1,$2,$3,'submit','{}', (SELECT COALESCE(max(seq),0)+1 FROM attempt_events WHERE attempt_id=$2), true)
-				 ON CONFLICT (attempt_id, client_event_id) DO NOTHING`, tid, attemptID, in.ClientEventID)
+				 ON CONFLICT (attempt_id, client_event_id) DO NOTHING`, tid, attemptID, evID)
 		}
 		return nil
 	})
@@ -758,6 +819,7 @@ func (s *Service) submit(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, err)
 		return
 	}
+	s.notifyLive(r.Context(), tid, liveExamID)
 	if err := s.gradeAttempt(r.Context(), tid, attemptID, "manual"); err != nil {
 		httpx.WriteError(w, err)
 		return

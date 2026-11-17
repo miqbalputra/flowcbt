@@ -1,6 +1,6 @@
 import React from 'react';
 import { Routes, Route, NavLink } from 'react-router-dom';
-import { useApiQuery } from '@flowcbt/api-client';
+import { useApiQuery, QueryError } from '@flowcbt/api-client';
 import { Card, Badge, SkeletonTableRows, PageHeader, StatCard, Icon } from '@flowcbt/ui';
 
 // Super Admin console (M12, FR-12.1–12.3): tenant, paket, pembayaran, metrik.
@@ -115,8 +115,9 @@ function Payments() {
 }
 
 function Metrics() {
-  const { data: m, isLoading } = useApiQuery<any>(['admin-metrics'], '/admin/metrics');
-  if (isLoading || !m) return <div><PageHeader title="Metrik platform" subtitle="Memuat…" /><AdminNav /></div>;
+  const { data: m, isLoading, error, refetch } = useApiQuery<any>(['admin-metrics'], '/admin/metrics');
+  if (error) return <div><PageHeader title="Metrik platform" /><AdminNav /><QueryError error={error} onRetry={refetch} /></div>;
+  if (isLoading || !m) return <div aria-busy="true"><PageHeader title="Metrik platform" subtitle="Memuat…" /><AdminNav /></div>;
   return (
     <div>
       <PageHeader title="Metrik platform" subtitle="Ringkasan penggunaan seluruh tenant." />

@@ -17,47 +17,53 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+// B-12: interface sempit alih-alih concrete *billing.Service — memutus coupling
+// dan memungkinkan test memakai stub kuota.
+type QuotaGate interface {
+	EnsurePublishable(ctx context.Context, tenantID string) error
+}
+
 type Service struct {
 	DB      *platform.DB
 	Audit   *audit.Writer
 	Clock   platform.Clock
-	Billing *billing.Service
+	Billing QuotaGate
 }
 
 type Exam struct {
-	ID               string     `json:"id"`
-	QuestionSetID    string     `json:"question_set_id"`
-	QuestionSetTitle string     `json:"question_set_title,omitempty"`
-	Name             string     `json:"name"`
-	Status           string     `json:"status"`
-	OpenAt           *time.Time `json:"open_at,omitempty"`
-	CloseAt          *time.Time `json:"close_at,omitempty"`
-	DurationMinutes  *int       `json:"duration_minutes,omitempty"`
-	ClosePolicy      string     `json:"close_policy"`
-	LoginMode        string     `json:"login_mode"`
-	MaxAttempts      *int       `json:"max_attempts,omitempty"`
-	ScorePolicy      string     `json:"score_policy"`
-	PassingScore     *float64   `json:"passing_score,omitempty"`
-	ShowScoreImmediately bool   `json:"show_score_immediately"`
-	ShowReview       bool       `json:"show_review"`
-	ShowExplanations bool       `json:"show_explanations"`
-	ShuffleQuestions bool       `json:"shuffle_questions"`
-	ShuffleOptions   bool       `json:"shuffle_options"`
-	FreeNavigation   bool       `json:"free_navigation"`
-	RequireAllAnswered bool     `json:"require_all_answered"`
-	AnticheatEnabled bool       `json:"anticheat_enabled"`
-	LeaveToleranceSeconds int   `json:"leave_tolerance_seconds"`
-	PenaltyMode      string     `json:"penalty_mode"`
-	PenaltyValue     float64    `json:"penalty_value"`
-	PenaltyMax       float64    `json:"penalty_max"`
-	FlagThreshold    *int       `json:"flag_threshold,omitempty"`
-	AutoSubmitThreshold *int    `json:"auto_submit_threshold,omitempty"`
-	CameraEnabled    bool       `json:"camera_enabled"`
-	CameraDenyPolicy string     `json:"camera_deny_policy"`
-	QuotaSource      *string    `json:"quota_source,omitempty"`
-	PublishedAt      *time.Time `json:"published_at,omitempty"`
-	CreatedAt        time.Time  `json:"created_at"`
-	Token            string     `json:"token,omitempty"` // hanya untuk guru
+	ID                    string     `json:"id"`
+	QuestionSetID         string     `json:"question_set_id"`
+	QuestionSetTitle      string     `json:"question_set_title,omitempty"`
+	Name                  string     `json:"name"`
+	Status                string     `json:"status"`
+	OpenAt                *time.Time `json:"open_at,omitempty"`
+	CloseAt               *time.Time `json:"close_at,omitempty"`
+	DurationMinutes       *int       `json:"duration_minutes,omitempty"`
+	ClosePolicy           string     `json:"close_policy"`
+	LoginMode             string     `json:"login_mode"`
+	MaxAttempts           *int       `json:"max_attempts,omitempty"`
+	ScorePolicy           string     `json:"score_policy"`
+	PassingScore          *float64   `json:"passing_score,omitempty"`
+	ShowScoreImmediately  bool       `json:"show_score_immediately"`
+	ShowReview            bool       `json:"show_review"`
+	ShowExplanations      bool       `json:"show_explanations"`
+	ShuffleQuestions      bool       `json:"shuffle_questions"`
+	ShuffleOptions        bool       `json:"shuffle_options"`
+	FreeNavigation        bool       `json:"free_navigation"`
+	RequireAllAnswered    bool       `json:"require_all_answered"`
+	AnticheatEnabled      bool       `json:"anticheat_enabled"`
+	LeaveToleranceSeconds int        `json:"leave_tolerance_seconds"`
+	PenaltyMode           string     `json:"penalty_mode"`
+	PenaltyValue          float64    `json:"penalty_value"`
+	PenaltyMax            float64    `json:"penalty_max"`
+	FlagThreshold         *int       `json:"flag_threshold,omitempty"`
+	AutoSubmitThreshold   *int       `json:"auto_submit_threshold,omitempty"`
+	CameraEnabled         bool       `json:"camera_enabled"`
+	CameraDenyPolicy      string     `json:"camera_deny_policy"`
+	QuotaSource           *string    `json:"quota_source,omitempty"`
+	PublishedAt           *time.Time `json:"published_at,omitempty"`
+	CreatedAt             time.Time  `json:"created_at"`
+	Token                 string     `json:"token,omitempty"` // hanya untuk guru
 }
 
 // Routes mendaftarkan rute di dalam subrouter /exams (dipanggil sekali dari server).
@@ -81,32 +87,32 @@ func (s *Service) Routes(r chi.Router) {
 }
 
 type examInput struct {
-	QuestionSetID    string   `json:"question_set_id"`
-	Name             string   `json:"name"`
-	OpenAt           *string  `json:"open_at"`
-	CloseAt          *string  `json:"close_at"`
-	DurationMinutes  *int     `json:"duration_minutes"`
-	ClosePolicy      string   `json:"close_policy"`
-	LoginMode        string   `json:"login_mode"`
-	MaxAttempts      *int     `json:"max_attempts"`
-	ScorePolicy      string   `json:"score_policy"`
-	PassingScore     *float64 `json:"passing_score"`
-	ShowScoreImmediately *bool `json:"show_score_immediately"`
-	ShowReview       *bool    `json:"show_review"`
-	ShowExplanations *bool    `json:"show_explanations"`
-	ShuffleQuestions *bool    `json:"shuffle_questions"`
-	ShuffleOptions   *bool    `json:"shuffle_options"`
-	FreeNavigation   *bool    `json:"free_navigation"`
-	RequireAllAnswered *bool  `json:"require_all_answered"`
-	AnticheatEnabled *bool    `json:"anticheat_enabled"`
-	LeaveToleranceSeconds *int `json:"leave_tolerance_seconds"`
-	PenaltyMode      string   `json:"penalty_mode"`
-	PenaltyValue     *float64 `json:"penalty_value"`
-	PenaltyMax       *float64 `json:"penalty_max"`
-	FlagThreshold    *int     `json:"flag_threshold"`
-	AutoSubmitThreshold *int   `json:"auto_submit_threshold"`
-	CameraEnabled    *bool    `json:"camera_enabled"`
-	CameraDenyPolicy string   `json:"camera_deny_policy"`
+	QuestionSetID         string   `json:"question_set_id"`
+	Name                  string   `json:"name"`
+	OpenAt                *string  `json:"open_at"`
+	CloseAt               *string  `json:"close_at"`
+	DurationMinutes       *int     `json:"duration_minutes"`
+	ClosePolicy           string   `json:"close_policy"`
+	LoginMode             string   `json:"login_mode"`
+	MaxAttempts           *int     `json:"max_attempts"`
+	ScorePolicy           string   `json:"score_policy"`
+	PassingScore          *float64 `json:"passing_score"`
+	ShowScoreImmediately  *bool    `json:"show_score_immediately"`
+	ShowReview            *bool    `json:"show_review"`
+	ShowExplanations      *bool    `json:"show_explanations"`
+	ShuffleQuestions      *bool    `json:"shuffle_questions"`
+	ShuffleOptions        *bool    `json:"shuffle_options"`
+	FreeNavigation        *bool    `json:"free_navigation"`
+	RequireAllAnswered    *bool    `json:"require_all_answered"`
+	AnticheatEnabled      *bool    `json:"anticheat_enabled"`
+	LeaveToleranceSeconds *int     `json:"leave_tolerance_seconds"`
+	PenaltyMode           string   `json:"penalty_mode"`
+	PenaltyValue          *float64 `json:"penalty_value"`
+	PenaltyMax            *float64 `json:"penalty_max"`
+	FlagThreshold         *int     `json:"flag_threshold"`
+	AutoSubmitThreshold   *int     `json:"auto_submit_threshold"`
+	CameraEnabled         *bool    `json:"camera_enabled"`
+	CameraDenyPolicy      string   `json:"camera_deny_policy"`
 }
 
 func parseTime(s *string) (*time.Time, error) {
@@ -390,17 +396,10 @@ func (s *Service) publish(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	var source, refID string
-	var err error
-	// konsumsi kuota dulu (di luar tx ujian agar rapi), lalu update exam
-	if s.Billing != nil {
-		source, refID, err = s.Billing.ConsumeForPublish(r.Context(), tid, id)
-		if err != nil {
-			httpx.WriteError(w, err)
-			return
-		}
-	}
 	var token string
-	err = s.DB.WithTenantTx(r.Context(), tid, func(tx pgx.Tx) error {
+	// B-03: konsumsi kuota di dalam transaksi yang sama dengan UPDATE exam.
+	// Jika publish gagal, rollback otomatis mengembalikan kuota tanpa kompensasi manual.
+	err := s.DB.WithTenantTx(r.Context(), tid, func(tx pgx.Tx) error {
 		var status string
 		var openAt, closeAt *time.Time
 		var dur *int
@@ -419,9 +418,16 @@ func (s *Service) publish(w http.ResponseWriter, r *http.Request) {
 		if !closeAt.After(*openAt) {
 			return httpx.BadRequest(httpx.CodeValidation, "waktu tutup harus setelah waktu buka")
 		}
+		if s.Billing != nil {
+			var consumeErr error
+			source, refID, consumeErr = billing.ConsumeForPublishTx(r.Context(), tx, tid, id)
+			if consumeErr != nil {
+				return consumeErr
+			}
+		}
 		token = platform.RandomToken(6)
 		if _, err := tx.Exec(r.Context(),
-			`UPDATE exams SET status='published', published_at=now(), quota_source=$1, quota_ref_id=$2 WHERE tenant_id=$3 AND id=$4`,
+			`UPDATE exams SET status='published', published_at=now(), quota_source=$1, quota_ref_id=$2, quota_refunded_at=NULL WHERE tenant_id=$3 AND id=$4`,
 			nullStr(source), nullAny(refID), tid, id); err != nil {
 			return err
 		}
@@ -443,10 +449,7 @@ func (s *Service) publish(w http.ResponseWriter, r *http.Request) {
 		return nil
 	})
 	if err != nil {
-		// rollback konsumsi kuota bila publish gagal — refund ke sumber yang KITA konsumsi (H1)
-		if s.Billing != nil && source != "" {
-			_ = s.Billing.RefundForConsume(r.Context(), tid, source, refID)
-		}
+		// B-03: kuota ikut rollback bersama transaksi — tidak perlu kompensasi manual.
 		httpx.WriteError(w, err)
 		return
 	}
@@ -527,8 +530,8 @@ func (s *Service) regenerateToken(w http.ResponseWriter, r *http.Request) {
 // setAssignments: ganti penugasan (kelas/siswa) — FR-4.2.
 func (s *Service) setAssignments(w http.ResponseWriter, r *http.Request) {
 	var in struct {
-		Classes   []string `json:"class_ids"`
-		Students  []string `json:"student_ids"`
+		Classes  []string `json:"class_ids"`
+		Students []string `json:"student_ids"`
 	}
 	if err := httpx.DecodeJSON(r, &in); err != nil {
 		httpx.WriteError(w, err)

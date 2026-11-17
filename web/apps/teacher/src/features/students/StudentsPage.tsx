@@ -16,16 +16,16 @@ export default function StudentsPage() {
   const [jobId, setJobId] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
   const [credModal, setCredModal] = useState<{ name: string; username: string; password: string } | null>(null);
-  const [resetting, setResetting] = useState(false);
+  const [resetting, setResetting] = useState<Record<string, boolean>>({});
 
   const doResetPassword = async (s: any) => {
-    setResetting(true);
+    setResetting((v) => ({ ...v, [s.id]: true }));
     try {
       const r = await api<any>('POST', `/students/${s.id}/reset-password`, {});
       setCredModal({ name: s.name, username: r.username || s.username || '-', password: r.new_password || r.password || '-' });
       refetch();
     } catch (err: any) { toast(err.message || 'Gagal mereset password', 'danger'); }
-    finally { setResetting(false); }
+    finally { setResetting((v) => ({ ...v, [s.id]: false })); }
   };
 
   const list = (students || []).filter((s) =>
@@ -35,12 +35,15 @@ export default function StudentsPage() {
   const doPreview = async () => {
     const f = fileRef.current?.files?.[0];
     if (!f) return toast('Pilih file .xlsx/.csv dulu', 'danger');
-    const fd = new FormData();
-    fd.append('file', f);
-    const token = (await import('@flowcbt/api-client')).getAccessToken();
-    const res = await fetch(API_BASE + '/students/import/preview', { method: 'POST', headers: { Authorization: 'Bearer ' + token }, body: fd });
-    const j = await res.json();
-    setPreview(j.data); setJobId(j.data.job_id);
+    try {
+      const fd = new FormData();
+      fd.append('file', f);
+      const token = (await import('@flowcbt/api-client')).getAccessToken();
+      const res = await fetch(API_BASE + '/students/import/preview', { method: 'POST', headers: { Authorization: 'Bearer ' + token }, body: fd });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error?.message || 'Gagal mempratinjau file');
+      setPreview(j.data); setJobId(j.data.job_id);
+    } catch (err: any) { toast(err.message, 'danger'); }
   };
 
   const doCommit = async () => {
@@ -84,7 +87,7 @@ export default function StudentsPage() {
               <tr key={s.id}>
                 <td><Link to={`/students/${s.id}`}><strong>{s.name}</strong></Link> {s.is_guest && <Badge tone="warn">tamu</Badge>}</td>
                 <td>{s.student_code}</td><td>{s.class_name}</td><td>{s.gender}</td><td>{s.username || '-'}</td>
-                <td><Button variant="ghost" disabled={resetting} onClick={() => doResetPassword(s)}>{resetting ? '…' : 'Reset pw'}</Button></td>
+                <td><Button variant="ghost" aria-label={`Reset password ${s.name}`} disabled={!!resetting[s.id]} onClick={() => doResetPassword(s)}>{resetting[s.id] ? '…' : 'Reset pw'}</Button></td>
               </tr>
             ))}
             {!errStudents && list.length === 0 && <tr><td colSpan={6}><EmptyState icon="students" title="Belum ada siswa">Tambahkan satu per satu, atau import dari file Excel.</EmptyState></td></tr>}

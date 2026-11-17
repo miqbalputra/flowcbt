@@ -6,13 +6,14 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strings"
 
 	"flowcbt/backend/internal/platform"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
+	"github.com/jackc/pgx/v5"
 )
 
 // migrate menjalankan migrasi golang-migrate (000001..000010) dan memastikan
@@ -54,17 +55,23 @@ func main() {
 		os.Exit(1)
 	}
 	defer conn.Close(context.Background())
-	stmts := []string{
-		fmt.Sprintf("ALTER ROLE flowcbt_app LOGIN PASSWORD '%s'", cfg.AppDBPassword),
-		fmt.Sprintf("ALTER ROLE flowcbt_system LOGIN PASSWORD '%s'", cfg.SystemDBPass),
-		fmt.Sprintf("GRANT CONNECT ON DATABASE %s TO flowcbt_app, flowcbt_system", dbName(cfg.DatabaseURL)),
+	// C-15: jangan pernah menuliskan statement yang mengandung password ke log.
+	// Role/nama DB tetap di-sanitize (password bisa mengandung tanda kutip).
+	stmts := []struct{ label, sql string }{
+		{"set app role password", fmt.Sprintf("ALTER ROLE flowcbt_app LOGIN PASSWORD '%s'", escapeLiteral(cfg.AppDBPassword))},
+		{"set system role password", fmt.Sprintf("ALTER ROLE flowcbt_system LOGIN PASSWORD '%s'", escapeLiteral(cfg.SystemDBPass))},
+		{"grant connect", fmt.Sprintf("GRANT CONNECT ON DATABASE %s TO flowcbt_app, flowcbt_system", pgx.Identifier{dbName(cfg.DatabaseURL)}.Sanitize())},
 	}
 	for _, s := range stmts {
-		if _, err := conn.Exec(context.Background(), s); err != nil {
-			log.Warn("role setup", "stmt", s, "err", err)
+		if _, err := conn.Exec(context.Background(), s.sql); err != nil {
+			log.Warn("role setup", "step", s.label, "err", err)
 		}
 	}
 	log.Info("roles ready")
+}
+
+func escapeLiteral(s string) string {
+	return strings.ReplaceAll(s, "'", "''")
 }
 
 func dbName(url string) string {

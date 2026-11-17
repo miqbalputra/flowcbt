@@ -31,13 +31,21 @@ type CheckoutRequest struct {
 // activatePayment mengaktifkan paket setelah pembayaran terkonfirmasi (dipakai semua provider).
 func activatePayment(ctx context.Context, tx pgx.Tx, orderID string) error {
 	var (
-		payID, tenantID, planID, purpose string
-		amount                            int
+		payID, tenantID, planID, purpose, status string
+		amount                                   int
 	)
 	if err := tx.QueryRow(ctx,
-		`SELECT id, tenant_id, plan_id, purpose, amount_idr FROM payments WHERE order_id=$1 AND status='pending'`, orderID).
-		Scan(&payID, &tenantID, &planID, &purpose, &amount); err != nil {
-		return httpx.NotFound("order tidak ditemukan / sudah diproses")
+		`SELECT id, tenant_id, plan_id, purpose, amount_idr, status FROM payments WHERE order_id=$1`, orderID).
+		Scan(&payID, &tenantID, &planID, &purpose, &amount, &status); err != nil {
+		return httpx.NotFound("order tidak ditemukan")
+	}
+	// B-04: notifikasi settlement kedua (atau webhook dengan body berbeda) harus aman.
+	// Sudah paid → ACK tanpa mengulang kredit/langganan/invoice.
+	if status == "paid" {
+		return nil
+	}
+	if status != "pending" {
+		return httpx.NotFound("order tidak dalam status pending")
 	}
 	if _, err := tx.Exec(ctx, `UPDATE payments SET status='paid', paid_at=now() WHERE id=$1`, payID); err != nil {
 		return err

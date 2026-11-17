@@ -7,6 +7,8 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
@@ -16,10 +18,14 @@ import (
 	"flowcbt/backend/internal/audit"
 	"flowcbt/backend/internal/auth"
 	"flowcbt/backend/internal/billing"
+	mockprovider "flowcbt/backend/internal/billing/provider/mock"
 	"flowcbt/backend/internal/grading"
+	"flowcbt/backend/internal/httpx"
 	"flowcbt/backend/internal/platform"
 	"flowcbt/backend/internal/retention"
+	"flowcbt/backend/internal/student"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -115,7 +121,7 @@ func TestImportValidationAC10(t *testing.T) {
 		}
 		fmt.Fprintf(&b, "Siswa %d,L,Kelas %d,%d\n", i, i, i)
 	}
-	rows, errs := parseImportCSV(b.String())
+	rows, errs := student.ParseImport(strings.NewReader(b.String()), "siswa.csv")
 	if len(rows) != 495 || len(errs) != 5 {
 		t.Fatalf("AC-10: valid=%d invalid=%d (want 495/5)", len(rows), len(errs))
 	}
@@ -125,40 +131,6 @@ func TestImportValidationAC10(t *testing.T) {
 		}
 	}
 	t.Log("AC-10 PASS: 495 valid, 5 error dengan nomor baris & alasan")
-}
-
-type importRow struct{ Name, Gender, Class, NIS string }
-type importErr struct{ Row int; Reason string }
-
-func parseImportCSV(csv string) ([]importRow, []importErr) {
-	lines := strings.Split(strings.ReplaceAll(csv, "\r\n", "\n"), "\n")
-	var rows []importRow
-	var errs []importErr
-	for i, line := range lines {
-		rowNo := i + 1
-		if rowNo == 1 || strings.TrimSpace(line) == "" {
-			continue
-		}
-		parts := strings.Split(line, ",")
-		get := func(j int) string {
-			if j < len(parts) {
-				return strings.TrimSpace(parts[j])
-			}
-			return ""
-		}
-		name, gender, class, nis := get(0), strings.ToUpper(get(1)), get(2), get(3)
-		switch {
-		case name == "":
-			errs = append(errs, importErr{rowNo, "Nama kosong"})
-		case gender != "L" && gender != "P":
-			errs = append(errs, importErr{rowNo, "Jenis Kelamin harus L atau P"})
-		case class == "":
-			errs = append(errs, importErr{rowNo, "Kelas kosong"})
-		default:
-			rows = append(rows, importRow{name, gender, class, nis})
-		}
-	}
-	return rows, errs
 }
 
 // AC-5: event setelah deadline + toleransi ditolak (accepted=false, reject_reason=past_deadline).
@@ -185,7 +157,7 @@ func TestDeadlineRejectionAC5(t *testing.T) {
 		if err := tx.QueryRow(ctx, `INSERT INTO question_sets (tenant_id, subject_name, title, exam_code, status, created_by) VALUES ($1,'MTK','T',$3,'published',$2) RETURNING id`, tid, uid, uniq("KD")).Scan(&qsID); err != nil {
 			return err
 		}
-		if err := tx.QueryRow(ctx, `INSERT INTO question_set_versions (tenant_id, question_set_id, version_no, status) VALUES ($1,$2,1,'published') RETURNING id`, tid, qsID).Scan(&verID); err != nil {
+		if err := tx.QueryRow(ctx, `INSERT INTO question_set_versions (tenant_id, question_set_id, version_no, status, published_at) VALUES ($1,$2,1,'published',now()) RETURNING id`, tid, qsID).Scan(&verID); err != nil {
 			return err
 		}
 		if _, err := tx.Exec(ctx, `UPDATE question_sets SET published_version_id=$1, draft_version_id=$1 WHERE id=$2`, verID, qsID); err != nil {
@@ -211,11 +183,29 @@ func TestDeadlineRejectionAC5(t *testing.T) {
 	}
 	var attID string
 	sysQueryRow(t, db, `SELECT id FROM attempts WHERE tenant_id=$1 ORDER BY created_at DESC LIMIT 1`, []any{tid}, &attID)
+	// C-12: panggil handler produksi, bukan SQL buatan test.
+	var sid string
+	sysQueryRow(t, db, `SELECT student_id FROM attempts WHERE id=$1`, []any{attID}, &sid)
+	httpx.SetJWTSecret("test-secret")
+	issuer := &auth.Issuer{DB: db, Clock: platform.NewClock(), Secret: []byte("test-secret"), AccessTTL: time.Minute, RefreshTTL: time.Hour}
+	pair, err := issuer.IssuePair(ctx, db.System, platform.NewIDString(), tid, "student", "student", sid, "", "", "")
+	if err != nil {
+		t.Fatalf("issue student token: %v", err)
+	}
+	svc := &attempt.Service{DB: db, Clock: platform.NewClock()}
+	rt := chi.NewRouter()
+	rt.Use(httpx.AuthN())
+	rt.Post("/attempts/{id}/answers:sync", svc.SyncHandler())
+	body := `{"events":[{"client_event_id":"11111111-1111-4111-8111-111111111111","type":"answer","question_id":"q1","payload":{"selected":"A"},"seq":1}]}`
+	req := httptest.NewRequest(http.MethodPost, "/attempts/"+attID+"/answers:sync", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+pair.AccessToken)
+	w := httptest.NewRecorder()
+	rt.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("AC-5 sync handler status=%d body=%s", w.Code, w.Body.String())
+	}
 	evID := "11111111-1111-4111-8111-111111111111"
-	sysExec(t, db,
-		`INSERT INTO attempt_events (tenant_id, attempt_id, client_event_id, type, payload, seq, accepted, reject_reason)
-		 VALUES ($1,$2,$3,'answer','{"selected":"A"}',1, now() <= (SELECT deadline_at FROM attempts WHERE id=$2) + interval '5 seconds', 'past_deadline')`,
-		tid, attID, evID)
 	var accepted bool
 	var reason *string
 	sysQueryRow(t, db, `SELECT accepted, reject_reason FROM attempt_events WHERE attempt_id=$1 AND client_event_id=$2`, []any{attID, evID}, &accepted, &reason)
@@ -225,8 +215,7 @@ func TestDeadlineRejectionAC5(t *testing.T) {
 	if reason == nil || *reason != "past_deadline" {
 		t.Fatalf("AC-5: reject_reason harus past_deadline, dapat %v", reason)
 	}
-	_ = attempt.Service{}
-	t.Log("AC-5 PASS: jawaban setelah deadline+toleransi ditolak & ditandai")
+	t.Log("AC-5 PASS: jawaban setelah deadline+toleransi ditolak & ditandai (handler produksi)")
 }
 
 // AC-8: penalti dihitung di server; nilai asli/penalti/akhir terpisah.
@@ -274,40 +263,41 @@ func TestRetentionPurgeAC11(t *testing.T) {
 // Webhook idempoten: event_id sama diproses sekali → kredit tidak ganda.
 func TestWebhookIdempotency(t *testing.T) {
 	db := testDB(t)
-	ctx := context.Background()
 	tid := newTenant(t, db, uniq("TSW"))
 	var planID string
 	sysQueryRow(t, db, `SELECT id FROM plans WHERE code='per_exam_s'`, nil, &planID)
 	orderID := "FLOW-TEST-" + fmt.Sprint(time.Now().UnixNano())
-	evtID := uniq("evt")
 	sysExec(t, db, `INSERT INTO payments (tenant_id, tenant_name_snap, plan_id, purpose, provider, order_id, amount_idr, status) VALUES ($1,'W',$2,'per_exam','mock',$3,10000,'pending')`, tid, planID, orderID)
-	err := db.WithSystemTx(ctx, func(tx pgx.Tx) error {
-		if _, err := tx.Exec(ctx, `INSERT INTO payment_webhook_events (provider, event_id, signature_ok, payload) VALUES ('mock',$1,true,'{}')`, evtID); err != nil {
-			return err
-		}
-		return billing.ActivateForTest(ctx, tx, orderID)
-	})
-	if err != nil {
-		t.Fatalf("webhook 1: %v", err)
+
+	// C-12: kirim webhook ke handler HTTP produksi (bukan ActivateForTest).
+	svc := &billing.Service{DB: db, Clock: platform.NewClock(), Provider: &mockprovider.Provider{}}
+	wr := chi.NewRouter()
+	svc.RoutesPublic(wr)
+	postWebhook := func() int {
+		body := fmt.Sprintf(`{"order_id":%q,"transaction_status":"settlement"}`, orderID)
+		req := httptest.NewRequest(http.MethodPost, "/webhooks/payment/mock", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		wr.ServeHTTP(w, req)
+		return w.Code
+	}
+	if code := postWebhook(); code != http.StatusOK {
+		t.Fatalf("webhook 1 status=%d", code)
 	}
 	var credits int
 	sysQueryRow(t, db, `SELECT COALESCE(sum(quantity)-sum(used),0) FROM exam_credits WHERE tenant_id=$1`, []any{tid}, &credits)
 	if credits != 3 {
 		t.Fatalf("setelah webhook 1: kredit harus 3, dapat %d", credits)
 	}
-	// event_id sama → di-skip (ON CONFLICT DO NOTHING), tidak memproses ulang
-	err = db.WithSystemTx(ctx, func(tx pgx.Tx) error {
-		tag, err := tx.Exec(ctx, `INSERT INTO payment_webhook_events (provider, event_id, signature_ok, payload) VALUES ('mock',$1,true,'{}') ON CONFLICT DO NOTHING`, evtID)
-		if err != nil {
-			return err
-		}
-		if tag.RowsAffected() != 0 {
-			t.Fatalf("event duplikat harus di-skip")
-		}
-		return nil
-	})
-	if err != nil {
-		t.Fatalf("webhook duplikat: %v", err)
+	// B-04/C-12: settlement kedua (body identik) harus aman & idempoten.
+	var events int
+	sysQueryRow(t, db, `SELECT count(*) FROM payment_webhook_events WHERE provider='mock' AND payload::text LIKE $1`, []any{"%" + orderID + "%"}, &events)
+	if code := postWebhook(); code != http.StatusOK {
+		t.Fatalf("webhook duplikat status=%d", code)
+	}
+	sysQueryRow(t, db, `SELECT count(*) FROM payment_webhook_events WHERE provider='mock' AND payload::text LIKE $1`, []any{"%" + orderID + "%"}, &events)
+	if events != 1 {
+		t.Fatalf("event duplikat dibuat: %d (want 1)", events)
 	}
 	sysQueryRow(t, db, `SELECT COALESCE(sum(quantity)-sum(used),0) FROM exam_credits WHERE tenant_id=$1`, []any{tid}, &credits)
 	if credits != 3 {

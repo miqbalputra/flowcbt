@@ -22,9 +22,9 @@ type TokenPair struct {
 }
 
 type Issuer struct {
-	DB     *platform.DB
-	Clock  platform.Clock
-	Secret []byte
+	DB         *platform.DB
+	Clock      platform.Clock
+	Secret     []byte
 	AccessTTL  time.Duration
 	RefreshTTL time.Duration
 }
@@ -96,16 +96,23 @@ func tenantIDOrNil(s string) any {
 // Rotate memverifikasi refresh token lalu menerbitkan pasangan baru; bila token lama dipakai ulang
 // (reuse), seluruh family dicabut (deteksi pencurian token).
 func (i *Issuer) Rotate(ctx context.Context, q platform.Queryer, rawRefresh string) (*TokenPair, error) {
+	return i.RotateWithDevice(ctx, q, rawRefresh, "")
+}
+
+// B-09: `FOR UPDATE` mencegah dua refresh konkuren lolos bersamaan (TOCTOU).
+// expectedDeviceHash (hash cookie perangkat) bila diisi memastikan refresh curi
+// tidak bisa dipakai di perangkat lain.
+func (i *Issuer) RotateWithDevice(ctx context.Context, q platform.Queryer, rawRefresh, expectedDeviceHash string) (*TokenPair, error) {
 	h := hashToken(rawRefresh)
 	var (
-		id, subjectType, family                     string
-		tenantID, userID, studentID, device         *string
-		expiresAt                                   time.Time
-		revokedAt                                   *time.Time
+		id, subjectType, family             string
+		tenantID, userID, studentID, device *string
+		expiresAt                           time.Time
+		revokedAt                           *time.Time
 	)
 	err := q.QueryRow(ctx,
 		`SELECT id, tenant_id, subject_type, user_id, student_id, family_id, device_hash, expires_at, revoked_at
-		 FROM refresh_tokens WHERE token_hash = $1`, h).
+		 FROM refresh_tokens WHERE token_hash = $1 FOR UPDATE`, h).
 		Scan(&id, &tenantID, &subjectType, &userID, &studentID, &family, &device, &expiresAt, &revokedAt)
 	if err != nil {
 		return nil, httpx.Unauthorized("refresh token tidak dikenal")
@@ -127,6 +134,11 @@ func (i *Issuer) Rotate(ctx context.Context, q platform.Queryer, rawRefresh stri
 	}
 	if time.Now().After(expiresAt) {
 		return nil, httpx.Unauthorized("refresh token tidak berlaku")
+	}
+	if expectedDeviceHash != "" && (device == nil || *device != expectedDeviceHash) {
+		// Perangkat berbeda → cabut family (token diduga dicuri).
+		_, _ = q.Exec(ctx, `UPDATE refresh_tokens SET revoked_at = now() WHERE family_id = $1 AND revoked_at IS NULL`, family)
+		return nil, httpx.Unauthorized("refresh token tidak cocok dengan perangkat ini; sesi dicabut")
 	}
 	_, _ = q.Exec(ctx, `UPDATE refresh_tokens SET revoked_at = now() WHERE id = $1`, id)
 

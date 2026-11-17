@@ -48,21 +48,25 @@ func (m *MemLimiter) Allow(ctx context.Context, key string, limit int, window ti
 
 // RedisLimiter menggunakan Redis (SLIDING window sederhana via INCR+EXPIRE).
 type RedisLimiter struct {
-	Do func(ctx context.Context, key string, limit int, window time.Duration) (bool, time.Duration, error)
+	Do         func(ctx context.Context, key string, limit int, window time.Duration) (bool, time.Duration, error)
+	FailClosed bool // B-06: di produksi, Redis mati harus menolak (bukan mengizinkan) endpoint auth.
 }
 
 func (r RedisLimiter) Allow(ctx context.Context, key string, limit int, window time.Duration) (bool, time.Duration) {
 	ok, retry, err := r.Do(ctx, key, limit, window)
 	if err != nil {
-		// fail-open agar gangguan Redis tidak mengunci semua login
+		if r.FailClosed {
+			return false, window
+		}
 		return true, 0
 	}
 	return ok, retry
 }
 
-func NewRateLimiter(redisURL string) RateLimiter {
+// NewRateLimiter: failClosed sebaiknya true saat APP_ENV=production.
+func NewRateLimiter(redisURL string, failClosed bool) RateLimiter {
 	if redisURL != "" {
-		return &RedisLimiter{Do: redisAllowFactory(redisURL)}
+		return &RedisLimiter{Do: redisAllowFactory(redisURL), FailClosed: failClosed}
 	}
 	return NewMemLimiter()
 }

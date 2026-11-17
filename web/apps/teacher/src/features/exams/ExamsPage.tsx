@@ -2,7 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { useApiQuery, QueryError, QueryGate } from '@flowcbt/api-client';
 import { Button, Card, Badge, SkeletonList, PageHeader, EmptyState, Icon } from '@flowcbt/ui';
-import { fmtDateTime } from '@flowcbt/shared';
+import { fmtDateTime, statusLabel, statusTone } from '@flowcbt/shared';
 
 export default function ExamsPage() {
   const { data: exams, refetch, error, isLoading } = useApiQuery<any[]>(['exams'], '/exams');
@@ -21,7 +21,7 @@ export default function ExamsPage() {
             <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
               <div>
                 <Link to={`/exams/${e.id}`}><strong>{e.name}</strong></Link> <Badge>{e.question_set_title}</Badge>{' '}
-                <Badge tone={e.status === 'published' ? 'ok' : e.status === 'draft' ? 'muted' : 'warn'}>{e.status}</Badge>
+                <Badge tone={statusTone(e.status)}>{statusLabel(e.status)}</Badge>
                 <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
                   {fmtDateTime(e.open_at)} – {fmtDateTime(e.close_at)} · {e.duration_minutes} menit
                   {e.token && <> · token <strong>{e.token}</strong></>}
