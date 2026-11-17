@@ -4,7 +4,7 @@ import { api } from '@flowcbt/api-client';
 import { Button, Card, Badge, BottomSheet, ConnectionBadge, useToast, ThemeToggle, Icon } from '@flowcbt/ui';
 import { fmtDuration, QUESTION_TYPE_LABEL, sanitizeHtml, stripHtml, type ExamPacket, type Question, type SyncEvent } from '@flowcbt/shared';
 import { db, LocalAttempt } from '../offline/db';
-import { calibrate, deadlineCountdownMs, drainOutbox, newEventId, connState, type ServerClock } from '../offline/engine';
+import { calibrate, deadlineCountdownMs, drainOutbox, newEventId, type ServerClock } from '../offline/engine';
 
 // Halaman butir soal (FR-6.3): satu soal per layar, timer sticky, indikator koneksi,
 // jawaban SELALU ditulis ke IndexedDB dulu (FR-6.3/7.3), sinkron periodik + saat online (FR-7.4).
@@ -26,6 +26,8 @@ export default function AttemptPage() {
 
   const packet: ExamPacket | null = att?.packet || null;
   const questions: Question[] = useMemo(() => packet?.questions || [], [packet]);
+  const q: Question | undefined = questions[idx];
+  const [scale, setScale] = useState(1);
 
   // muat attempt dari IndexedDB (pemulihan, FR-7.8) + mulai jam monotonic terkalibrasi server
   useEffect(() => {
@@ -194,102 +196,163 @@ export default function AttemptPage() {
     nav(`/attempt/${id}/done`);
   };
 
-  if (!att || !packet) return <div style={{ padding: 24 }}><Card>Memuat ujian…</Card></div>;
-  const q = questions[idx];
-  const state = connState(online, pending);
+  // Ekstra: opsi yang bisa dipilih via keyboard A–E / 1–5 ( hanya MCQ ).
+  const optionIds = useMemo(() => {
+    if (!q || (q.type !== 'mcq' && q.type !== 'mcq_complex')) return [] as string[];
+    return (q.options_json as { id: string }[]).map((o) => o.id);
+  }, [q]);
+
+  const selectById = (oid: string) => {
+    if (!q) return;
+    if (q.type === 'mcq') { void setAnswer(q.id, { selected: oid }); return; }
+    if (q.type === 'mcq_complex') {
+      const sel: string[] = answers[q.id]?.payload?.selected || [];
+      void setAnswer(q.id, { selected: sel.includes(oid) ? sel.filter((x) => x !== oid) : [...sel, oid] });
+    }
+  };
+
+  // Power-user: A–E / 1–5 pilih opsi, R ragu-ragu, ←/→ pindah soal.
+  useEffect(() => {
+    if (!att || showNav) return;
+    const onKey = (e: KeyboardEvent) => {
+      const tag = (document.activeElement?.tagName || '').toUpperCase();
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || e.ctrlKey || e.metaKey || e.altKey) return;
+      const key = e.key.toUpperCase();
+      if (/^[A-E]$/.test(key)) {
+        const oid = optionIds[key.charCodeAt(0) - 65];
+        if (oid) { e.preventDefault(); selectById(oid); }
+      } else if (/^[1-5]$/.test(key)) {
+        const oid = optionIds[Number(key) - 1];
+        if (oid) { e.preventDefault(); selectById(oid); }
+      } else if (key === 'R' && q) {
+        e.preventDefault(); void toggleFlag(q.id);
+      } else if (e.key === 'ArrowLeft' && idx > 0) {
+        e.preventDefault(); setIdx(idx - 1);
+      } else if (e.key === 'ArrowRight' && idx < questions.length - 1) {
+        e.preventDefault(); setIdx(idx + 1);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [att, showNav, optionIds, q, idx, questions.length, answers]);
+
+  if (!att || !packet || !q) return <div style={{ padding: 24 }}><Card>Memuat ujian…</Card></div>;
+  const answeredCount = Object.values(answers).filter((a) => a.payload != null).length;
+  const isLast = idx === questions.length - 1;
+
+  const questionMap = (
+    <>
+      <div className="qmap-grid">
+        {questions.map((qq, i) => {
+          const a = answers[qq.id];
+          const answered = a?.payload != null;
+          return (
+            <button
+              key={qq.id}
+              onClick={() => { setIdx(i); setShowNav(false); }}
+              className={'qmap-tile' + (answered ? ' answered' : '') + (a?.flagged ? ' flagged' : '') + (i === idx ? ' current' : '')}
+              aria-label={`Soal ${i + 1}${answered ? ', sudah dijawab' : ''}${a?.flagged ? ', ragu-ragu' : ''}`}
+              aria-current={i === idx}
+            >
+              {i + 1}
+            </button>
+          );
+        })}
+      </div>
+      <div className="qmap-legend">
+        <span><i style={{ background: 'var(--ok)', borderColor: 'var(--ok)' }} />Terjawab</span>
+        <span><i style={{ background: 'var(--warn)', borderColor: 'var(--warn)' }} />Ragu-ragu</span>
+        <span><i />Kosong</span>
+        <span><i style={{ border: '2px solid var(--brand-600)' }} />Aktif</span>
+      </div>
+    </>
+  );
 
   return (
-    <div className="app-wrap">
-      {/* header sticky: nama ujian, timer, koneksi, tema (FR-6.3) */}
-      <div className="st-head" style={{ alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-        <strong style={{ flex: 1, minWidth: 100, fontSize: 15 }}>{packet.exam.name}</strong>
-        <span className={'timer-chip' + (left !== null && left < 60000 ? ' low' : '')}
+    <div className="exam-shell" style={{ ['--exam-scale' as any]: scale }}>
+      <header className="exam-header">
+        <div style={{ minWidth: 0 }}>
+          <div className="e-title">{packet.exam.name}</div>
+          <div className="e-sub">Ujian · {questions.length} soal · {answeredCount} terjawab</div>
+        </div>
+        <span className={'sync-dot' + (pending > 0 || !online ? ' warn' : '')} role="status" aria-live="polite">
+          <span className="dot" style={{ background: 'currentColor' }} aria-hidden="true" />
+          {pending > 0 ? `${pending} menunggu` : online ? 'Tersimpan' : 'Offline'}
+        </span>
+        <div style={{ flex: 1 }} />
+        <span className={'exam-timer' + (left !== null && left < 300000 ? ' low' : left !== null && left < 600000 ? ' warn' : '')}
           role="timer" aria-live="off" aria-label="Sisa waktu pengerjaan">
-          <Icon name="clock" size={15} />
           {fmtDuration((left || 0) / 1000)}
         </span>
-        {/* A-07c: umumkan hanya pada menit penting agar tidak membanjiri screen reader. */}
         <span className="sr-only" aria-live="assertive">
           {left !== null && [600000, 300000, 60000].includes(left) ? `Sisa waktu ${fmtDuration(left / 1000)}` : ''}
         </span>
-        <ConnectionBadge online={online} pending={pending} />
-        <ThemeToggle />
-      </div>
-      <div style={{ height: 12 }} />
-      {/* A-15: status outbox eksplisit — \"tersimpan lokal\" bukan \"hilang\" */}
-      {pending > 0 && (
-        <div role="status" aria-live="polite" className="banner banner-warn" style={{ marginBottom: 12, fontSize: 13 }}>
-          {pending} jawaban belum terkirim. Tersimpan aman di perangkat dan akan dikirim otomatis saat online.
+        <div className="e-tools">
+          <div className="text-ctrl" aria-label="Ukuran teks soal">
+            <button aria-label="A- perkecil teks" onClick={() => setScale((v) => Math.max(0.9, +(v - 0.1).toFixed(1)))}>A-</button>
+            <span>{Math.round(scale * 100)}%</span>
+            <button aria-label="A+ perbesar teks" onClick={() => setScale((v) => Math.min(1.3, +(v + 0.1).toFixed(1)))}>A+</button>
+          </div>
+          <ThemeToggle />
+          <span className="profile-pill"><span className="avatar" aria-hidden="true">S</span> Siswa</span>
         </div>
-      )}
-      {warned > 0 && (
-        <div className="banner banner-danger" role="alert" style={{ marginBottom: 12 }}>
-          <strong>Pelanggaran ke-{warned} tercatat</strong> — Anda meninggalkan halaman ujian.
-          Sisa kesempatan sebelum dilaporkan: {Math.max(0, (packet.exam.anticheat.flag_threshold ?? 3) - warned)}.
+      </header>
+
+      {(pending > 0 || warned > 0) && (
+        <div className="exam-notices">
+          {pending > 0 && <div className="banner banner-warn" role="status" aria-live="polite">{pending} jawaban belum terkirim — tersimpan aman di perangkat.</div>}
+          {warned > 0 && <div className="banner banner-danger" role="alert">Pelanggaran ke-{warned} tercatat. Sisa kesempatan: {Math.max(0, (packet.exam.anticheat.flag_threshold ?? 3) - warned)}.</div>}
         </div>
       )}
 
-      <Card>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-          <span className="card-sub">
-            Soal <strong style={{ color: 'var(--text)' }}>{idx + 1}</strong> dari {questions.length}
-          </span>
-          <span style={{ display: 'inline-flex', gap: 6 }}>
+      <div className="exam-body">
+        <section className="exam-stimulus" aria-label="Bacaan dan pertanyaan">
+          <div className="exam-meta">
+            <span className="q-no">SOAL {idx + 1} / {questions.length}</span>
             <Badge tone="muted">{QUESTION_TYPE_LABEL[q.type]}</Badge>
             <Badge tone="brand">{q.points} poin</Badge>
-          </span>
-        </div>
-        <div className="q-body" dangerouslySetInnerHTML={{ __html: sanitizeHtml(q.body_html) }} />
-        <QuestionInput q={q} value={answers[q.id]?.payload} flagged={answers[q.id]?.flagged} onAnswer={(p) => setAnswer(q.id, p)} onFlag={() => toggleFlag(q.id)} />
-      </Card>
-
-      <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
-        <Button variant="ghost" disabled={idx === 0} onClick={() => setIdx(idx - 1)}>
-          <Icon name="chevron-left" /> Sebelumnya
-        </Button>
-        <Button variant="ghost" onClick={() => setShowNav(true)}>
-          <Icon name="list" /> Daftar ({Object.keys(answers).filter((k) => answers[k].payload != null).length}/{questions.length})
-        </Button>
-        <Button variant="ghost" disabled={idx === questions.length - 1} onClick={() => setIdx(idx + 1)}>
-          Berikutnya <Icon name="chevron-right" />
-        </Button>
-        <Button style={{ marginLeft: 'auto' }} onClick={() => nav(`/attempt/${id}/review`)}>
-          <Icon name="check" /> Selesai
-        </Button>
+          </div>
+          <div className="exam-question" dangerouslySetInnerHTML={{ __html: sanitizeHtml(q.body_html) }} />
+        </section>
+        <aside className="exam-options" aria-label="Jawaban dan peta soal">
+          <div className="exam-options-title">
+            <span>Pilih jawaban</span>
+            {(q.type === 'mcq' || q.type === 'mcq_complex') && <span><kbd className="kb">A–E</kbd> / <kbd className="kb">1–5</kbd></span>}
+          </div>
+          <QuestionInput q={q} value={answers[q.id]?.payload} onAnswer={(p) => setAnswer(q.id, p)} />
+          <div className="exam-map">
+            <div className="exam-options-title"><span>Peta soal</span><span className="mono">{answeredCount}/{questions.length}</span></div>
+            {questionMap}
+          </div>
+        </aside>
       </div>
 
-      <BottomSheet open={showNav} onClose={() => setShowNav(false)} title="Daftar Soal">
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(56px, 1fr))', gap: 9 }}>
-          {questions.map((qq, i) => {
-            const a = answers[qq.id];
-            const answered = a?.payload != null;
-            return (
-              <button
-                key={qq.id}
-                onClick={() => { setIdx(i); setShowNav(false); }}
-                className={'q-nav' + (answered ? ' answered' : '') + (a?.flagged ? ' flagged' : '') + (i === idx ? ' current' : '')}
-                aria-label={`Soal ${i + 1}${answered ? ', sudah dijawab' : ''}${a?.flagged ? ', ditandai ragu-ragu' : ''}`}
-                aria-current={i === idx}
-              >
-                {i + 1}
-                {a?.flagged && <span className="st-ic" aria-hidden="true"><Icon name="flag" size={10} /></span>}
-                {!a?.flagged && answered && <svg className="svg-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m4.5 12.5 5 5 10-11" /></svg>}
-              </button>
-            );
-          })}
-        </div>
-        <div style={{ display: 'flex', gap: 14, marginTop: 12, fontSize: 12.5, color: 'var(--text-muted)', flexWrap: 'wrap' }}>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><span style={{ width: 12, height: 12, borderRadius: 4, background: 'var(--ok-bg)', border: '1.5px solid var(--ok)', display: 'inline-block' }} /> Terjawab</span>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><span style={{ width: 12, height: 12, borderRadius: 4, background: 'var(--surface)', border: '1.5px solid var(--muted-2)', display: 'inline-block' }} /> Kosong</span>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><span style={{ width: 12, height: 12, borderRadius: 4, background: 'var(--warn-bg)', border: '1.5px solid var(--warn)', display: 'inline-block' }} /> Ragu-ragu</span>
-        </div>
+      <footer className="exam-actionbar">
+        <Button variant="ghost" aria-label="Soal sebelumnya" disabled={idx === 0} onClick={() => setIdx(idx - 1)}>
+          <Icon name="chevron-left" /><span className="long">Sebelumnya</span>
+        </Button>
+        <button className={'flag-toggle' + (answers[q.id]?.flagged ? ' on' : '')} aria-pressed={!!answers[q.id]?.flagged}
+          aria-label={answers[q.id]?.flagged ? 'Ragu-ragu R — batalkan tanda soal ini' : 'Ragu-ragu R — tandai soal ini'}
+          onClick={() => toggleFlag(q.id)}>
+          <span className="box" aria-hidden="true">{answers[q.id]?.flagged ? '✓' : ''}</span>
+          <span className="label">Ragu-ragu <kbd className="kb">R</kbd></span>
+        </button>
+        <Button variant="ghost" aria-label="Buka peta soal" onClick={() => setShowNav(true)}><Icon name="list" /><span className="long">Peta</span></Button>
+        <div className="spacer" />
+        {isLast
+          ? <Button aria-label="Selesai — selesaikan ujian" onClick={() => nav(`/attempt/${id}/review`)}><Icon name="check" /><span className="long">Selesaikan Ujian</span><span className="short">Selesai</span></Button>
+          : <Button aria-label="Lanjut ke soal selanjutnya" onClick={() => setIdx(idx + 1)}><span className="long">Selanjutnya</span><span className="short">Lanjut</span><Icon name="chevron-right" /></Button>}
+      </footer>
+
+      <BottomSheet open={showNav} onClose={() => setShowNav(false)} title="Peta Soal">
+        {questionMap}
       </BottomSheet>
     </div>
   );
 }
 
 // ---- Input jawaban per tipe soal (FR-4.3) ----
-function QuestionInput({ q, value, flagged, onAnswer, onFlag }: { q: Question; value: any; flagged?: boolean; onAnswer: (p: any) => void; onFlag: () => void }) {
+function QuestionInput({ q, value, onAnswer }: { q: Question; value: any; onAnswer: (p: any) => void }) {
   switch (q.type) {
     case 'mcq': {
       const opts = q.options_json as { id: string; html: string }[];
@@ -299,14 +362,13 @@ function QuestionInput({ q, value, flagged, onAnswer, onFlag }: { q: Question; v
             <button
               key={o.id}
               onClick={() => onAnswer({ selected: o.id })}
-              className={'q-opt' + (value?.selected === o.id ? ' selected' : '')}
+              className={'option-card' + (value?.selected === o.id ? ' checked' : '')}
               aria-pressed={value?.selected === o.id}
             >
-              <span className="opt-key" aria-hidden="true">{o.id}</span>
+              <span className="opt-letter" aria-hidden="true">{o.id}</span>
               <span dangerouslySetInnerHTML={{ __html: sanitizeHtml(o.html) }} />
             </button>
           ))}
-          <FlagButton flagged={flagged} onFlag={onFlag} />
         </div>
       );
     }
@@ -317,30 +379,27 @@ function QuestionInput({ q, value, flagged, onAnswer, onFlag }: { q: Question; v
       return (
         <div style={{ display: 'grid', gap: 9, marginTop: 14 }}>
           {opts.map((o) => (
-            <button key={o.id} onClick={() => toggle(o.id)} className={'q-opt' + (sel.includes(o.id) ? ' selected' : '')} aria-pressed={sel.includes(o.id)}>
-              <span className="opt-key" aria-hidden="true">{sel.includes(o.id) ? <Icon name="check" size={14} /> : '\u00A0'}</span>
+            <button key={o.id} onClick={() => toggle(o.id)} className={'option-card' + (sel.includes(o.id) ? ' checked' : '')} aria-pressed={sel.includes(o.id)}>
+              <span className="opt-letter" aria-hidden="true">{sel.includes(o.id) ? <Icon name="check" size={14} /> : '\u00A0'}</span>
               <span dangerouslySetInnerHTML={{ __html: sanitizeHtml(o.html) }} />
             </button>
           ))}
-          <FlagButton flagged={flagged} onFlag={onFlag} />
         </div>
       );
     }
     case 'matching':
       // komponen terpisah agar hook (useState) tidak dipanggil kondisional di switch
-      return <MatchingInput q={q} value={value} flagged={flagged} onAnswer={onAnswer} onFlag={onFlag} />;
+      return <MatchingInput q={q} value={value} onAnswer={onAnswer} />;
     case 'short_answer':
       return (
         <div style={{ marginTop: 12 }}>
           <DebouncedTextField placeholder="Ketik jawaban singkat…" value={value} onCommit={onAnswer} />
-          <FlagButton flagged={flagged} onFlag={onFlag} />
         </div>
       );
     case 'essay':
       return (
         <div style={{ marginTop: 12 }}>
           <DebouncedTextField placeholder="Tulis jawaban uraian…" value={value} onCommit={onAnswer} multiline />
-          <FlagButton flagged={flagged} onFlag={onFlag} />
         </div>
       );
   }
@@ -348,7 +407,7 @@ function QuestionInput({ q, value, flagged, onAnswer, onFlag }: { q: Question; v
 
 // Matching (FR-11): tap kiri lalu tap kanan untuk memasangkan. Tap kanan yang sudah
 // berpasangan (atau tap kiri yang sama dua kali) melepas pasangan (unpair).
-function MatchingInput({ q, value, flagged, onAnswer, onFlag }: { q: Question; value: any; flagged?: boolean; onAnswer: (p: any) => void; onFlag: () => void }) {
+function MatchingInput({ q, value, onAnswer }: { q: Question; value: any; onAnswer: (p: any) => void }) {
   const opts = q.options_json as { left: { id: string; html: string }[]; right: { id: string; html: string }[] };
   const pairs: Record<string, string> = value?.pairs || {};
   const [picked, setPicked] = useState<string | null>(null);
@@ -407,7 +466,6 @@ function MatchingInput({ q, value, flagged, onAnswer, onFlag }: { q: Question; v
       <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 9 }}>
         Pilih item di kiri, lalu pasangannya di kanan. Ketuk item yang sudah berpasangan untuk melepasnya.
       </div>
-      <FlagButton flagged={flagged} onFlag={onFlag} />
     </div>
   );
 }
@@ -450,13 +508,4 @@ function DebouncedTextField({ value, onCommit, placeholder, multiline = false }:
   return multiline
     ? <textarea className="input" style={{ minHeight: 160 }} placeholder={placeholder} {...shared} />
     : <input className="input" style={{ minHeight: 48 }} placeholder={placeholder} {...shared} />;
-}
-
-function FlagButton({ flagged, onFlag }: { flagged?: boolean; onFlag: () => void }) {
-  return (
-    <button onClick={onFlag} className="q-opt" style={{ marginTop: 10, justifyContent: 'center', minHeight: 46, ...(flagged ? { borderColor: 'var(--warn)', background: 'var(--warn-bg)', color: 'var(--warn-text)' } : {}) }} aria-pressed={!!flagged}>
-      <Icon name="flag" size={15} />
-      {flagged ? 'Tandai ragu-ragu — ketuk untuk batal' : 'Tandai soal ini ragu-ragu'}
-    </button>
-  );
 }

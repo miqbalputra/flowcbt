@@ -55,18 +55,18 @@ const server = createServer(async (req, res) => {
 
   // Proxy API same-origin ke Go API. SSE tidak boleh di-buffer.
   if (url.pathname.startsWith('/api/')) {
-    const target = API_ORIGIN + req.url;
-    // Kumpulkan body dulu — stream req tidak bisa dipakai ulang oleh fetch.
-    const chunks = [];
-    for await (const chunk of req) chunks.push(chunk);
-    const raw = Buffer.concat(chunks);
-    const headers = { ...req.headers, host: new URL(API_ORIGIN).host };
-    delete headers['content-length'];
-    const upstream = fetch(target, {
-      method: req.method,
-      headers,
-      body: ['GET', 'HEAD'].includes(req.method) || raw.length === 0 ? undefined : raw,
-    }).then(async (r) => {
+    try {
+      const target = API_ORIGIN + req.url;
+      // Kumpulkan body dulu — stream req tidak bisa dipakai ulang oleh fetch.
+      const chunks = [];
+      for await (const chunk of req) chunks.push(chunk);
+      const raw = Buffer.concat(chunks);
+      const headers = { ...req.headers, host: new URL(API_ORIGIN).host };
+      delete headers['content-length'];
+      const r = await fetch(target, {
+        method: req.method, headers,
+        body: ['GET', 'HEAD'].includes(req.method) || raw.length === 0 ? undefined : raw,
+      });
       securityHeaders(res, false);
       res.statusCode = r.status;
       for (const [k, v] of r.headers) {
@@ -74,19 +74,21 @@ const server = createServer(async (req, res) => {
       }
       if (r.body) {
         const reader = r.body.getReader();
-        const pump = () => reader.read().then(({ done, value }) => {
-          if (done) return res.end();
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
           res.write(value);
-          pump();
-        });
-        pump();
-      } else res.end();
-    });
-    upstream.catch((err) => {
-      securityHeaders(res, false);
-      res.statusCode = 502;
-      res.end('Upstream error: ' + err.message);
-    });
+        }
+      }
+      res.end();
+    } catch (err) {
+      if (!res.headersSent) {
+        securityHeaders(res, false);
+        res.statusCode = 502;
+        res.setHeader('Content-Type', 'application/json; charset=utf-8');
+      }
+      res.end(JSON.stringify({ error: { code: 'BAD_GATEWAY', message: 'API tidak tersedia' } }));
+    }
     return;
   }
 

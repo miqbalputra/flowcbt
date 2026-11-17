@@ -235,6 +235,25 @@ export function StatCard({ label, value, hint }: { label: string; value: React.R
   );
 }
 
+// A-16/Enterprise: toolbar tabel padat + header sortable.
+export function DataTableToolbar({ children }: { children: React.ReactNode }) {
+  return <div className="table-toolbar">{children}</div>;
+}
+
+export interface SortState { col: string; dir: 'asc' | 'desc' }
+export function SortTh({ label, col, sort, onSort, className }: {
+  label: string; col: string; sort: SortState; onSort: (col: string) => void; className?: string;
+}) {
+  const active = sort.col === col;
+  return (
+    <th className={className} aria-sort={active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+      <button type="button" className="sort-btn" onClick={() => onSort(col)}>
+        {label}<span className="sort-ind" aria-hidden="true">{active ? (sort.dir === 'asc' ? '↑' : '↓') : '↕'}</span>
+      </button>
+    </th>
+  );
+}
+
 export function EmptyState({ icon = 'inbox', title, children }: { icon?: IconName; title: string; children?: React.ReactNode }) {
   return (
     <div className="empty">

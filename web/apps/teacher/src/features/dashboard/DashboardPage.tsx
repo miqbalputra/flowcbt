@@ -33,11 +33,12 @@ export default function DashboardPage() {
         <SkeletonCards count={4} />
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 12 }}>
-          <StatCard label="Ujian sedang berjalan" value={eLive ? '—' : running.length}
-            hint={running.length > 0 ? 'klik Pantau Live di atas' : eLive ? 'gagal memuat' : undefined} />
-          <StatCard label="Total ujian" value={eExams ? '—' : (exams || []).length} />
+          <StatCard label="Ujian berjalan" value={eLive ? '—' : running.length}
+            hint={running.length > 0 ? <span className="trend">● live</span> : eLive ? 'gagal memuat' : 'tidak ada'} />
+          <StatCard label="Total ujian" value={eExams ? '—' : (exams || []).length}
+            hint={<span className="trend">{(exams || []).filter((e: any) => e.status === 'published').length} terbit</span>} />
           <StatCard label="Siswa aktif" value={eStudents ? '—' : (students || []).length}
-            hint={`batas paket: ${sub?.student_limit ?? '—'} siswa`} />
+            hint={<span className="trend">kuota {sub?.student_limit ?? '—'}</span>} />
           <StatCard label="Paket soal" value={eSets ? '—' : (sets || []).length} />
         </div>
       )}
