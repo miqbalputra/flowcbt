@@ -27,7 +27,8 @@ Platform ujian berbasis komputer untuk sekolah/lembaga dari jenjang apa pun: gur
 ├── frontend/           # React SPA + PWA (area guru src/guru, siswa src/siswa)
 ├── deploy/             # Dockerfile, docker-compose, catatan Coolify
 ├── docs/               # PROGRESS.md, konvensi
-├── tests/              # smoke_e2e.py (43 assertions, AC-1..AC-12)
+├── scripts/            # make-icons.sh (restore ikon PWA)
+├── tests/              # smoke_e2e.py (53 asersi: AC-1..AC-12 + SSE + PDF)
 ├── CONVENTIONS.md      # Konvensi wajib kode (RLS, modul, grading)
 └── PRD_FlowCBT.md      # Product Requirements Document v1.2
 ```
@@ -130,4 +131,4 @@ python3 tests/smoke_e2e.py
 
 ## Status & Roadmap
 
-Lihat `docs/PROGRESS.md`. MVP+P1 inti fungsional, smoke test 53/53 (AC-1..AC-12 + SSE + PDF). Berikutnya (P1): WebSocket/SSE real-time, Mayar produksi, export PDF, E2E PWA di browser nyata, uji beban k6.
+Lihat `docs/PROGRESS.md`. MVP (P0) tuntas + inti P1 (SSE real-time, export PDF, guest login, proctoring snapshot, item analysis, retensi+export-all, Super Admin) — smoke test 53/53. Berikutnya: Mayar/SMTP produksi (butuh kredensial), E2E Playwright offline, uji beban k6, deploy Coolify.
