@@ -1,0 +1,178 @@
+@import "tailwindcss";
+
+/* dark mode berbasis class (FR-11.1) */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ============================================================
+   DESIGN TOKENS — kontras WCAG AA (PRD FR-11.1) di kedua tema.
+   Nilai diukur: teks kecil perlu >= 4.5:1 terhadap surface.
+   ============================================================ */
+:root {
+  --c-primary: oklch(0.48 0.17 260);        /* putih di atasnya ~5.9:1 */
+  --c-primary-fg: white;
+  --c-bg: oklch(0.985 0.002 260);
+  --c-surface: white;
+  --c-border: oklch(0.9 0.01 260);
+  --c-text: oklch(0.25 0.02 260);
+  --c-muted: oklch(0.44 0.02 260);          /* di surface ~7.4:1 */
+  --c-danger: oklch(0.50 0.19 25);          /* ~5.6:1 */
+  --c-success: oklch(0.47 0.14 150);        /* ~5.7:1 */
+  --c-warn: oklch(0.52 0.12 80);            /* ~5.1:1 */
+}
+
+.dark {
+  --c-primary: oklch(0.68 0.16 260);
+  --c-primary-fg: oklch(0.19 0.02 260);     /* teks gelap di primary terang ~6.3:1 */
+  --c-bg: oklch(0.19 0.02 260);
+  --c-surface: oklch(0.24 0.02 260);
+  --c-border: oklch(0.33 0.02 260);
+  --c-text: oklch(0.93 0.01 260);
+  --c-muted: oklch(0.72 0.02 260);          /* di surface dark ~7:1 */
+  --c-danger: oklch(0.74 0.14 25);
+  --c-success: oklch(0.74 0.13 150);
+  --c-warn: oklch(0.80 0.12 80);
+}
+
+@theme inline {
+  --color-bg: var(--c-bg);
+  --color-surface: var(--c-surface);
+  --color-border: var(--c-border);
+  --color-text: var(--c-text);
+  --color-muted: var(--c-muted);
+  --color-primary: var(--c-primary);
+  --color-primary-fg: var(--c-primary-fg);
+  --color-danger: var(--c-danger);
+  --color-success: var(--c-success);
+  --color-warn: var(--c-warn);
+}
+
+html, body {
+  background: var(--c-bg);
+  color: var(--c-text);
+}
+
+* { -webkit-tap-highlight-color: transparent; }
+
+/* fokus papan ketik selalu terlihat (FR-11.3 aksesibilitas) */
+:focus-visible {
+  outline: 2px solid var(--c-primary);
+  outline-offset: 2px;
+  border-radius: 0.375rem;
+}
+.btn:focus:not(:focus-visible), .btn-primary:focus:not(:focus-visible),
+.btn-ghost:focus:not(:focus-visible), .btn-danger:focus:not(:focus-visible),
+.input:focus:not(:focus-visible) { outline: none; }
+
+/* offset safe-area untuk perangkat ber-home-indicator (PWA installed) */
+.safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+.safe-bottom-fixed { bottom: env(safe-area-inset-bottom); }
+
+/* ============================================================
+   KOMPONEN DASAR
+   ============================================================ */
+.card {
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: 0.75rem;
+  padding: 1rem;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.05);
+}
+
+.btn, .btn-primary, .btn-ghost, .btn-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 0.5rem;
+  font-weight: 500;
+  cursor: pointer;
+  user-select: none;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0.625rem 1rem;
+  transition: opacity 0.15s, background 0.15s;
+  border: 1px solid transparent;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+.btn:disabled, .btn-primary:disabled, .btn-ghost:disabled, .btn-danger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.btn-primary { background: var(--c-primary); color: var(--c-primary-fg); }
+.btn-primary:hover:not(:disabled) { opacity: 0.9; }
+.btn-ghost { background: var(--c-surface); border-color: var(--c-border); color: var(--c-text); }
+.btn-ghost:hover:not(:disabled) { background: var(--c-bg); }
+.btn-danger { background: var(--c-danger); color: white; }
+.btn-danger:hover:not(:disabled) { opacity: 0.9; }
+
+/* varian kecil untuk aksi padat di dalam tabel/kartu — tetap >= 36px
+   (>= WCAG 2.5.8) dan selalu ada jarak antar-target >= 8px di layout tabel */
+.btn-sm {
+  min-height: 36px;
+  min-width: 36px;
+  padding: 0.25rem 0.75rem;
+  border-radius: 0.4rem;
+  font-size: 0.8125rem;
+}
+
+/* target sentuh semantik untuk ikon kontrol (FR-11.2) */
+.touch-target { min-width: 44px; min-height: 44px; }
+
+.input {
+  width: 100%;
+  border-radius: 0.5rem;
+  border: 1px solid var(--c-border);
+  background: var(--c-surface);
+  color: var(--c-text);
+  padding: 0.625rem 0.75rem;
+  min-height: 44px;
+  outline: none;
+}
+.input:focus { box-shadow: 0 0 0 2px var(--c-primary); }
+.input::placeholder { color: var(--c-muted); }
+
+textarea.input { min-height: 88px; resize: vertical; }
+select.input { padding-right: 2rem; }
+
+/* checkbox/radio native menyatu tema (FR-11.1) */
+input[type="checkbox"], input[type="radio"] {
+  accent-color: var(--c-primary);
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+.label { display: block; font-size: 0.875rem; font-weight: 500; color: var(--c-muted); margin-bottom: 0.25rem; }
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 9999px;
+  padding: 0.125rem 0.625rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.table-base { width: 100%; font-size: 0.875rem; border-collapse: collapse; }
+.table-base th { text-align: left; font-weight: 500; color: var(--c-muted); padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--c-border); }
+.table-base td { padding: 0.625rem 0.75rem; border-bottom: 1px solid color-mix(in oklab, var(--c-border) 50%, transparent); }
+
+/* skeleton loading (PRD §11) */
+.skeleton {
+  animation: pulse 1.5s ease-in-out infinite;
+  border-radius: 0.375rem;
+  background: color-mix(in oklab, var(--c-border) 70%, transparent);
+}
+@keyframes pulse { 50% { opacity: 0.55; } }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+
+/* tabel → kartu di mobile (FR-11.2) */
+@media (max-width: 640px) {
+  .responsive-table thead { display: none; }
+  .responsive-table tr { display: block; border: 1px solid var(--c-border) !important; border-radius: 0.75rem; margin-bottom: 0.75rem; padding: 0.5rem; }
+  .responsive-table td { display: flex; justify-content: space-between; gap: 1rem; border: none !important; padding: 0.4rem 0.5rem; }
+  .responsive-table td::before { content: attr(data-th); font-weight: 600; color: var(--c-muted); }
+}
