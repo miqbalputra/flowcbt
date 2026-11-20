@@ -34,3 +34,4 @@ __pycache__/
 
 # snapshot lokal (bukan bagian proyek)
 .snapshot-chunk-*.json
+.snapshot-push*-part*.json

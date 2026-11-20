@@ -84,6 +84,15 @@ npm run dev        # dev server
 npm run build      # build produksi + PWA (service worker)
 ```
 
+### 5. Ikon PWA (pasca-clone)
+
+File PNG tidak disimpan di git (commit ini dipush via GitHub API yang hanya
+mendukung teks) — regenerasi sekali saja:
+
+```bash
+./scripts/make-icons.sh   # buat ulang 4 file PNG dari scripts/icons.b64.txt
+```
+
 ## Akun Demo (hasil `cmd/seed`)
 
 | Peran | Login | Password |
@@ -121,4 +130,4 @@ python3 tests/smoke_e2e.py
 
 ## Status & Roadmap
 
-Lihat `docs/PROGRESS.md`. MVP (P0) fungsional dengan smoke test 43/43. Berikutnya (P1): WebSocket/SSE real-time, Mayar produksi, export PDF, E2E PWA di browser nyata, uji beban k6.
+Lihat `docs/PROGRESS.md`. MVP+P1 inti fungsional, smoke test 53/53 (AC-1..AC-12 + SSE + PDF). Berikutnya (P1): WebSocket/SSE real-time, Mayar produksi, export PDF, E2E PWA di browser nyata, uji beban k6.
