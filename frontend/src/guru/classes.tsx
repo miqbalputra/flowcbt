@@ -5,7 +5,7 @@ import { api } from '@/lib/api'
 import { send } from './rpc'
 import { toast } from '@/components/toast'
 import { ConfirmDialog, Modal } from '@/components/modal'
-import { EmptyState, ErrorBox, PageHeader, SkeletonRows, StatusBadge } from './ui'
+import { EmptyState, ErrorBox, PageHeader, SkeletonRows, StatusBadge, TableToolbar } from './ui'
 import {  asDict, asList, errMessage, fmtDate, qs, unwrap, unwrapList, qRows } from './types'
 
 const EMPTY = { name: '', year: '', teacher_name: '' }
@@ -91,10 +91,12 @@ export default function Classes() {
         action={<button type="button" className="btn-primary" onClick={() => setEditing({ ...EMPTY })}>＋ Kelas</button>}
       />
 
-      <label className="flex items-center gap-2 text-sm min-h-[44px]">
-        <input type="checkbox" checked={showArchived} onChange={e => setShowArchived(e.target.checked)} />
-        Tampilkan kelas arsip
-      </label>
+      <TableToolbar count={rows.length} label="kelas">
+        <label className="flex items-center gap-2 text-sm min-h-[44px] cursor-pointer">
+          <input type="checkbox" checked={showArchived} onChange={e => setShowArchived(e.target.checked)} />
+          Tampilkan arsip
+        </label>
+      </TableToolbar>
 
       {list.isLoading ? (
         <SkeletonRows rows={3} cols={4} />
@@ -103,41 +105,43 @@ export default function Classes() {
       ) : rows.length === 0 ? (
         <EmptyState icon="🏫" title="Belum ada kelas" children="Klik ＋ Kelas untuk membuat kelas pertama." />
       ) : (
-        <table className="table-base responsive-table">
-          <thead>
-            <tr><th>Nama</th><th>Tahun ajaran</th><th>Wali kelas</th><th>Siswa</th><th>Status</th><th>Aksi</th></tr>
-          </thead>
-          <tbody>
-            {rows.map((r, i) => (
-              <tr key={r.id ?? i}>
-                <td data-th="Nama" className="font-medium">{String(r.name ?? '—')}</td>
-                <td data-th="Tahun">{String(r.year ?? r.academic_year ?? '—')}</td>
-                <td data-th="Wali kelas">{String(r.teacher_name ?? r.homeroom_teacher ?? '—')}</td>
-                <td data-th="Siswa">{String(r.student_count ?? r.students_count ?? 0)}</td>
-                <td data-th="Status">
-                  {Boolean(r.archived ?? r.status === 'archived')
-                    ? <StatusBadge status="archived" />
-                    : <span className="badge text-success">Aktif</span>}
-                </td>
-                <td data-th="Aksi">
-                  <div className="flex gap-1.5 flex-wrap">
-                    <button type="button" className="btn-ghost btn-sm"
-                      onClick={() => setEditing({
-                        id: String(r.id ?? ''),
-                        name: String(r.name ?? ''),
-                        year: String(r.year ?? r.academic_year ?? ''),
-                        teacher_name: String(r.teacher_name ?? ''),
-                      })}>Edit</button>
-                    <button type="button" className="btn-ghost btn-sm"
-                      onClick={() => toggleArchive(r)}>{Boolean(r.archived ?? r.status === 'archived') ? 'Buka arsip' : 'Arsip'}</button>
-                    <button type="button" className="btn-danger btn-sm"
-                      onClick={() => setDeleting({ id: String(r.id ?? ''), name: String(r.name ?? '') })}>Hapus</button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="overflow-x-auto lg:overflow-visible">
+          <table className="table-base responsive-table">
+            <thead>
+              <tr><th>Nama</th><th>Tahun ajaran</th><th>Wali kelas</th><th>Siswa</th><th>Status</th><th>Aksi</th></tr>
+            </thead>
+            <tbody>
+              {rows.map((r, i) => (
+                <tr key={r.id ?? i}>
+                  <td data-th="Nama" className="font-medium">{String(r.name ?? '—')}</td>
+                  <td data-th="Tahun ajaran">{String(r.year ?? r.academic_year ?? '—')}</td>
+                  <td data-th="Wali kelas">{String(r.teacher_name ?? r.homeroom_teacher ?? '—')}</td>
+                  <td data-th="Siswa" className="font-mono">{String(r.student_count ?? r.students_count ?? 0)}</td>
+                  <td data-th="Status">
+                    {Boolean(r.archived ?? r.status === 'archived')
+                      ? <StatusBadge status="archived" />
+                      : <span className="badge bg-success-soft text-success">Aktif</span>}
+                  </td>
+                  <td data-th="Aksi">
+                    <div className="flex gap-1.5 flex-wrap">
+                      <button type="button" className="btn-ghost btn-sm"
+                        onClick={() => setEditing({
+                          id: String(r.id ?? ''),
+                          name: String(r.name ?? ''),
+                          year: String(r.year ?? r.academic_year ?? ''),
+                          teacher_name: String(r.teacher_name ?? ''),
+                        })}>Edit</button>
+                      <button type="button" className="btn-ghost btn-sm"
+                        onClick={() => toggleArchive(r)}>{Boolean(r.archived ?? r.status === 'archived') ? 'Buka arsip' : 'Arsip'}</button>
+                      <button type="button" className="btn-danger btn-sm"
+                        onClick={() => setDeleting({ id: String(r.id ?? ''), name: String(r.name ?? '') })}>Hapus</button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
 
       <Modal

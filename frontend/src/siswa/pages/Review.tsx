@@ -1,5 +1,5 @@
 // Review — konfirmasi Selesai (FR-6.5): ringkasan terjawab/kosong/ragu,
-// peringatan bila ada yang kosong; konfirmasi → submit.ertam OFFLINE:
+// peringatan bila ada yang kosong; konfirmasi → submit. Terlepas OFFLINE:
 // jawaban terkunci lokal, status "Menunggu sinkronisasi" (FR-7.6/AC-4).
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
@@ -61,7 +61,7 @@ export default function Review() {
     void flush(id)
     const sent = await submitSafe(id)
     if (sent) {
-      toast('Jawaban berhasil dikirim. 🎉', 'success')
+      toast('Jawaban berhasil dikirim.', 'success')
       nav(`/s/attempt/${id}/done`, { replace: true })
       return
     }
@@ -80,42 +80,82 @@ export default function Review() {
   }
 
   return (
-    <SiswaLayout title="Ringkasan jawaban" subtitle="Periksa sebelum menyerahkan">
+    <SiswaLayout title="Ringkasan jawaban" subtitle={`${rec.exam_name} — periksa sebelum menyerahkan`}>
       <div className="card space-y-3">
-        <div className="grid grid-cols-3 gap-2 text-center">
-          <div className="rounded-lg bg-success/10 p-3">
-            <div className="text-2xl font-bold text-success">{answered}</div>
-            <div className="text-xs text-muted">Terjawab</div>
-          </div>
-          <div className="rounded-lg bg-warn/10 p-3">
-            <div className="text-2xl font-bold text-warn">★ {ragu}</div>
-            <div className="text-xs text-muted">Ragu-ragu</div>
-          </div>
-          <div className="rounded-lg bg-danger/10 p-3">
-            <div className="text-2xl font-bold text-danger">{blank}</div>
-            <div className="text-xs text-muted">Belum dijawab</div>
-          </div>
+        {/* grid statistik: angka font-mono besar + label (directive §D) */}
+        <div className="grid grid-cols-3 gap-2">
+          <StatTile n={answered} label="Terjawab" tone="success" />
+          <StatTile n={ragu} label="Ragu-ragu" tone="warn" />
+          <StatTile n={blank} label="Kosong" tone="canvas" />
         </div>
 
-        {blank > 0 && (
-          <p className="rounded-lg border border-warn bg-warn/10 p-2 text-sm text-warn">
-            ⚠️ Masih ada {blank} soal belum dijawab. Yakin ingin menyerahkan?
+        {ragu > 0 && (
+          <p className="rounded-lg border border-border bg-canvas p-2 text-xs text-muted">
+            ⚑ {ragu} soal ditandai <i>ragu-ragu</i> — tandanya tetap ikut terkirim.
           </p>
         )}
-        {!online && (
-          <p className="rounded-lg border border-danger bg-danger/10 p-3 text-sm">
-            🔴 <b>Kamu sedang offline.</b> Jawabanmu tersimpan di perangkat dan akan
-            dikirim otomatis saat internet kembali. <b>Jangan tutup/kosongkan data browser!</b>
+        {blank > 0 && (
+          <p
+            role="status"
+            className="rounded-lg border p-2 text-sm"
+            style={{ borderColor: 'var(--c-warn)', background: 'var(--c-warn-soft)', color: 'var(--c-warn)' }}
+          >
+            <b>Perhatian:</b> masih ada {blank} soal belum dijawab. Yakin ingin menyerahkan?
+          </p>
+        )}
+        {!online ? (
+          <p
+            className="rounded-lg border p-3 text-sm leading-relaxed"
+            style={{ borderColor: 'var(--c-danger)', background: 'var(--c-danger-soft)' }}
+          >
+            <span aria-hidden className="mr-1.5 inline-block h-2 w-2 rounded-full align-middle" style={{ background: 'var(--c-danger)' }} />
+            <b>Kamu sedang offline.</b> Jawabanmu tersimpan di perangkat dan akan dikirim otomatis
+            saat internet kembali. <b>Jangan tutup atau bersihkan data browser!</b>
+          </p>
+        ) : pending > 0 ? (
+          <p
+            role="status"
+            className="rounded-lg border p-2 text-sm"
+            style={{ borderColor: 'var(--c-warn)', background: 'var(--c-warn-soft)', color: 'var(--c-warn)' }}
+          >
+            {pending} jawaban masih disinkronkan ke server — sekejap lagi selesai.
+          </p>
+        ) : (
+          <p role="status" className="rounded-lg border p-2 text-sm" style={{ borderColor: 'var(--c-success)', background: 'var(--c-success-soft)', color: 'var(--c-success)' }}>
+            Koneksi aktif — semua jawaban tersinkron, siap dikirim.
           </p>
         )}
 
-        <button className="btn-primary w-full" disabled={busy} onClick={() => void confirm()}>
-          {busy ? 'Mengirim…' : online ? '✅ Ya, kirim sekarang' : 'Selesai (menunggu internet)'}
+        {/* tombol hijau konfirmasi (bg token success, dark aman — directive §D) */}
+        <button
+          type="button"
+          className="btn-primary w-full min-h-12"
+          style={{ background: 'var(--c-success)' }}
+          disabled={busy}
+          onClick={() => void confirm()}
+        >
+          {busy ? 'Mengirim…' : online ? '✓ Ya, Selesaikan & Kirim' : 'Selesai (menunggu internet)'}
         </button>
-        <button className="btn-ghost w-full" onClick={() => nav(`/s/attempt/${id}`)}>
+        <button type="button" className="btn-ghost w-full" onClick={() => nav(`/s/attempt/${id}`)}>
           ← Kembali mengerjakan
         </button>
       </div>
     </SiswaLayout>
+  )
+}
+
+function StatTile({ n, label, tone }: { n: number; label: string; tone: 'success' | 'warn' | 'canvas' }) {
+  const style =
+    tone === 'success'
+      ? { background: 'var(--c-success-soft)', borderColor: 'var(--c-success)', color: 'var(--c-success)' }
+      : tone === 'warn'
+        ? { background: 'var(--c-warn-soft)', borderColor: 'var(--c-warn)', color: 'var(--c-warn)' }
+        : { background: 'var(--c-canvas)', borderColor: 'var(--c-border-strong)', color: 'var(--c-muted)' }
+  return (
+    <div className="rounded-lg border p-2.5 text-center" style={style}>
+      <div className="font-mono text-2xl font-bold tabular-nums" aria-hidden>{n}</div>
+      <div className="text-[11px] font-medium" style={{ color: 'var(--c-muted)' }}>{label}</div>
+      <span className="sr-only">{label}: {n}</span>
+    </div>
   )
 }

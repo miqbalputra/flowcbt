@@ -29,7 +29,7 @@ export default function ReportsLive() {
     <div className="space-y-4">
       <PageHeader title="Laporan Live" desc="Ujian yang sedang berjalan — klik untuk memantau per siswa."
         action={
-          <span className={`badge ${liveStatus === 'live' ? 'bg-success/15 text-success' : 'bg-muted text-muted'}`}>
+          <span className={`badge ${liveStatus === 'live' ? 'bg-success-soft text-success' : 'badge-soft text-muted'}`}>
             {liveStatus === 'live' ? '● Real-time' : liveStatus === 'connecting' ? '● Menyambung…' : '● Polling 30 dtk'}
           </span>
         } />
@@ -57,7 +57,7 @@ export default function ReportsLive() {
                     <div className="font-semibold truncate">{String(d.name ?? d.subject_name ?? 'Ujian')}</div>
                     <div className="text-sm text-muted truncate">{String(d.subject_name ?? '')}</div>
                     <div className="text-xs text-muted mt-0.5">
-                      {asList(d.classes).map((c, j) => <span key={j} className="badge bg-primary/10 text-primary mr-1">{String(asDict(c).name ?? '')}</span>)}
+                      {asList(d.classes).map((c, j) => <span key={j} className="badge bg-primary-soft text-primary mr-1">{String(asDict(c).name ?? '')}</span>)}
                     </div>
                   </div>
                   <div className="text-right shrink-0">

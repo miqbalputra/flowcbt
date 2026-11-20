@@ -133,7 +133,7 @@ export default function ReportLiveExam() {
       <div className="card space-y-3">
         <div className="flex items-center justify-between gap-2">
           <h3 className="font-semibold">Progres peserta</h3>
-          <span className={`text-xs font-medium px-2 py-1 rounded-full ${liveStatus === 'live' ? 'bg-success/15 text-success' : live.isFetching ? 'bg-primary/10 text-primary' : 'text-muted'}`}>
+          <span className={`text-xs font-medium px-2 py-1 rounded-full ${liveStatus === 'live' ? 'bg-success-soft text-success' : live.isFetching ? 'bg-primary-soft text-primary' : 'badge-soft text-muted'}`}>
             {liveStatus === 'live' ? '● Real-time' : live.isFetching ? '⏳ menyegarkan…' : '● polling 10 dtk'}
           </span>
         </div>
@@ -162,10 +162,11 @@ export default function ReportLiveExam() {
           <option value="">Semua kelas</option>
           {classOptions.map(([cid, label]) => <option key={cid} value={cid}>{label}</option>)}
         </select>
-        <input className="input max-w-56" type="search" aria-label="Cari nama siswa" placeholder="🔍 Cari nama siswa…" value={search} onChange={e => setSearch(e.target.value)} />
+        <input className="input max-w-56" type="search" aria-label="Cari nama siswa" placeholder="Cari nama siswa…" value={search} onChange={e => setSearch(e.target.value)} />
       </div>
 
       {/* tabel siswa dengan status & aksi pengawas (FR-9.2, FR-9.4) */}
+      <div className="overflow-x-auto lg:overflow-visible">
       <table className="table-base responsive-table">
         <thead>
           <tr><th>Nama</th><th>Kelas</th><th>Progres</th><th>Status</th><th>Koneksi</th><th>Pelanggaran</th><th>Nilai</th><th>Aksi</th></tr>
@@ -195,7 +196,7 @@ export default function ReportLiveExam() {
                       style={{ width: `${Number(s.total ?? 0) > 0 ? Math.round((Number(s.answered ?? 0) / Number(s.total)) * 100) : 0}%` }} />
                   </div>
                 </td>
-                <td data-th="Status"><span className={`badge bg-transparent border border-current ${st.cls}`}>{st.label}</span></td>
+                <td data-th="Status"><span className={`badge ${st.cls}`}>{st.label}</span></td>
                 <td data-th="Koneksi">
                   <span className={`inline-flex items-center gap-1.5 text-xs ${online ? 'text-success' : 'text-danger'}`}>
                     <span className={`w-2 h-2 rounded-full inline-block ${online ? 'bg-success' : 'bg-danger'}`} />
@@ -204,9 +205,9 @@ export default function ReportLiveExam() {
                 </td>
                 <td data-th="Pelanggaran">
                   {violations > 0
-                    ? <span className={`badge ${violations >= 3 ? 'bg-danger/10 text-danger' : 'bg-warn/10 text-warn'}`}>{violations}×</span>
+                    ? <span className={`badge ${violations >= 3 ? 'bg-danger-soft text-danger' : 'bg-warn-soft text-warn'}`}>{violations}×</span>
                     : <span className="text-xs text-muted">—</span>}
-                  {Boolean(s.cheating) && <div><span className="badge bg-danger/10 text-danger">dilaporkan</span></div>}
+                  {Boolean(s.cheating) && <div><span className="badge bg-danger-soft text-danger">dilaporkan</span></div>}
                 </td>
                 <td data-th="Nilai">
                   {s.score !== undefined && s.score !== null ? String(s.score)
@@ -224,6 +225,7 @@ export default function ReportLiveExam() {
           })}
         </tbody>
       </table>
+      </div>
 
       <Modal
         open={!!extending}

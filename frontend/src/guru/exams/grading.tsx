@@ -94,6 +94,7 @@ export default function GradingPage() {
           Semua nilai sudah final untuk ujian ini.
         </EmptyState>
       ) : (
+        <div className="overflow-x-auto lg:overflow-visible">
         <table className="table-base responsive-table">
           <thead>
             <tr><th>Siswa</th><th>Kelas</th><th>Status</th><th>Nilai Sementara</th><th>Aksi</th></tr>
@@ -112,6 +113,7 @@ export default function GradingPage() {
             ))}
           </tbody>
         </table>
+        </div>
       )}
 
       <Modal open={Boolean(open)} onClose={() => setOpen(null)} title={`Nilai uraian — ${String(asDict(open?.attempt)?.student_name ?? '')}`}>

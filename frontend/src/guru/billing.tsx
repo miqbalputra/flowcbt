@@ -95,7 +95,7 @@ export default function Billing() {
 
       {/* kartu paket & harga */}
       <div>
-        <h3 className="font-semibold mb-2">📦 Paket & harga</h3>
+        <h3 className="font-semibold mb-2">Paket &amp; harga</h3>
         {plans.isLoading ? (
           <SkeletonRows rows={3} />
         ) : plans.isError ? (
@@ -108,8 +108,11 @@ export default function Billing() {
               const code = String(p.code ?? '')
               const current = String(s.plan_code ?? '') === code
               return (
-                <div key={p.code ?? i} className={`card flex flex-col ${current ? 'border-primary' : ''}`}>
-                  <div className="font-semibold">{String(p.name ?? code)}</div>
+                <div key={p.code ?? i} className={`card flex flex-col ${current ? 'border-primary bg-primary-soft' : ''}`}>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="font-semibold">{String(p.name ?? code)}</div>
+                    {current && <span className="badge bg-primary-bg text-primary-fg">Aktif</span>}
+                  </div>
                   <div className="text-2xl font-bold text-primary my-2">
                     {fmtRp(p.price_idr ?? p.amount_idr ?? p.price ?? 0)}
                     <span className="text-xs font-normal text-muted">/{String(p.period ?? 'bulan')}</span>
@@ -136,7 +139,7 @@ export default function Billing() {
 
       {/* riwayat invoice */}
       <div>
-        <h3 className="font-semibold mb-2">🧾 Riwayat transaksi</h3>
+        <h3 className="font-semibold mb-2">Riwayat transaksi</h3>
         {invoices.isLoading ? (
           <SkeletonRows rows={3} cols={4} />
         ) : invoices.isError ? (
@@ -154,7 +157,7 @@ export default function Billing() {
               {qRows(invoices).map((inv, i) => (
                 <tr key={inv.order_id ?? i}>
                   <td data-th="Invoice">
-                    <div className="font-medium truncate max-w-40">{String(inv.invoice_number ?? inv.order_id ?? '—')}</div>
+                    <div className="font-mono font-medium truncate max-w-40">{String(inv.invoice_number ?? inv.order_id ?? '—')}</div>
                   </td>
                   <td data-th="Nominal">{fmtRp(inv.amount_idr ?? inv.amount ?? 0)}</td>
                   <td data-th="Status"><StatusBadge status={inv.status} /></td>
@@ -208,7 +211,7 @@ export default function Billing() {
             <a className="btn-primary" href={receipt.redirect_url} target="_blank" rel="noopener noreferrer">Buka halaman pembayaran</a>
           </>
         ) : (
-          receipt?.message && <div className="text-sm rounded-lg p-3 bg-warn/10 text-warn">{receipt.message}</div>
+          receipt?.message && <div className="text-sm rounded-lg p-3 bg-warn-soft text-warn">{receipt.message}</div>
         )}
         {receipt?.order_id && (
           <div className="text-sm space-y-1">

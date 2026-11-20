@@ -1,81 +1,116 @@
 @import "tailwindcss";
 
-/* dark mode berbasis class (FR-11.1) */
+/*
+ * FLOWCBT — Enterprise Design System (directive v2)
+ * ------------------------------------------------------------
+ * Filosofi: crisp & professional. Border jelas, shadow minimal,
+ * radius kecil (md/lg TANPA rounded-2xl/3xl), info-dense.
+ * Palet: Slate (netral) + Precision Blue + Emerald/Amber/Crimson.
+ * Dark mode berbasis class (FR-11.1).
+ */
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* ============================================================
-   DESIGN TOKENS — kontras WCAG AA (PRD FR-11.1) di kedua tema.
-   Nilai diukur: teks kecil perlu >= 4.5:1 terhadap surface.
-   ============================================================ */
 :root {
-  --c-primary: oklch(0.48 0.17 260);        /* putih di atasnya ~5.9:1 */
-  --c-primary-fg: white;
-  --c-bg: oklch(0.985 0.002 260);
-  --c-surface: white;
-  --c-border: oklch(0.9 0.01 260);
-  --c-text: oklch(0.25 0.02 260);
-  --c-muted: oklch(0.44 0.02 260);          /* di surface ~7.4:1 */
-  --c-danger: oklch(0.50 0.19 25);          /* ~5.6:1 */
-  --c-success: oklch(0.47 0.14 150);        /* ~5.7:1 */
-  --c-warn: oklch(0.52 0.12 80);            /* ~5.1:1 */
+  /* ---- Netral: Slate scale ---- */
+  --c-bg: #f8fafc;            /* slate-50 — dasar halaman */
+  --c-surface: #ffffff;       /* kartu / panel */
+  --c-canvas: #f1f5f9;        /* slate-100 — area mati / utk peta soal */
+  --c-border: #e2e8f0;        /* slate-200 — border struktural */
+  --c-border-strong: #cbd5e1; /* slate-300 — border input/table header */
+  --c-text: #0f172a;          /* slate-900 — teks utama */
+  --c-muted: #64748b;         /* slate-500 — teks sekunder */
+
+  /* ---- Precission Blue (CTA/aktif/strik pemilihan) ---- */
+  --c-primary: #2563eb;       /* blue-600 — teks aksen, ring, border aktif */
+  --c-primary-bg: #2563eb;    /* bg tombol primer (tetap blue-600 di kedua tema) */
+  --c-primary-fg: #ffffff;
+  --c-primary-soft: #eff6ff;  /* blue-50 — tint selection */
+
+  /* ---- Status sistem ---- */
+  --c-success: #059669;       /* emerald-600 */
+  --c-success-soft: #ecfdf5;  /* emerald-50 */
+  --c-warn: #b45309;          /* amber-700 (teks AA di putih) */
+  --c-warn-bright: #d97706;   /* amber-600 — latar peta soal ragu */
+  --c-warn-soft: #fffbeb;     /* amber-50 */
+  --c-danger: #dc2626;        /* red-600 — crimson */
+  --c-danger-soft: #fef2f2;   /* red-50 */
 }
 
 .dark {
-  --c-primary: oklch(0.68 0.16 260);
-  --c-primary-fg: oklch(0.19 0.02 260);     /* teks gelap di primary terang ~6.3:1 */
-  --c-bg: oklch(0.19 0.02 260);
-  --c-surface: oklch(0.24 0.02 260);
-  --c-border: oklch(0.33 0.02 260);
-  --c-text: oklch(0.93 0.01 260);
-  --c-muted: oklch(0.72 0.02 260);          /* di surface dark ~7:1 */
-  --c-danger: oklch(0.74 0.14 25);
-  --c-success: oklch(0.74 0.13 150);
-  --c-warn: oklch(0.80 0.12 80);
+  --c-bg: #0f172a;            /* slate-900 */
+  --c-surface: #1e293b;       /* slate-800 — kartu */
+  --c-canvas: #0b1220;        /* lebih gelap dari kartu */
+  --c-border: #334155;        /* slate-700 — pemisah tetap terlihat */
+  --c-border-strong: #475569; /* slate-600 — border input */
+  --c-text: #f1f5f9;          /* slate-100 */
+  --c-muted: #94a3b8;         /* slate-400 */
+
+  --c-primary: #60a5fa;       /* blue-400 — teks/ring aksen di dark (AA) */
+  --c-primary-bg: #2563eb;    /* tombol tetap blue-600 + putih (4.68:1) */
+  --c-primary-soft: #172554;  /* blue-950 */
+
+  --c-success: #34d399;       /* emerald-400 — teks */
+  --c-success-soft: #062e22;  /* emerald-950-ish */
+  --c-warn: #fbbf24;          /* amber-400 — teks */
+  --c-warn-bright: #b45309;   /* latar tetap amber-600/700 */
+  --c-warn-soft: #292002;
+  --c-danger: #f87171;        /* red-400 — teks */
+  --c-danger-soft: #2a1215;
 }
 
 @theme inline {
   --color-bg: var(--c-bg);
   --color-surface: var(--c-surface);
+  --color-canvas: var(--c-canvas);
   --color-border: var(--c-border);
+  --color-border-strong: var(--c-border-strong);
   --color-text: var(--c-text);
   --color-muted: var(--c-muted);
   --color-primary: var(--c-primary);
+  --color-primary-bg: var(--c-primary-bg);
   --color-primary-fg: var(--c-primary-fg);
+  --color-primary-soft: var(--c-primary-soft);
   --color-danger: var(--c-danger);
+  --color-danger-soft: var(--c-danger-soft);
   --color-success: var(--c-success);
+  --color-success-soft: var(--c-success-soft);
   --color-warn: var(--c-warn);
+  --color-warn-soft: var(--c-warn-soft);
+
+  /* monospace utk kode, timer, nomor soal (directive §1) */
+  --font-mono: "JetBrains Mono", "Fira Code", ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
 }
 
 html, body {
   background: var(--c-bg);
   color: var(--c-text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
 }
 
 * { -webkit-tap-highlight-color: transparent; }
 
-/* fokus papan ketik selalu terlihat (FR-11.3 aksesibilitas) */
+/* fokus papan ketik selalu terlihat (FR-11.3) */
 :focus-visible {
   outline: 2px solid var(--c-primary);
   outline-offset: 2px;
-  border-radius: 0.375rem;
+  border-radius: 0.25rem;
 }
 .btn:focus:not(:focus-visible), .btn-primary:focus:not(:focus-visible),
 .btn-ghost:focus:not(:focus-visible), .btn-danger:focus:not(:focus-visible),
 .input:focus:not(:focus-visible) { outline: none; }
 
-/* offset safe-area untuk perangkat ber-home-indicator (PWA installed) */
+/* offset safe-area perangkat ber-home-indicator */
 .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
-.safe-bottom-fixed { bottom: env(safe-area-inset-bottom); }
 
 /* ============================================================
-   KOMPONEN DASAR
+   KOMPONEN DASAR — crisp: border dulu, shadow halus, radius md
    ============================================================ */
 .card {
   background: var(--c-surface);
   border: 1px solid var(--c-border);
-  border-radius: 0.75rem;
+  border-radius: 0.5rem; /* rounded-lg — TIDAK lebih besar */
   padding: 1rem;
-  box-shadow: 0 1px 2px rgb(0 0 0 / 0.05);
+  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.04); /* shadow-xs */
 }
 
 .btn, .btn-primary, .btn-ghost, .btn-danger {
@@ -83,84 +118,121 @@ html, body {
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  border-radius: 0.5rem;
+  border-radius: 0.375rem; /* rounded-md */
   font-weight: 500;
   cursor: pointer;
   user-select: none;
   min-height: 44px;
   min-width: 44px;
   padding: 0.625rem 1rem;
-  transition: opacity 0.15s, background 0.15s;
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
   border: 1px solid transparent;
   font-size: 0.875rem;
   line-height: 1.25rem;
 }
 .btn:disabled, .btn-primary:disabled, .btn-ghost:disabled, .btn-danger:disabled {
-  opacity: 0.5;
+  opacity: 0.45;
   cursor: not-allowed;
 }
-.btn-primary { background: var(--c-primary); color: var(--c-primary-fg); }
-.btn-primary:hover:not(:disabled) { opacity: 0.9; }
-.btn-ghost { background: var(--c-surface); border-color: var(--c-border); color: var(--c-text); }
+.btn:active, .btn-primary:active, .btn-ghost:active, .btn-danger:active {
+  transform: scale(0.99);
+}
+.btn-primary { background: var(--c-primary-bg); color: var(--c-primary-fg); box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.06); }
+.btn-primary:hover:not(:disabled) { background: #1d4ed8; } /* blue-700 */
+.btn-ghost { background: var(--c-surface); border-color: var(--c-border-strong); color: var(--c-text); }
 .btn-ghost:hover:not(:disabled) { background: var(--c-bg); }
-.btn-danger { background: var(--c-danger); color: white; }
-.btn-danger:hover:not(:disabled) { opacity: 0.9; }
+.btn-danger { background: var(--c-danger); color: #ffffff; }
+.btn-danger:hover:not(:disabled) { background: #b91c1c; } /* red-700 */
 
-/* varian kecil untuk aksi padat di dalam tabel/kartu — tetap >= 36px
-   (>= WCAG 2.5.8) dan selalu ada jarak antar-target >= 8px di layout tabel */
+/* varian padat utk aksi dalam tabel — min 36px (WCAG 2.5.8) */
 .btn-sm {
   min-height: 36px;
   min-width: 36px;
-  padding: 0.25rem 0.75rem;
-  border-radius: 0.4rem;
+  padding: 0.25rem 0.7rem;
+  border-radius: 0.375rem;
   font-size: 0.8125rem;
 }
 
-/* target sentuh semantik untuk ikon kontrol (FR-11.2) */
+/* target sentuh ikon (FR-11.2) */
 .touch-target { min-width: 44px; min-height: 44px; }
 
 .input {
   width: 100%;
-  border-radius: 0.5rem;
-  border: 1px solid var(--c-border);
+  border-radius: 0.375rem;
+  border: 1px solid var(--c-border-strong);
   background: var(--c-surface);
   color: var(--c-text);
   padding: 0.625rem 0.75rem;
   min-height: 44px;
   outline: none;
+  font-size: 0.875rem;
 }
-.input:focus { box-shadow: 0 0 0 2px var(--c-primary); }
+.input:focus { border-color: var(--c-primary); box-shadow: 0 0 0 3px rgb(37 99 235 / 0.15); }
 .input::placeholder { color: var(--c-muted); }
 
 textarea.input { min-height: 88px; resize: vertical; }
 select.input { padding-right: 2rem; }
 
-/* checkbox/radio native menyatu tema (FR-11.1) */
+/* checkbox/radio menyatu tema */
 input[type="checkbox"], input[type="radio"] {
-  accent-color: var(--c-primary);
+  accent-color: var(--c-primary-bg);
   width: 1.125rem;
   height: 1.125rem;
 }
 
-.label { display: block; font-size: 0.875rem; font-weight: 500; color: var(--c-muted); margin-bottom: 0.25rem; }
+.label { display: block; font-size: 0.8125rem; font-weight: 500; color: var(--c-muted); margin-bottom: 0.25rem; }
 
+/* badge status: pill padat, soft bg + teks gelap (directive §3A) */
 .badge {
   display: inline-flex;
   align-items: center;
+  gap: 0.25rem;
   border-radius: 9999px;
-  padding: 0.125rem 0.625rem;
+  padding: 0.125rem 0.5rem;
   font-size: 0.75rem;
   font-weight: 500;
+  border: 1px solid transparent;
+}
+.badge-soft { background: var(--c-canvas); color: var(--c-text); border-color: var(--c-border); }
+
+/* ============================================================
+   TABEL DATA — high-density, sticky header (directive §3A)
+   ============================================================ */
+.table-base { width: 100%; font-size: 0.8125rem; border-collapse: separate; border-spacing: 0; }
+.table-base th {
+  text-align: left;
+  font-weight: 600;
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--c-muted);
+  padding: 0.5rem 0.75rem;
+  background: var(--c-surface);
+  border-bottom: 1px solid var(--c-border-strong);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+.table-base td {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--c-border);
+  vertical-align: middle;
+}
+.table-base tbody tr:hover td { background: var(--c-canvas); }
+
+/* tabel → kartu di mobile (FR-11.2) */
+@media (max-width: 640px) {
+  .responsive-table thead { display: none; }
+  .responsive-table tr { display: block; border: 1px solid var(--c-border) !important; border-radius: 0.5rem; margin-bottom: 0.75rem; padding: 0.5rem; background: var(--c-surface); }
+  .responsive-table td { display: flex; justify-content: space-between; align-items: center; gap: 1rem; border: none !important; padding: 0.4rem 0.5rem; }
+  .responsive-table td::before { content: attr(data-th); font-weight: 600; color: var(--c-muted); font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.04em; }
+  .responsive-table tbody tr:hover td { background: transparent; }
 }
 
-.table-base { width: 100%; font-size: 0.875rem; border-collapse: collapse; }
-.table-base th { text-align: left; font-weight: 500; color: var(--c-muted); padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--c-border); }
-.table-base td { padding: 0.625rem 0.75rem; border-bottom: 1px solid color-mix(in oklab, var(--c-border) 50%, transparent); }
-
-/* skeleton loading (PRD §11) */
+/* skeleton loading */
 .skeleton {
   animation: pulse 1.5s ease-in-out infinite;
-  border-radius: 0.375rem;
+  border-radius: 0.25rem;
   background: color-mix(in oklab, var(--c-border) 70%, transparent);
 }
 @keyframes pulse { 50% { opacity: 0.55; } }
@@ -169,10 +241,30 @@ input[type="checkbox"], input[type="radio"] {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
 
-/* tabel → kartu di mobile (FR-11.2) */
-@media (max-width: 640px) {
-  .responsive-table thead { display: none; }
-  .responsive-table tr { display: block; border: 1px solid var(--c-border) !important; border-radius: 0.75rem; margin-bottom: 0.75rem; padding: 0.5rem; }
-  .responsive-table td { display: flex; justify-content: space-between; gap: 1rem; border: none !important; padding: 0.4rem 0.5rem; }
-  .responsive-table td::before { content: attr(data-th); font-weight: 600; color: var(--c-muted); }
+/* ============================================================
+   PETA SOAL (directive §2C) — kotak 40px, status jelas
+   ============================================================ */
+.q-nav {
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.375rem;
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  border: 1px solid var(--c-border-strong);
+  cursor: pointer;
+  user-select: none;
+  transition: transform 0.1s;
+}
+.q-nav:active { transform: scale(0.97); }
+.q-nav-clear { background: var(--c-canvas); color: var(--c-muted); }         /* belum dijawab */
+.q-nav-answered { background: var(--c-success); border-color: var(--c-success); color: #ffffff; } /* terjawab */
+.q-nav-flag { background: var(--c-warn-bright); border-color: var(--c-warn-bright); color: #ffffff; } /* ragu */
+.q-nav-active { outline: 2px solid var(--c-primary); outline-offset: 2px; }  /* aktif */
+
+@media (prefers-reduced-motion: reduce) {
+  .q-nav:active, .btn:active { transform: none; }
 }

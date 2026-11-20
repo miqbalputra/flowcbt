@@ -1,10 +1,10 @@
 // Dashboard siswa (/s/exams) — daftar ujian + tombol Mulai/Lanjutkan per ujian.
+// Kartu padat (padding 1rem), badge status soft, empty state ikon outline.
 import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { api } from '@/lib/api'
 import { errMessage, fmtDateTime } from '../lib/util'
-import { toast } from '@/components/toast'
-import { SiswaLayout } from '../components/SiswaLayout'
+import { SiswaLayout, EmptyState } from '../components/SiswaLayout'
 import type { StudentExam } from '../types'
 
 export default function Dashboard() {
@@ -34,61 +34,104 @@ export default function Dashboard() {
     }
   }, [])
 
+  const total = exams.open.length + exams.upcoming.length + exams.done.length
+
   return (
     <SiswaLayout title="Ujianku">
       {loading && <SkeletonList />}
       {err && (
-        <div className="card !border-danger text-sm">
+        <div className="card text-sm" style={{ borderColor: 'var(--c-danger)' }} role="alert">
           <p className="font-semibold text-danger">Gagal memuat daftar ujian</p>
-          <p className="text-muted mt-1">{err}</p>
-          <button className="btn-ghost mt-2" onClick={() => window.location.reload()}>Coba lagi</button>
+          <p className="mt-1 text-muted">{err}</p>
+          <button className="btn-ghost mt-3" onClick={() => window.location.reload()}>Coba lagi</button>
         </div>
       )}
-      {!loading && !err && (
+      {!loading && !err && (total === 0 ? (
+        <EmptyState title="Belum ada ujian" hint="Daftar ujian dari gurumu akan muncul di sini setelah dipublikasikan." />
+      ) : (
         <div className="space-y-6">
-          <Section title="Sedang dibuka" items={exams.open} />
-          <Section title="Akan datang" items={exams.upcoming} />
-          <Section title="Selesai" items={exams.done} />
+          <Section title="Sedang dibuka" items={exams.open} tone="primary" />
+          <Section title="Akan datang" items={exams.upcoming} tone="muted" />
+          <Section title="Selesai" items={exams.done} tone="success" />
         </div>
-      )}
+      ))}
     </SiswaLayout>
   )
 }
 
-function Section({ title, items }: { title: string; items: StudentExam[] }) {
+function Section({
+  title,
+  items,
+  tone,
+}: {
+  title: string
+  items: StudentExam[]
+  tone: 'primary' | 'muted' | 'success'
+}) {
   return (
     <section className="space-y-2">
-      <h2 className="text-sm font-semibold text-muted uppercase tracking-wide">{title}</h2>
+      <h2 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted">
+        {title}
+        <span className="rounded border border-border bg-canvas px-1.5 font-mono text-[11px] font-bold text-text">{items.length}</span>
+      </h2>
       {items.length === 0 && <p className="text-sm text-muted">Belum ada.</p>}
       <ul className="space-y-2">
         {items.map(x => (
-          <ExamCard key={x.id} exam={x} />
+          <ExamCard key={x.id} exam={x} tone={tone} />
         ))}
       </ul>
     </section>
   )
 }
 
-function ExamCard({ exam }: { exam: StudentExam }) {
-  const nav = useNavigate()
-  const btn = exam.status === 'open' ? 'Mulai' : 'Lihat'
+function ScheduleBadge({ exam, tone }: { exam: StudentExam; tone: 'primary' | 'muted' | 'success' }) {
+  const style =
+    tone === 'primary'
+      ? { background: 'var(--c-primary-soft)', color: 'var(--c-primary)', borderColor: 'var(--c-primary)' }
+      : tone === 'success'
+        ? { background: 'var(--c-success-soft)', color: 'var(--c-success)', borderColor: 'var(--c-success)' }
+        : { background: 'var(--c-canvas)', color: 'var(--c-muted)', borderColor: 'var(--c-border-strong)' }
+  const label =
+    tone === 'primary'
+      ? 'Dibuka'
+      : tone === 'success'
+        ? 'Selesai'
+        : 'Terjadwal'
   return (
-    <li className="card space-y-1">
+    <span className="badge shrink-0 border" style={style}>
+      {label}
+      {exam.duration_minutes ? <span className="font-mono">· {exam.duration_minutes}′</span> : null}
+    </span>
+  )
+}
+
+function ExamCard({ exam, tone }: { exam: StudentExam; tone: 'primary' | 'muted' | 'success' }) {
+  const nav = useNavigate()
+  const canStart = tone === 'primary'
+  const label = canStart ? (exam.active_attempt_id ? 'Lanjutkan' : 'Mulai') : 'Lihat'
+  return (
+    <li className="card space-y-1.5">
       <div className="flex items-start justify-between gap-2">
-        <h3 className="font-semibold leading-snug">{exam.name}</h3>
+        <h3 className="text-sm font-semibold leading-snug">{exam.name}</h3>
         {typeof exam.score === 'number' && (
-          <span className="badge bg-success text-white shrink-0">Nilai {exam.score}</span>
+          <span className="badge shrink-0 border" style={{ background: 'var(--c-success-soft)', color: 'var(--c-success)', borderColor: 'var(--c-success)' }}>
+            Nilai <span className="font-mono font-bold">{exam.score}</span>
+          </span>
         )}
       </div>
       <p className="text-xs text-muted">
-        {exam.subject_name ?? '—'} · {fmtDateTime(exam.open_at)} → {fmtDateTime(exam.close_at)}
+        {exam.subject_name || 'Umum'} · {fmtDateTime(exam.open_at)} → {fmtDateTime(exam.close_at)}
       </p>
-      <button
-        className="btn-primary mt-2 w-full"
-        onClick={() => nav(`/s/exams/${exam.id}/start`)}
-      >
-        {btn}
-      </button>
+      <div className="flex items-center justify-between gap-2 pt-1">
+        <ScheduleBadge exam={exam} tone={tone} />
+        <button
+          className="btn-primary btn-sm shrink-0"
+          style={canStart ? undefined : { background: 'var(--c-surface)', color: 'var(--c-text)', border: '1px solid var(--c-border-strong)' }}
+          onClick={() => nav(`/s/exams/${exam.id}/start`)}
+        >
+          {label}
+        </button>
+      </div>
     </li>
   )
 }

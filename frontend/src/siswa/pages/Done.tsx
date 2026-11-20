@@ -1,4 +1,4 @@
-// Selesai — nilai besar + status sinkronisasi + tautan riwayat/keluar.
+// Selesai — nilai besar + status sinkronisasi + tautan riwayat/dashboard.
 // AC-4/FR-7.6: bila submit masih menunggu sinkronisasi (offline tadi), halaman
 // ini menampilkan "Menunggu sinkronisasi" dan tiap 5 dtk mencoba flush sampai
 // server meng-ACK (status final) → UI berubah "Terkirim".
@@ -95,33 +95,51 @@ export default function Done() {
 
   return (
     <SiswaLayout title="Ujian selesai">
-      <div className="card space-y-3 text-center">
+      <div className="card space-y-4 text-center">
         {rec && (
-          <p className="text-sm font-semibold">{rec.exam_name}</p>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold">{rec.exam_name}</p>
+            {typeof res?.submitted_at === 'string' && (
+              <p className="text-xs text-muted">Dikirim {fmtDateTime(res.submitted_at)}</p>
+            )}
+          </div>
         )}
 
+        {/* status sinkron — pertahankan pola refresh 5 dtk yang ada (AC-4) */}
         <p
           role="status"
-          className={`rounded-lg border p-2 text-sm font-medium ${
+          className="flex min-h-11 items-center justify-center gap-2 rounded-md border px-3 text-sm font-medium"
+          style={
             syncState === 'done'
-              ? 'border-success bg-success/10 text-success'
-              : 'border-warn bg-warn/10 text-warn'
-          }`}
+              ? { borderColor: 'var(--c-success)', background: 'var(--c-success-soft)', color: 'var(--c-success)' }
+              : { borderColor: 'var(--c-warn)', background: 'var(--c-warn-soft)', color: 'var(--c-warn)' }
+          }
         >
-          {syncState === 'done' ? '✅ Terkirim' : '⏳ Menunggu sinkronisasi — jangan tutup halaman ini'}
+          <span
+            aria-hidden
+            className="h-2 w-2 rounded-full"
+            style={{ background: syncState === 'done' ? 'var(--c-success)' : 'var(--c-warn)' }}
+          />
+          {syncState === 'done' ? 'Terkirim ke server' : 'Menunggu sinkronisasi — jangan tutup halaman ini'}
         </p>
 
         {res?.show_score && typeof res.score === 'number' ? (
-          <>
-            <p className="text-4xl font-extrabold text-primary">{res.score}</p>
-            <p className="text-sm text-muted">Skor akhir ({fmtDateTime(res.submitted_at)})</p>
-          </>
+          <div className="rounded-lg border border-border bg-canvas py-6">
+            <div aria-label={`Nilai akhir ${res.score}`} className="font-mono text-5xl font-bold tabular-nums text-primary">
+              {res.score}
+            </div>
+            <p className="mt-1 text-xs text-muted">Nilai akhir</p>
+          </div>
         ) : (
-          <p className="text-sm text-muted">Nilai akan diumumkan guru.</p>
+          <p className="rounded-lg border border-border bg-canvas px-3 py-4 text-sm text-muted">
+            Nilai akan diumumkan gurumu setelah koreksi.
+          </p>
         )}
-        <Link to="/s/history" className="btn-ghost w-full text-center">
-          Lihat riwayat
-        </Link>
+
+        <div className="grid gap-2">
+          <Link to="/s/history" className="btn-primary w-full">Lihat Riwayat</Link>
+          <Link to="/s/exams" className="btn-ghost w-full">Kembali ke Dashboard</Link>
+        </div>
       </div>
     </SiswaLayout>
   )

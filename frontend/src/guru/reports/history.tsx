@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { api } from '@/lib/api'
-import { EmptyState, ErrorBox, PageHeader, SkeletonRows, StatusBadge } from '../ui'
+import { EmptyState, ErrorBox, PageHeader, SkeletonRows, StatusBadge, TableToolbar } from '../ui'
 import { asDict, asList, errMessage, fmtDateTime, qs, unwrap } from '../types'
 
 export default function ReportsHistory() {
@@ -43,7 +43,7 @@ export default function ReportsHistory() {
       <div className="card grid grid-cols-2 sm:grid-cols-5 gap-2">
         <div className="col-span-2">
           <label className="label" htmlFor="h-q">Cari bebas</label>
-          <input id="h-q" className="input" placeholder="🔍 Judul / kode / guru…" value={q} onChange={e => setQ(e.target.value)} />
+          <input id="h-q" className="input" placeholder="Judul / kode / guru…" value={q} onChange={e => setQ(e.target.value)} />
         </div>
         <div>
           <label className="label" htmlFor="h-sub">Mapel</label>
@@ -78,27 +78,34 @@ export default function ReportsHistory() {
       ) : rows.length === 0 ? (
         <EmptyState icon="🗂" title="Tidak ada ujian pada filter ini" children="Coba longgarkan rentang tanggal atau mapel." />
       ) : (
-        <table className="table-base responsive-table">
-          <thead>
-            <tr><th>Ujian</th><th>Mapel</th><th>Kelas</th><th>Tanggal</th><th>Rata-rata</th><th>Status</th></tr>
-          </thead>
-          <tbody>
-            {rows.map((r, i) => (
-              <tr
-                key={r.exam_id ?? r.id ?? i}
-                className="cursor-pointer hover:bg-bg"
-                onClick={() => nav(`/reports/exams/${r.exam_id ?? r.id}`)}
-              >
-                <td data-th="Ujian" className="font-medium">{String(r.name ?? '—')}</td>
-                <td data-th="Mapel">{String(r.subject_name ?? '—')}</td>
-                <td data-th="Kelas">{asList(r.classes).map(c => asDict(c).name).filter(Boolean).join(', ') || '—'}</td>
-                <td data-th="Tanggal">{fmtDateTime(r.close_at ?? r.date ?? r.finished_at)}</td>
-                <td data-th="Rata-rata" className="font-bold">{String(r.avg_score ?? r.avg ?? '—')}</td>
-                <td data-th="Status"><StatusBadge status={r.status} /></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <>
+          <TableToolbar count={rows.length} label="ujian" />
+          <div className="overflow-x-auto lg:overflow-visible">
+            <table className="table-base responsive-table">
+              <thead>
+                <tr><th>Ujian</th><th>Mapel</th><th>Kelas</th><th>Tanggal</th><th>Rata-rata</th><th>Status</th></tr>
+              </thead>
+              <tbody>
+                {rows.map((r, i) => (
+                  <tr
+                    key={r.exam_id ?? r.id ?? i}
+                    className="cursor-pointer"
+                    onClick={() => nav(`/reports/exams/${r.exam_id ?? r.id}`)}
+                  >
+                    <td data-th="Ujian" className="font-medium">
+                      <button type="button" className="text-primary hover:underline text-left">{String(r.name ?? '—')}</button>
+                    </td>
+                    <td data-th="Mapel">{String(r.subject_name ?? '—')}</td>
+                    <td data-th="Kelas">{asList(r.classes).map(c => asDict(c).name).filter(Boolean).join(', ') || '—'}</td>
+                    <td data-th="Tanggal" className="whitespace-nowrap">{fmtDateTime(r.close_at ?? r.date ?? r.finished_at)}</td>
+                    <td data-th="Rata-rata" className="font-mono font-bold">{String(r.avg_score ?? r.avg ?? '—')}</td>
+                    <td data-th="Status"><StatusBadge status={r.status} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
     </div>
   )

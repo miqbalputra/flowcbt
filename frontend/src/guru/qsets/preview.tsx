@@ -22,7 +22,7 @@ export function QuestionPreview({
 
   return (
     <Modal open={open} onClose={onClose} title="👀 Pratinjau tampilan siswa" footer={<button type="button" className="btn-primary" onClick={onClose}>Tutup</button>}>
-      <div className="rounded-xl border border-border p-4 bg-bg space-y-3" style={{ maxWidth: 380, margin: '0 auto' }}>
+      <div className="rounded-lg border border-border p-4 bg-bg space-y-3" style={{ maxWidth: 380, margin: '0 auto' }}>
         <div className="text-xs text-muted">{title} · soal {qtypeLabel(type)}</div>
 
         {stimulusHtml && (
@@ -55,7 +55,7 @@ export function QuestionPreview({
           <div className="grid grid-cols-2 gap-2 text-sm">
             <div className="space-y-2">
               {pairs.map((p, i) => (
-                <div key={i} className="rounded-lg border border-primary/40 bg-primary/5 p-2.5 min-h-[44px]" dangerouslySetInnerHTML={{ __html: renderSimpleHtml(String(p.left ?? '')) }} />
+                <div key={i} className="rounded-lg border border-primary/40 bg-primary-soft p-2.5 min-h-[44px]" dangerouslySetInnerHTML={{ __html: renderSimpleHtml(String(p.left ?? '')) }} />
               ))}
             </div>
             <div className="space-y-2">

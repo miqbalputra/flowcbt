@@ -48,6 +48,8 @@ export interface AttemptPackage {
 export interface AttemptRecord {
   attempt_id: string
   exam_name: string
+  /** Kode ujian utk header runner (opsional — tidak ada di data lama). */
+  exam_code?: string
   subject_name?: string
   questions: FetchedQuestion[]
   deadline_at: number

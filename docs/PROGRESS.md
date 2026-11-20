@@ -48,6 +48,29 @@ gating, penalti, isolasi tenant, import siswa, retensi stub, mobile payload).
 5. `students` — GET /students/{id}: nil-pointer panic dihapus; ID tak-valid
    → 404 (AC-9).
 
+## Tambahan 2026-11-20 (putaran 4 — Enterprise Design System per directive user)
+
+Overhaul visual ke sistem enterprise Slate + Precision Blue sesuai directive:
+- Token: slate scale (#f8fafc/#fff/slate-200/#0f172a; dark #0f172a/#1e293b/#334155),
+  Precision Blue #2563eb (tombol) / #60a5fa (aksen dark), Emerald #059669, Amber
+  #d97706, Crimson #dc2626; font-mono (JetBrains Mono/Fira Code) utk timer/kode/nomor.
+- Anti-AI: nol rounded-2xl/3xl, border-first shadow-xs, radius md/lg saja.
+- Engin ujian siswa: split-panel desktop (grid [1fr_360px]), header utilitas 56px
+  (judul+kode mono, timer mono, fokus merah <=5 menit, badge sinkron, kontrol
+  ukuran teks A-/A+, tema, pill profil), action bar 64px sticky (Sebelumnya ·
+  Ragu amber · Selanjutnya/Selesaikan), option card full-width (border-2 biru
+  saat pilih, kotak huruf mono, 48px), peta soal .q-nav 40px (hijau-jawab,
+  amber-ragu+⚑, abu-kosong, ring-biru-aktif), keyboard A-E/1-5/R/panah.
+- Workspace guru: tabel dense sticky-header + toolbar count + sort ↑↓ (Nama/
+  Kelas/Tanggal/Nilai), batch pilih semua → Pindah Kelas/Hapus dgn progres,
+  dashboard metric font-mono + tren (tanpa mengarang data), paket aktif
+  highlight, badge soft semua status, modal/toast crisp, auth shells rapi.
+- Mobile: nomor target sentuh 48px utk jawaban, tabel per kartu complete
+  data-th, tanpa overflow di 375px, bottom nav + sheet peta soal.
+
+Verifikasi: tsc/build/PWA lulus; smoke 53/53; grep nol rounded-2xl/3xl &
+nol bg-primary text- non-token; dev server berjalan utk uji langsung.
+
 ## Tambahan 2026-11-20 (putaran 3 — audit UI/UX & keandalan penuh)
 
 Audit menyeluruh oleh 2 auditor (UI/UX + keandalan): 25 + 34 temuan → diperbaiki.

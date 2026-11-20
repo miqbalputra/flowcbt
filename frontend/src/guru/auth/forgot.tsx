@@ -33,8 +33,7 @@ export default function Forgot() {
   }
 
   return (
-    <AuthShell title="Lupa Password">
-      <p className="text-sm text-muted">Masukkan email Anda — kami kirim tautan untuk mengatur ulang password.</p>
+    <AuthShell title="Lupa Password" subtitle="Masukkan email Anda — kami kirim tautan untuk mengatur ulang password.">
       <form onSubmit={submit} className="space-y-3">
         <div>
           <label className="label" htmlFor="email">Email</label>
@@ -46,7 +45,7 @@ export default function Forgot() {
         </button>
       </form>
       {resetToken && (
-        <div className="text-xs rounded-lg p-3 bg-warn/10 text-warn break-all">
+        <div className="text-xs rounded-lg p-3 bg-warn-soft text-warn break-all">
           Mode dev — token reset:{' '}
           <Link to={`/reset-password?token=${encodeURIComponent(resetToken)}`} className="underline font-medium">
             lanjut atur password →

@@ -7,7 +7,7 @@ import { send } from './rpc'
 import { toast } from '@/components/toast'
 import { ConfirmDialog, Modal } from '@/components/modal'
 import { ThemeToggle } from '@/components/ThemeToggle'
-import { EmptyState, ErrorBox, PageHeader, SkeletonRows } from './ui'
+import { EmptyState, ErrorBox, PageHeader, SkeletonRows, TableToolbar } from './ui'
 import {  asDict, asList, copyText, errMessage, ROLE_LABELS, unwrap, unwrapList, qRows } from './types'
 
 type Teacher = { id: string; name: string; email: string; role: string; class_ids: string[] }
@@ -109,7 +109,7 @@ export default function Settings() {
 
       {/* profil (PUT /auth/me) */}
       <div className="card space-y-3">
-        <h3 className="font-semibold">👤 Profil</h3>
+        <h3 className="font-semibold">Profil</h3>
         {me.isError ? (
           <ErrorBox error={me.error} />
         ) : (
@@ -144,7 +144,7 @@ export default function Settings() {
       {/* kelola guru (admin sekolah) */}
       <div className="card space-y-3">
         <div className="flex items-center justify-between gap-2">
-          <h3 className="font-semibold">🧑‍🏫 Kelola guru</h3>
+          <h3 className="font-semibold">Kelola guru</h3>
           <button type="button" className="btn-primary text-sm"
             onClick={() => setEditT({ name: '', email: '', role: 'teacher', class_ids: [] })}>＋ Undang Guru</button>
         </div>
@@ -155,45 +155,50 @@ export default function Settings() {
         ) : qRows(teachers).length === 0 ? (
           <EmptyState icon="🧑‍🏫" title="Belum ada guru lain" children="Undang via email di samping." />
         ) : (
-          <table className="table-base responsive-table">
-            <thead>
-              <tr><th>Nama</th><th>Email</th><th>Peran</th><th>Akses kelas</th><th>Aksi</th></tr>
-            </thead>
-            <tbody>
-              {qRows(teachers).map((t, i) => {
-                const teacher = asDict(t)
-                const ids = asList(teacher.class_ids ?? teacher.restricted_class_ids ?? []).map(String)
-                return (
-                  <tr key={teacher.id ?? i}>
-                    <td data-th="Nama" className="font-medium">{String(teacher.name ?? '—')}</td>
-                    <td data-th="Email" className="break-all">{String(teacher.email ?? '—')}</td>
-                    <td data-th="Peran">{ROLE_LABELS[String(teacher.role ?? 'teacher')] ?? String(teacher.role ?? '—')}</td>
-                    <td data-th="Akses kelas">{ids.length === 0 ? 'Semua' : `${ids.length} kelas`}</td>
-                    <td data-th="Aksi">
-                      <div className="flex gap-1.5 flex-wrap">
-                        <button type="button" className="btn-ghost btn-sm"
-                          onClick={() => setEditT({
-                            id: String(teacher.id ?? ''),
-                            name: String(teacher.name ?? ''),
-                            email: String(teacher.email ?? ''),
-                            role: ['owner', 'teacher'].includes(String(teacher.role)) ? String(teacher.role) : 'teacher',
-                            class_ids: ids,
-                          })}>Atur</button>
-                        <button type="button" className="btn-danger btn-sm"
-                          onClick={() => setDeleting({
-                            id: String(teacher.id ?? ''),
-                            name: String(teacher.name ?? ''),
-                            email: String(teacher.email ?? ''),
-                            role: String(teacher.role ?? 'teacher'),
-                            class_ids: ids,
-                          })}>Hapus</button>
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+          <>
+            <TableToolbar count={qRows(teachers).length} label="guru" />
+            <div className="overflow-x-auto lg:overflow-visible">
+              <table className="table-base responsive-table">
+                <thead>
+                  <tr><th>Nama</th><th>Email</th><th>Peran</th><th>Akses kelas</th><th>Aksi</th></tr>
+                </thead>
+                <tbody>
+                  {qRows(teachers).map((t, i) => {
+                    const teacher = asDict(t)
+                    const ids = asList(teacher.class_ids ?? teacher.restricted_class_ids ?? []).map(String)
+                    return (
+                      <tr key={teacher.id ?? i}>
+                        <td data-th="Nama" className="font-medium">{String(teacher.name ?? '—')}</td>
+                        <td data-th="Email" className="break-all">{String(teacher.email ?? '—')}</td>
+                        <td data-th="Peran">{ROLE_LABELS[String(teacher.role ?? 'teacher')] ?? String(teacher.role ?? '—')}</td>
+                        <td data-th="Akses kelas">{ids.length === 0 ? 'Semua' : `${ids.length} kelas`}</td>
+                        <td data-th="Aksi">
+                          <div className="flex gap-1.5 flex-wrap">
+                            <button type="button" className="btn-ghost btn-sm"
+                              onClick={() => setEditT({
+                                id: String(teacher.id ?? ''),
+                                name: String(teacher.name ?? ''),
+                                email: String(teacher.email ?? ''),
+                                role: ['owner', 'teacher'].includes(String(teacher.role)) ? String(teacher.role) : 'teacher',
+                                class_ids: ids,
+                              })}>Atur</button>
+                            <button type="button" className="btn-danger btn-sm"
+                              onClick={() => setDeleting({
+                                id: String(teacher.id ?? ''),
+                                name: String(teacher.name ?? ''),
+                                email: String(teacher.email ?? ''),
+                                role: String(teacher.role ?? 'teacher'),
+                                class_ids: ids,
+                              })}>Hapus</button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
 

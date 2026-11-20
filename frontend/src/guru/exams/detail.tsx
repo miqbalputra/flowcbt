@@ -161,10 +161,10 @@ export default function ExamDetail() {
         desc={String(e.subject_name ?? '')}
         action={
           <div className="flex gap-2 flex-wrap">
-            <Link to={`/reports/live/${id}`} className="btn-ghost text-sm">📊 Live</Link>
-            <Link to={`/exams/${id}/grading`} className="btn-ghost text-sm">📝 Koreksi Uraian</Link>
+            <Link to={`/reports/live/${id}`} className="btn-ghost text-sm">Live</Link>
+            <Link to={`/exams/${id}/grading`} className="btn-ghost text-sm">Koreksi Uraian</Link>
             {isPublished && (
-              <Link to={`/exams/${id}/cheating`} className="btn-ghost text-sm">🛡️ Kecurangan</Link>
+              <Link to={`/exams/${id}/cheating`} className="btn-ghost text-sm">Kecurangan</Link>
             )}
             {isPublished && (
               <button type="button" className="btn-danger text-sm" disabled={busy} onClick={() => setUnpublishing(true)}>Unpublish</button>
@@ -183,20 +183,20 @@ export default function ExamDetail() {
           {typeof e.token === 'string' && e.token && (
             <button type="button" className="btn-ghost btn-sm font-mono"
               onClick={() => void copyText(e.token, 'Token disalin 📋')} title="Salin token">
-              🔑 {e.token}
+              {e.token}
             </button>
           )}
         </div>
         {isPublished && (
           <button type="button" className="btn-ghost text-sm" disabled={busy} onClick={() => void regenToken()}>
-            🔁 Generate ulang token
+            Generate ulang token
           </button>
         )}
       </div>
 
       {/* edit jadwal */}
       <div className="card space-y-3">
-        <h3 className="font-semibold text-sm">⏰ Edit jadwal</h3>
+        <h3 className="font-semibold text-sm">Edit jadwal</h3>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div>
             <label className="label" htmlFor="ed-open">Buka (WIB)</label>
@@ -221,7 +221,7 @@ export default function ExamDetail() {
 
       {/* daftar peserta */}
       <div>
-        <h3 className="font-semibold mb-2">🧑‍🎓 Peserta ({rows.length})</h3>
+        <h3 className="font-semibold mb-2">Peserta ({rows.length})</h3>
         {attempts.isLoading ? (
           <SkeletonRows rows={4} cols={5} />
         ) : attempts.isError ? (
@@ -229,6 +229,7 @@ export default function ExamDetail() {
         ) : rows.length === 0 ? (
           <EmptyState icon="🧑‍🎓" title="Belum ada yang mengerjakan" />
         ) : (
+          <div className="overflow-x-auto lg:overflow-visible">
           <table className="table-base responsive-table">
             <thead>
               <tr><th>Siswa</th><th>Kelas</th><th>Percobaan</th><th>Status</th><th>Progres</th><th>Nilai</th><th>Aksi</th></tr>
@@ -244,9 +245,9 @@ export default function ExamDetail() {
                     <td data-th="Kelas">{String(r.student_class ?? '—')}</td>
                     <td data-th="Percobaan">ke-{String(r.attempt_no ?? 1)}</td>
                     <td data-th="Status">
-                      <span className={`badge bg-transparent border border-current ${st.cls}`}>{st.label}</span>
+                      <span className={`badge ${st.cls}`}>{st.label}</span>
                       {Boolean(r.cheating_status) && String(r.cheating_status) !== 'clean' && (
-                        <div className="mt-1"><span className="badge bg-danger/10 text-danger">⚠ dilaporkan curang</span></div>
+                        <div className="mt-1"><span className="badge bg-danger-soft text-danger">Dilaporkan curang</span></div>
                       )}
                     </td>
                     <td data-th="Progres">
@@ -255,7 +256,7 @@ export default function ExamDetail() {
                         <div className="h-full rounded-full bg-primary" style={{ width: `${total ? Math.round((answered / total) * 100) : 0}%` }} />
                       </div>
                     </td>
-                    <td data-th="Nilai">{r.score !== undefined && r.score !== null ? String(r.score) : r.final_score !== undefined ? String(r.final_score) : '—'}</td>
+                    <td data-th="Nilai" className="font-mono">{r.score !== undefined && r.score !== null ? String(r.score) : r.final_score !== undefined ? String(r.final_score) : '—'}</td>
                     <td data-th="Aksi">
                       <div className="flex gap-1.5 flex-wrap">
                         <button type="button" className="btn-ghost btn-sm"
@@ -271,6 +272,7 @@ export default function ExamDetail() {
               })}
             </tbody>
           </table>
+          </div>
         )}
       </div>
 

@@ -50,7 +50,7 @@ export default function Login() {
   }
 
   return (
-    <AuthShell title="Masuk">
+    <AuthShell title="Masuk" subtitle="Masuk ke akun guru/admin Anda.">
       <form onSubmit={submit} className="space-y-3">
         <div>
           <label className="label" htmlFor="email">Email</label>

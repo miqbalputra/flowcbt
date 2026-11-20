@@ -6,7 +6,7 @@ import { api } from '@/lib/api'
 import { send } from './rpc'
 import { toast } from '@/components/toast'
 import { ConfirmDialog } from '@/components/modal'
-import { EmptyState, ErrorBox, PageHeader, SkeletonRows, StatusBadge } from './ui'
+import { EmptyState, ErrorBox, PageHeader, SkeletonRows, StatusBadge, TableToolbar } from './ui'
 import {  asDict, asList, errMessage, qs, qtypeLabel, statusBadge, unwrap, unwrapList, qRows } from './types'
 import { downloadFile } from './files'
 
@@ -86,15 +86,15 @@ export default function Qsets() {
         action={<button type="button" className="btn-primary" onClick={() => nav('/question-sets/new/edit')}>＋ Paket Baru</button>}
       />
 
-      <div className="card flex flex-col sm:flex-row gap-2 sm:items-center">
-        <select className="input sm:max-w-44" value={status} onChange={e => setStatus(e.target.value)} aria-label="Filter status">
+      <TableToolbar count={qRows(list).length} label="paket">
+        <select className="input sm:!w-auto sm:max-w-44" value={status} onChange={e => setStatus(e.target.value)} aria-label="Filter status">
           <option value="">Semua status</option>
           <option value="draft">Draft</option>
           <option value="published">Published</option>
           <option value="archived">Arsip</option>
         </select>
-        <input className="input" type="search" aria-label="Cari paket soal" placeholder="🔍 Cari judul / mapel / kode…" value={q} onChange={e => setQ(e.target.value)} />
-      </div>
+        <input className="input sm:w-64" type="search" aria-label="Cari paket soal" placeholder="Cari judul / mapel / kode…" value={q} onChange={e => setQ(e.target.value)} />
+      </TableToolbar>
 
       {list.isLoading ? (
         <SkeletonRows rows={4} cols={5} />
@@ -103,35 +103,37 @@ export default function Qsets() {
       ) : qRows(list).length === 0 ? (
         <EmptyState icon="📚" title="Belum ada paket soal" children="Klik ＋ Paket Baru untuk mulai menulis soal." />
       ) : (
-        <table className="table-base responsive-table">
-          <thead>
-            <tr><th>Judul</th><th>Mapel</th><th>Soal</th><th>Kode ujian</th><th>Status</th><th>Aksi</th></tr>
-          </thead>
-          <tbody>
-            {qRows(list).map((r, i) => (
-              <tr key={r.id ?? i}>
-                <td data-th="Judul" className="font-medium">
-                  <button type="button" className="text-primary hover:underline" onClick={() => nav(`/question-sets/${r.id}/edit`)}>
-                    {String(r.title ?? '—')}
-                  </button>
-                  {Boolean(r.description) && <div className="text-xs text-muted line-clamp-1 max-w-64">{String(r.description)}</div>}
-                </td>
-                <td data-th="Mapel">{String(r.subject_name ?? r.subject ?? '—')}</td>
-                <td data-th="Soal">{String(r.questions_count ?? (Array.isArray(r.questions) ? r.questions.length : 0))}</td>
-                <td data-th="Kode" className="font-mono text-xs">{String(r.exam_code ?? '—')}</td>
-                <td data-th="Status"><StatusBadge status={r.status} /></td>
-                <td data-th="Aksi">
-                  <div className="flex gap-1.5 flex-wrap">
-                    <button type="button" className="btn-ghost btn-sm" onClick={() => nav(`/question-sets/${r.id}/edit`)}>Edit</button>
-                    <button type="button" className="btn-ghost btn-sm" disabled={busy} onClick={() => void duplicate(r)}>Duplikat</button>
-                    <button type="button" className="btn-ghost btn-sm" disabled={busy} onClick={() => setArchiving({ id: String(r.id ?? ''), title: String(r.title ?? '') })}>Arsip</button>
-                    <button type="button" className="btn-ghost btn-sm" onClick={() => void exportXlsx(r)}>Export</button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="overflow-x-auto lg:overflow-visible">
+          <table className="table-base responsive-table">
+            <thead>
+              <tr><th>Judul</th><th>Mapel</th><th>Soal</th><th>Kode soal</th><th>Status</th><th>Aksi</th></tr>
+            </thead>
+            <tbody>
+              {qRows(list).map((r, i) => (
+                <tr key={r.id ?? i}>
+                  <td data-th="Judul" className="font-medium">
+                    <button type="button" className="text-primary hover:underline" onClick={() => nav(`/question-sets/${r.id}/edit`)}>
+                      {String(r.title ?? '—')}
+                    </button>
+                    {Boolean(r.description) && <div className="text-xs text-muted line-clamp-1 max-w-64">{String(r.description)}</div>}
+                  </td>
+                  <td data-th="Mapel">{String(r.subject_name ?? r.subject ?? '—')}</td>
+                  <td data-th="Soal" className="font-mono">{String(r.questions_count ?? (Array.isArray(r.questions) ? r.questions.length : 0))}</td>
+                  <td data-th="Kode soal" className="font-mono text-xs">{String(r.exam_code ?? '—')}</td>
+                  <td data-th="Status"><StatusBadge status={r.status} /></td>
+                  <td data-th="Aksi">
+                    <div className="flex gap-1.5 flex-wrap">
+                      <button type="button" className="btn-ghost btn-sm" onClick={() => nav(`/question-sets/${r.id}/edit`)}>Edit</button>
+                      <button type="button" className="btn-ghost btn-sm" disabled={busy} onClick={() => void duplicate(r)}>Duplikat</button>
+                      <button type="button" className="btn-ghost btn-sm" disabled={busy} onClick={() => setArchiving({ id: String(r.id ?? ''), title: String(r.title ?? '') })}>Arsip</button>
+                      <button type="button" className="btn-ghost btn-sm" onClick={() => void exportXlsx(r)}>Export</button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
 
       <ConfirmDialog

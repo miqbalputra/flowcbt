@@ -41,22 +41,26 @@ export function Modal({
       <div
         ref={panelRef}
         tabIndex={-1}
-        className="card w-full max-w-lg max-h-[88vh] overflow-y-auto rounded-b-none sm:rounded-xl !p-0 outline-none"
+        className="w-full max-w-lg max-h-[88vh] overflow-y-auto bg-surface border border-border rounded-t-lg sm:rounded-lg shadow-sm outline-none"
         onClick={e => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between gap-2 px-4 pt-4">
+        <div className="sticky top-0 z-10 flex items-center justify-between gap-2 px-4 py-3 border-b border-border bg-surface">
           <h2 className="font-semibold text-base min-w-0 truncate">{title}</h2>
           <button
             type="button"
             onClick={onClose}
             aria-label="Tutup"
-            className="btn-ghost !min-w-11 !min-h-11 w-11 h-11 !p-0 shrink-0"
+            className="btn-ghost touch-target w-11 h-11 !p-0 shrink-0"
           >
             ✕
           </button>
         </div>
-        <div className="px-4 py-3 space-y-3">{children}</div>
-        {footer && <div className="flex flex-wrap justify-end gap-2 px-4 pb-4">{footer}</div>}
+        <div className="px-4 py-4 space-y-3">{children}</div>
+        {footer && (
+          <div className="sticky bottom-0 z-10 flex flex-wrap justify-end gap-2 px-4 py-3 border-t border-border bg-surface">
+            {footer}
+          </div>
+        )}
       </div>
     </div>
   )

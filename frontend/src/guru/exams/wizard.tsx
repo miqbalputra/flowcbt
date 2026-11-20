@@ -192,7 +192,7 @@ export default function ExamWizard() {
               aria-current={i === step ? 'step' : undefined}
               onClick={() => { if (i < step) { setStepError(''); setStep(i) } }}
               disabled={i > step}
-              className={`min-h-[36px] px-2.5 rounded-full text-xs font-medium border ${i === step ? 'bg-primary text-primary-fg border-primary' : i < step ? 'border-primary text-primary' : 'border-border text-muted'}`}
+              className={`min-h-[36px] px-2.5 rounded-full text-xs font-medium border ${i === step ? 'bg-primary-bg text-primary-fg border-primary-bg' : i < step ? 'border-primary text-primary' : 'border-border text-muted'}`}
             >
               {i + 1}. {label}
             </button>
@@ -247,7 +247,7 @@ export default function ExamWizard() {
       {step === 1 && (
         <div className="space-y-3">
           <div className="card space-y-2">
-            <h3 className="font-semibold text-sm">🏫 Kelas (bisa beberapa)</h3>
+            <h3 className="font-semibold text-sm">Kelas (bisa beberapa)</h3>
             {classes.isError ? <ErrorBox error={classes.error} /> : qRows(classes).length === 0 ? (
               <p className="text-sm text-muted">Belum ada kelas — bikin dulu di menu Kelas.</p>
             ) : (
@@ -267,8 +267,8 @@ export default function ExamWizard() {
             )}
           </div>
           <div className="card space-y-2">
-            <h3 className="font-semibold text-sm">🧑‍🎓 Siswa tertentu (kombinasi boleh)</h3>
-            <input className="input" type="search" aria-label="Cari siswa" placeholder="🔍 Cari siswa…" value={studentSearch}
+            <h3 className="font-semibold text-sm">Siswa tertentu (kombinasi boleh)</h3>
+            <input className="input" type="search" aria-label="Cari siswa" placeholder="Cari siswa…" value={studentSearch}
               onChange={e => setStudentSearch(e.target.value)} />
             {students.isError ? <ErrorBox error={students.error} /> : qRows(students).length === 0 ? (
               <p className="text-sm text-muted">Tidak ada hasil.</p>
@@ -376,7 +376,7 @@ export default function ExamWizard() {
               onChange={e => set('kkm_score', Number(e.target.value) || 0)} />
           </div>
           <hr className="border-border" />
-          <h3 className="font-semibold text-sm">🛡 Anti-cheat: deteksi keluar aplikasi</h3>
+          <h3 className="font-semibold text-sm">Anti-cheat: deteksi keluar aplikasi</h3>
           <label className="flex items-center gap-2 text-sm min-h-[44px]">
             <input type="checkbox" checked={form.anti_cheat_enabled} onChange={e => set('anti_cheat_enabled', e.target.checked)} />
             Aktifkan deteksi keluar aplikasi
@@ -424,7 +424,7 @@ export default function ExamWizard() {
       {/* ---------- langkah 5: ringkasan + publish (FR-5.7) ---------- */}
       {step === 4 && !done && (
         <div className="card space-y-3">
-          <h3 className="font-semibold">🚀 Ringkasan</h3>
+          <h3 className="font-semibold">Ringkasan</h3>
           <dl className="grid grid-cols-2 gap-2 text-sm">
             <div><dt className="text-xs text-muted">Nama</dt><dd className="font-medium break-words">{form.name}</dd></div>
             <div><dt className="text-xs text-muted">Paket soal</dt><dd className="font-medium">{String(qRows(qsets).find(r => String(r.id) === form.question_set_id)?.title ?? '—')}</dd></div>
@@ -435,10 +435,10 @@ export default function ExamWizard() {
           </dl>
           <div className="flex flex-col sm:flex-row gap-2 pt-1">
             <button type="button" className="btn-ghost flex-1" disabled={busy} onClick={() => void submit(false)}>
-              💾 Simpan Draft
+              Simpan Draft
             </button>
             <button type="button" className="btn-primary flex-1" disabled={busy} onClick={() => void submit(true)}>
-              {busy ? 'Membuat…' : '🚀 Buat & Publish'}
+              {busy ? 'Membuat…' : 'Buat & Publish'}
             </button>
           </div>
         </div>

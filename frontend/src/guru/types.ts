@@ -99,39 +99,39 @@ export const ROLE_LABELS: Record<string, string> = {
   superadmin: 'Super Admin',
 }
 
-/** status attempt → teks & warna badge (PRD 18.3) */
+/** status attempt → teks & warna badge soft (PRD 18.3, directive §3A: bg *-soft + teks status) */
 export function attemptStatus(s: unknown): { label: string; cls: string } {
   const v = String(s ?? '')
   switch (v) {
-    case 'in_progress': return { label: 'Mengerjakan', cls: 'text-primary' }
-    case 'working': return { label: 'Mengerjakan', cls: 'text-primary' }
-    case 'submitted': return { label: 'Selesai', cls: 'text-success' }
-    case 'done': return { label: 'Selesai', cls: 'text-success' }
-    case 'pending': return { label: 'Belum Mulai', cls: 'text-muted' }
-    case 'not_started': return { label: 'Belum Mulai', cls: 'text-muted' }
-    case 'expired': return { label: 'Waktu Habis', cls: 'text-warn' }
-    case 'forced_submit': return { label: 'Dipaksa Selesai', cls: 'text-warn' }
-    case 'disqualified': return { label: 'Diskualifikasi', cls: 'text-danger' }
-    case 'graded': return { label: 'Sudah Dinilai', cls: 'text-success' }
-    case 'needs_grading': return { label: 'Perlu Nilai Uraian', cls: 'text-warn' }
-    default: return { label: v || '—', cls: 'text-muted' }
+    case 'in_progress': return { label: 'Mengerjakan', cls: 'bg-primary-soft text-primary' }
+    case 'working': return { label: 'Mengerjakan', cls: 'bg-primary-soft text-primary' }
+    case 'submitted': return { label: 'Selesai', cls: 'bg-success-soft text-success' }
+    case 'done': return { label: 'Selesai', cls: 'bg-success-soft text-success' }
+    case 'pending': return { label: 'Belum Mulai', cls: 'badge-soft text-muted' }
+    case 'not_started': return { label: 'Belum Mulai', cls: 'badge-soft text-muted' }
+    case 'expired': return { label: 'Waktu Habis', cls: 'bg-warn-soft text-warn' }
+    case 'forced_submit': return { label: 'Dipaksa Selesai', cls: 'bg-warn-soft text-warn' }
+    case 'disqualified': return { label: 'Diskualifikasi', cls: 'bg-danger-soft text-danger' }
+    case 'graded': return { label: 'Sudah Dinilai', cls: 'bg-success-soft text-success' }
+    case 'needs_grading': return { label: 'Perlu Nilai Uraian', cls: 'bg-warn-soft text-warn' }
+    default: return { label: v || '—', cls: 'badge-soft text-muted' }
   }
 }
 
-/** badge status umum (draft/published dsb) */
+/** badge status umum (draft/published dsb) — gaya soft, konsisten dark mode */
 export function statusBadge(s: unknown): { label: string; cls: string } {
   const v = String(s ?? '')
   switch (v) {
-    case 'draft': return { label: 'Draft', cls: 'text-muted' }
-    case 'published': return { label: 'Published', cls: 'text-success' }
-    case 'archived': return { label: 'Arsip', cls: 'text-muted' }
-    case 'paid': return { label: 'Lunas', cls: 'text-success' }
-    case 'pending': return { label: 'Menunggu', cls: 'text-warn' }
-    case 'expired': return { label: 'Kedaluwarsa', cls: 'text-danger' }
-    case 'active': return { label: 'Aktif', cls: 'text-success' }
-    case 'trialing': return { label: 'Masa Coba', cls: 'text-warn' }
-    case 'canceled': return { label: 'Dibatalkan', cls: 'text-danger' }
-    default: return { label: v || '—', cls: 'text-muted' }
+    case 'draft': return { label: 'Draft', cls: 'badge-soft text-muted' }
+    case 'published': return { label: 'Published', cls: 'bg-success-soft text-success' }
+    case 'archived': return { label: 'Arsip', cls: 'badge-soft text-muted' }
+    case 'paid': return { label: 'Lunas', cls: 'bg-success-soft text-success' }
+    case 'pending': return { label: 'Menunggu', cls: 'bg-warn-soft text-warn' }
+    case 'expired': return { label: 'Kedaluwarsa', cls: 'bg-danger-soft text-danger' }
+    case 'active': return { label: 'Aktif', cls: 'bg-success-soft text-success' }
+    case 'trialing': return { label: 'Masa Coba', cls: 'bg-warn-soft text-warn' }
+    case 'canceled': return { label: 'Dibatalkan', cls: 'bg-danger-soft text-danger' }
+    default: return { label: v || '—', cls: 'badge-soft text-muted' }
   }
 }
 

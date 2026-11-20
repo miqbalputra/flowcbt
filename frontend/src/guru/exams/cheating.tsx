@@ -12,9 +12,9 @@ import { EmptyState, ErrorBox, PageHeader, SkeletonRows } from '../ui'
 import { asDict, asList, errMessage, fmtDateTime, unwrap } from '../types'
 
 const DECISIONS = [
-  { value: 'valid', label: '✅ Valid — pertahankan penalti', reasonRequired: false },
-  { value: 'cancel_penalty', label: '↩️ Batalkan penalti', reasonRequired: true },
-  { value: 'disqualify', label: '🚫 Diskualifikasi (nilai 0)', reasonRequired: true },
+  { value: 'valid', label: 'Valid — pertahankan penalti', reasonRequired: false },
+  { value: 'cancel_penalty', label: 'Batalkan penalti', reasonRequired: true },
+  { value: 'disqualify', label: 'Diskualifikasi (nilai 0)', reasonRequired: true },
 ]
 
 export default function ExamCheating() {
@@ -77,7 +77,7 @@ export default function ExamCheating() {
       <PageHeader
         title="Laporan Kecurangan"
         desc="Siswa yang ditandai keluar aplikasi & keputusan Anda sebagai guru."
-        action={<Link className="btn-ghost text-sm" to={`/exams/${id}`}>ℹ️ Info ujian</Link>}
+        action={<Link className="btn-ghost text-sm" to={`/exams/${id}`}>Info ujian</Link>}
       />
 
       {report.isLoading ? (
@@ -87,6 +87,7 @@ export default function ExamCheating() {
       ) : rows.length === 0 ? (
         <EmptyState icon="🛡" title="Tidak ada laporan kecurangan" children="Belum ada siswa yang ditandai pada ujian ini." />
       ) : (
+        <div className="overflow-x-auto lg:overflow-visible">
         <table className="table-base responsive-table">
           <thead>
             <tr><th>Siswa</th><th>Kelas</th><th>Pelanggaran</th><th>Nilai (asli/akhir)</th><th>Status</th><th>Keputusan</th></tr>
@@ -111,7 +112,7 @@ export default function ExamCheating() {
                     {String(r.score ?? '—')} / <b>{String(r.final_score ?? '—')}</b>
                   </td>
                   <td data-th="Status">
-                    <span className={`badge bg-transparent border border-current ${st.cls}`}>{st.label}</span>
+                    <span className={`badge ${st.cls}`}>{st.label}</span>
                   </td>
                   <td data-th="Keputusan">
                     <div className="flex gap-1.5 flex-wrap items-center">
@@ -130,6 +131,7 @@ export default function ExamCheating() {
             })}
           </tbody>
         </table>
+        </div>
       )}
 
       <Modal

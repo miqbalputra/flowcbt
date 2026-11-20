@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { studentLogin } from '../lib/student-api'
-import { errMessage } from '../lib/util'
+import { errMessage, saveLocalProfile } from '../lib/util'
 import { ThemeToggle } from '@/components/ThemeToggle'
 
 export default function Login() {
@@ -23,6 +23,7 @@ export default function Login() {
         setBusy(false)
         return
       }
+      saveLocalProfile({ name: r.student?.name || id.trim(), sid: r.student?.nis || r.student?.username, isGuest: false })
       nav('/s/exams', { replace: true })
     } catch (er) {
       setErr(errMessage(er))
@@ -31,23 +32,31 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-full flex items-center justify-center p-4">
-      <div className="flex flex-col items-center gap-6">
+    <div className="flex min-h-full items-center justify-center bg-bg p-4 text-text">
+      <div className="flex w-full max-w-sm flex-col items-center gap-6">
         <div className="text-center">
-          <div className="text-3xl font-extrabold text-primary">FlowCBT</div>
-          <p className="text-sm text-muted mt-1">Ujian online — tetap jalan walau internet putus.</p>
+          <div className="text-2xl font-extrabold tracking-tight text-primary">FlowCBT</div>
+          <p className="mt-1 text-sm text-muted">Ujian online — tetap jalan walau internet putus.</p>
         </div>
-        <form onSubmit={submit} className="card w-full max-w-sm space-y-3">
+        <form onSubmit={submit} className="card w-full space-y-4 self-stretch">
           <div>
             <label className="label" htmlFor="id">Username / NIS / kode siswa</label>
             <input id="id" className="input" value={id} onChange={e => setId(e.target.value)} autoComplete="username" required />
           </div>
           <div>
             <label className="label" htmlFor="pw">Password</label>
-            <input id="pw" type="password" className="input" value={pw} onChange={e => setPw(e.target.value)} autoComplete="current-password" required />
+            <input
+              id="pw"
+              type="password"
+              className="input"
+              value={pw}
+              onChange={e => setPw(e.target.value)}
+              autoComplete="current-password"
+              required
+            />
           </div>
           {err && <p className="text-sm text-danger" role="alert">{err}</p>}
-          <button type="submit" className="btn-primary w-full" disabled={busy}>
+          <button type="submit" className="btn-primary w-full" style={{ minHeight: 52 }} disabled={busy}>
             {busy ? 'Memproses…' : 'Masuk'}
           </button>
           <p className="text-center text-xs text-muted">

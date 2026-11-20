@@ -1,12 +1,15 @@
-// Mulai ujian: token + tata tertib + persetujuan + PRA-MUAT paket ke IndexedDB.
+// Mulai ujian: tata tertib + token + persetujuan + PRA-MUAT paket ke IndexedDB
+// (FR-7.2). Urutan tahap progres JUJUR (server → save → done), tidak bisa dilewati.
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { saveAttempt } from '../db'
 import { examDetail, startExam } from '../lib/student-api'
-import { errMessage } from '../lib/util'
+import { errMessage, getProfile } from '../lib/util'
 import { SiswaLayout } from '../components/SiswaLayout'
 import { toast } from '@/components/toast'
 import type { AttemptRecord, AttemptPackage, FetchedQuestion } from '../types'
+
+type RuleItem = { title: string; body: string; forbidden: boolean }
 
 /** Tahap pra-muat nyata: server → simpan IndexedDB (FR-7.2). */
 type LoadStage = 'idle' | 'server' | 'save' | 'done'
@@ -50,8 +53,7 @@ export default function Start() {
     }
   }, [id])
 
-  async function submit(e: React.FormEvent) {
-    e.preventDefault()
+  async function submit() {
     if (!agree) return
     setBusy(true)
     setErr('')
@@ -65,13 +67,14 @@ export default function Start() {
       const rec: AttemptRecord = {
         attempt_id: res.attempt_id,
         exam_name: (pack.name as string) ?? 'Ujian',
+        exam_code: (detail?.exam_code as string) ?? (pack.exam_code as string) ?? '',
         subject_name: (pack.subject_name as string) ?? '',
         questions: (pack.questions ?? []) as FetchedQuestion[],
         deadline_at: res.deadline_at,
         server_offset: res.server_offset_ms,
         started_at: res.started_at,
         status: 'in_progress',
-        profile: undefined,
+        profile: getProfile(),
       }
       await saveAttempt(rec)
       // Tahap 3 — selesai.
@@ -89,24 +92,37 @@ export default function Start() {
       <div className="card space-y-4">
         <Rules detail={detail} />
         {detailErr && (
-          <p role="alert" className="text-sm text-warn">
+          <p role="alert" className="text-sm" style={{ color: 'var(--c-warn)' }}>
             Detail ujian gagal dimuat — periksa koneksimu.
           </p>
         )}
+
         <div>
           <label className="label" htmlFor="tk">Token ujian</label>
-          <input id="tk" className="input" value={token} onChange={e => setToken(e.target.value)} required />
+          <input
+            id="tk"
+            className="input font-mono tracking-widest uppercase"
+            value={token}
+            onChange={e => setToken(e.target.value)}
+            placeholder="XXXXXXXX"
+            autoComplete="off"
+            autoCapitalize="characters"
+            spellCheck={false}
+            required
+          />
         </div>
-        <label className="flex items-start gap-2 text-sm">
-          <input type="checkbox" className="mt-1" checked={agree} onChange={e => setAgree(e.target.checked)} />
+
+        <label className="flex min-h-11 items-start gap-2 text-sm leading-relaxed">
+          <input type="checkbox" className="mt-1 shrink-0" checked={agree} onChange={e => setAgree(e.target.checked)} />
           <span>Saya sudah membaca dan setuju dengan tata tertib ujian.</span>
         </label>
         {(detail?.camera_enabled ?? false) && (
-          <label className="flex items-start gap-2 text-sm">
-            <input type="checkbox" className="mt-1" checked={camOk} onChange={e => setCamOk(e.target.checked)} />
+          <label className="flex min-h-11 items-start gap-2 text-sm leading-relaxed">
+            <input type="checkbox" className="mt-1 shrink-0" checked={camOk} onChange={e => setCamOk(e.target.checked)} />
             <span>Saya mengizinkan kamera untuk proctoring selama ujian.</span>
           </label>
         )}
+
         {busy && (
           <div aria-busy="true">
             <progress value={STAGE_PCT[stage]} max={100} className="w-full" />
@@ -114,8 +130,9 @@ export default function Start() {
           </div>
         )}
         {err && <p className="text-sm text-danger" role="alert">{err}</p>}
-        <button type="button" className="btn-primary w-full" disabled={busy || !agree} onClick={submit}>
-          {busy ? 'Memproses…' : 'Mulai'}
+
+        <button type="button" className="btn-primary w-full text-base" style={{ minHeight: 52 }} disabled={busy || !agree} onClick={submit}>
+          {busy ? 'Memproses…' : 'Mulai Ujian'}
         </button>
         <Link to="/s/exams" className="btn-ghost w-full text-center">Batal</Link>
       </div>
@@ -123,23 +140,62 @@ export default function Start() {
   )
 }
 
+/** Daftar tata tertib rapi: border kiri 3px merah (larangan) / biru (info).
+ * Sumber tetap fleksibel: array terstruktur ATAU teks per-baris dari guru. */
 function Rules({ detail }: { detail: Record<string, unknown> | null }) {
-  const rules = detail?.rules_text as string | Array<{ title: string; body: string }> | undefined
-  if (Array.isArray(rules)) {
-    return (
-      <div className="space-y-2 text-sm">
-        {rules.map((r, i) => (
-          <p key={i}>
-            <strong>{r.title}</strong> — {r.body}
-          </p>
-        ))}
-      </div>
-    )
-  }
+  const raw = detail?.rules_text as string | Array<{ title: string; body: string }> | undefined
+  const items: RuleItem[] = Array.isArray(raw)
+    ? raw.map(r => ({ title: r.title, body: r.body, forbidden: isForbidden(r.title + ' ' + r.body) }))
+    : String(raw ?? 'Kerjakan mandiri; jangan keluar aplikasi secara berlebihan.')
+        .split('\n')
+        .filter(l => l.trim())
+        .map(line0 => {
+          const text = line0.replace(/^(\s*[-•*]|\s*\d+[.)])\s*/, '').trim()
+          const [head, ...rest] = text.split(' — ')
+          return {
+            title: rest.length ? head.trim() : '',
+            body: rest.length ? rest.join(' — ') : text,
+            forbidden: isForbidden(text),
+          }
+        })
   return (
-    <div className="space-y-2 text-sm">
-      <p className="font-semibold">Tata tertib ujian</p>
-      <p className="whitespace-pre-wrap text-muted">{(rules as string) ?? 'Kerjakan mandiri; jangan keluar aplikasi berlebihan.'}</p>
-    </div>
+    <section aria-label="Tata tertib ujian">
+      <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="text-muted" aria-hidden>
+          <path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7l8-4z" />
+          <path d="M12 8v5M12 16h.01" />
+        </svg>
+        Tata tertib ujian
+      </h2>
+      <ul className="space-y-2">
+        {items.length === 0 && (
+          <li className="text-sm text-muted">Tidak ada ketentuan khusus — kerjakan mandiri.</li>
+        )}
+        {items.map((r, i) => (
+          <li
+            key={i}
+            className="flex items-start gap-2.5 rounded-md border border-border p-2.5 text-sm leading-relaxed"
+            style={{ borderLeft: `3px solid ${r.forbidden ? 'var(--c-danger)' : 'var(--c-primary)'}` }}
+          >
+            <span
+              aria-hidden
+              className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-sm font-mono text-[11px] font-bold text-white"
+              style={{ background: r.forbidden ? 'var(--c-danger)' : 'var(--c-primary)' }}
+            >
+              {r.forbidden ? '✕' : 'i'}
+            </span>
+            <span className="min-w-0">
+              {r.title && <strong className="mr-1">{r.title}:</strong>}
+              {r.body}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
   )
+}
+
+/** Deteksi kasar butir larangan (non-blocking, hanya menentukan warna). */
+function isForbidden(text: string): boolean {
+  return /(jangan|dilarang|tidak boleh|forbidden)/i.test(text)
 }

@@ -1,4 +1,5 @@
-// Komponen UI kecil bersama area guru: page header, state kosong, skeleton, error, badge.
+// Komponen UI kecil bersama area guru: page header, state kosong, skeleton, error, badge,
+// toolbar tabel & sort kolom (directive §3A — data tables enterprise).
 import type { ReactNode } from 'react'
 import { statusBadge } from './types'
 
@@ -51,11 +52,79 @@ export function SkeletonRows({ rows = 4, cols = 4 }: { rows?: number; cols?: num
   )
 }
 
-/** status badge kecil (draft/published/paid/…) */
+/** status badge kecil (draft/published/paid/…) — gaya soft dari statusBadge() */
 export function StatusBadge({ status }: { status: unknown }) {
   const s = statusBadge(status)
   return (
-    <span className={`badge bg-transparent border border-current ${s.cls}`}>{s.label}</span>
+    <span className={`badge ${s.cls}`}>{s.label}</span>
+  )
+}
+
+/* ---------- Tabel data: toolbar + sort (directive §3A) ---------- */
+
+export type SortDir = 'asc' | 'desc'
+
+const COLLATOR = new Intl.Collator('id', { sensitivity: 'base', numeric: true })
+
+/** Urutkan salinan rows memakai Collator lokal (id, case-insensitive, angka natural).
+ * Nilai kosong selalu di akhir, apapun arah. TIDAK mengubah array asli. */
+export function sortRowsBy<T>(rows: T[], getVal: (row: T) => unknown, dir: SortDir, numeric = false): T[] {
+  const mul = dir === 'desc' ? -1 : 1
+  return [...rows].sort((a, b) => {
+    const va = getVal(a)
+    const vb = getVal(b)
+    const ea = va === null || va === undefined || va === ''
+    const eb = vb === null || vb === undefined || vb === ''
+    if (ea && eb) return 0
+    if (ea) return 1
+    if (eb) return -1
+    if (numeric) {
+      const na = Number(va)
+      const nb = Number(vb)
+      const fa = Number.isFinite(na)
+      const fb = Number.isFinite(nb)
+      if (fa && fb) return (na - nb) * mul
+      if (fa) return -1
+      if (fb) return 1
+      return 0
+    }
+    return COLLATOR.compare(String(va), String(vb)) * mul
+  })
+}
+
+/** Header kolom sortable: klik = asc → desc → netral. Indikator ↑/↓, netral ↕ redup. */
+export function SortHeader({ label, active, dir, onClick }: {
+  label: string
+  active: boolean
+  dir: SortDir
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={`Urutkan ${label}`}
+      className={`inline-flex items-center gap-1 font-semibold uppercase tracking-wider text-xs ${active ? 'text-primary' : 'text-muted hover:text-text'}`}
+    >
+      {label}
+      <span aria-hidden className={`text-[11px] leading-none w-3 text-center ${active ? '' : 'opacity-50'}`}>
+        {active ? (dir === 'asc' ? '↑' : '↓') : '↕'}
+      </span>
+    </button>
+  )
+}
+
+/** Toolbar di atas tabel: kiri hitungan "X item", kanan search/filter (directive §3A). */
+export function TableToolbar({ count, label = 'item', children }: { count?: number; label?: string; children?: ReactNode }) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {count !== undefined && (
+        <span className="text-xs font-medium uppercase tracking-wider text-muted whitespace-nowrap mr-auto">
+          <span className="font-mono">{count}</span> {label}
+        </span>
+      )}
+      {children && <div className="flex flex-wrap items-center gap-2 ml-auto">{children}</div>}
+    </div>
   )
 }
 

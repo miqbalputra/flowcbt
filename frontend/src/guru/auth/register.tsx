@@ -68,7 +68,7 @@ export default function Register() {
       <AuthShell title="Verifikasi Email">
         <p className="text-sm text-muted">Masukkan kode verifikasi yang dikirim ke {form.email}.</p>
         {verifyToken && (
-          <div className="text-xs rounded-lg p-3 bg-warn/10 text-warn break-all">
+          <div className="text-xs rounded-lg p-3 bg-warn-soft text-warn break-all">
             Mode dev — token verifikasi: <code>{verifyToken}</code>
           </div>
         )}
@@ -88,8 +88,7 @@ export default function Register() {
   }
 
   return (
-    <AuthShell title="Daftar Sekolah">
-      <p className="text-sm text-muted">Anda akan menjadi Admin Sekolah untuk lembaga Anda.</p>
+    <AuthShell title="Daftar Sekolah" subtitle="Anda akan menjadi Admin Sekolah untuk lembaga Anda.">
       <form onSubmit={submit} className="space-y-3">
         <div>
           <label className="label" htmlFor="fn">Nama lengkap</label>

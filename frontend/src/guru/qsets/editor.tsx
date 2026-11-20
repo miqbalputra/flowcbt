@@ -275,7 +275,7 @@ export default function QsetEditor() {
 
       {/* ---- info paket (FR-4.1) ---- */}
       <div className="card space-y-3">
-        <h3 className="font-semibold">📘 Info paket</h3>
+        <h3 className="font-semibold">Info paket</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="label" htmlFor="qs-subject">Mata pelajaran</label>
@@ -321,7 +321,7 @@ export default function QsetEditor() {
       {/* ---- wacana/stimulus (AKM literasi) ---- */}
       <div className="card space-y-3">
         <div className="flex items-center justify-between gap-2">
-          <h3 className="font-semibold">📖 Wacana / stimulus</h3>
+          <h3 className="font-semibold">Wacana / stimulus</h3>
           {isNew
             ? <span className="text-xs text-muted">Simpan draft dulu untuk menambah wacana</span>
             : <button type="button" className="btn-ghost text-sm" onClick={() => setStimOpen({ title: '', content: '' })}>＋ Wacana</button>}
@@ -347,7 +347,7 @@ export default function QsetEditor() {
       {/* ---- daftar soal (FR-4.4) ---- */}
       <div className="space-y-3">
         <div className="flex items-center justify-between gap-2">
-          <h3 className="font-semibold">❓ Soal ({questions.length})</h3>
+          <h3 className="font-semibold">Soal ({questions.length})</h3>
           <button type="button" className="btn-primary text-sm" onClick={() => setAddOpen(true)}>＋ Tambah Soal</button>
         </div>
 
@@ -358,8 +358,8 @@ export default function QsetEditor() {
           return (
             <div key={String(question._uid ?? qi)} className="card space-y-3">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="badge bg-primary/10 text-primary">#{qi + 1}</span>
-                <span className="badge bg-border/30">{qtypeIcon(type)} {qtypeLabel(type)}</span>
+                <span className="badge bg-primary-soft text-primary font-mono">#{qi + 1}</span>
+                <span className="badge badge-soft">{qtypeIcon(type)} {qtypeLabel(type)}</span>
                 <div className="ml-auto flex gap-1.5">
                   <button type="button" aria-label="Naikkan soal" className="btn-ghost !min-w-11 w-9 h-11 !p-0 disabled:opacity-40"
                     disabled={qi === 0} onClick={() => move(qi, -1)}>↑</button>
@@ -537,16 +537,16 @@ export default function QsetEditor() {
       >
         <button type="button" className="btn-ghost text-sm flex-1 min-w-28" disabled={busy || detail.isLoading}
           onClick={() => save.mutate({})}>
-          {busy ? 'Menyimpan…' : '💾 Simpan Draft'}
+          {busy ? 'Menyimpan…' : 'Simpan Draft'}
         </button>
         {published ? (
           <button type="button" className="btn-ghost text-sm flex-1 min-w-28" disabled={busy} onClick={() => void unpublish()}>
-            ↩️ Unpublish
+            Unpublish
           </button>
         ) : (
           <button type="button" className="btn-primary text-sm flex-1 min-w-28" disabled={busy || detail.isLoading}
             onClick={() => save.mutate({ publish: true })}>
-            🚀 Publish
+            Publish
           </button>
         )}
       </div>

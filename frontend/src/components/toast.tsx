@@ -42,16 +42,17 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         {items.map(t => (
           <div
             key={t.id}
-            className="pointer-events-auto max-w-sm w-auto rounded-xl px-4 py-3 text-white text-sm shadow-lg flex items-center gap-2"
-            style={{ background: 'var(--c-surface)', color: 'var(--c-text)', border: '1px solid var(--c-border)' }}
+            className="pointer-events-auto w-full max-w-sm rounded-lg border border-border bg-surface px-3.5 py-2.5 text-sm shadow-sm flex items-center gap-2.5"
+            style={{ borderLeft: `3px solid ${COLORS[t.kind]}` }}
           >
             <span
-              className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-sm text-white"
+              aria-hidden
+              className="shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-bold leading-none text-white"
               style={{ background: COLORS[t.kind] }}
             >
               {ICONS[t.kind]}
             </span>
-            <span className="min-w-0">{t.msg}</span>
+            <span className="min-w-0 break-words">{t.msg}</span>
           </div>
         ))}
       </div>

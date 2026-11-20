@@ -53,12 +53,12 @@ function titleFor(pathname: string): string {
   return 'FlowCBT'
 }
 
-/** Sesi masih dihidupkan dari token tersimpan (;/auth/me) */
+/** Sesi masih dihidupkan dari token tersimpan (/auth/me) */
 function SessionBoot() {
   return (
     <div className="min-h-full flex items-center justify-center p-6">
       <div className="card w-full max-w-sm space-y-3 text-center">
-        <div className="text-lg font-bold text-primary">🌸 FlowCBT</div>
+        <div className="text-lg font-bold tracking-tight">FlowCBT</div>
         <div className="skeleton h-4 w-2/3 mx-auto" />
         <div className="skeleton h-10 w-full" />
       </div>
@@ -117,33 +117,33 @@ function Shell({ name, onLogout }: { name: string; role?: string; onLogout: () =
   const moreActive = MORE_KEYS.some(p => loc.pathname.startsWith(p))
   return (
     <div className="min-h-full lg:flex">
-      {/* sidebar desktop (≥1025) */}
-      <aside className="hidden lg:flex flex-col gap-1 w-60 shrink-0 border-r border-border bg-surface sticky top-0 h-screen p-4">
-        <div className="font-bold text-lg text-primary px-2 py-3">🌸 FlowCBT</div>
-        <nav className="flex flex-col gap-1">
+      {/* sidebar desktop (≥1025) — 232px, bg-surface, item aktif bg-primary-soft + border-l-2 primary */}
+      <aside className="hidden lg:flex flex-col w-[232px] shrink-0 border-r border-border bg-surface sticky top-0 h-screen">
+        <div className="px-4 py-4 text-base font-bold tracking-tight border-b border-border">FlowCBT</div>
+        <nav className="flex flex-col py-2 flex-1 overflow-y-auto" aria-label="Navigasi utama">
           {NAV.map(item => (
             <NavLink
               key={item.to}
               to={item.to}
               end={item.to === '/reports'}
               className={({ isActive }) =>
-                `flex items-center gap-3 rounded-lg px-3 min-h-[44px] text-sm ${isActive ? 'bg-primary/10 text-primary font-semibold' : 'hover:bg-bg'}`
+                `flex items-center gap-3 border-l-2 px-4 min-h-[44px] text-sm ${isActive ? 'bg-primary-soft text-primary border-primary font-semibold' : 'border-transparent text-muted hover:bg-bg hover:text-text'}`
               }
             >
-              <span aria-hidden>{item.icon}</span>
+              <span aria-hidden className="w-5 text-center">{item.icon}</span>
               {item.label}
             </NavLink>
           ))}
         </nav>
-        <div className="mt-auto pt-4 px-2 space-y-1">
+        <div className="px-4 py-3 border-t border-border space-y-1">
           <div className="text-sm font-medium truncate">{name}</div>
-          <button type="button" onClick={onLogout} className="btn-ghost w-full text-sm">🚪 Keluar</button>
+          <button type="button" onClick={onLogout} className="btn-ghost w-full text-sm">Keluar</button>
         </div>
       </aside>
 
       <div className="flex-1 min-w-0 pb-20 lg:pb-8">
-        {/* topbar */}
-        <header className="sticky top-0 z-30 h-14 flex items-center gap-2 px-3 sm:px-4 bg-bg/90 backdrop-blur border-b border-border">
+        {/* topbar — 56px, border-b */}
+        <header className="sticky top-0 z-30 h-14 flex items-center gap-2 px-3 sm:px-4 bg-surface/95 backdrop-blur border-b border-border">
           <h1 className="font-semibold truncate flex-1">{title}</h1>
           <span className="hidden sm:block text-sm text-muted max-w-36 truncate">{name}</span>
           <ThemeToggle />
@@ -152,12 +152,12 @@ function Shell({ name, onLogout }: { name: string; role?: string; onLogout: () =
             onClick={onLogout}
             aria-label="Keluar"
             title="Keluar"
-            className="btn-ghost w-11 h-11 !p-0 shrink-0"
+            className="btn-ghost touch-target w-11 h-11 !p-0 shrink-0"
           >
-            🚪
+            ⏻
           </button>
         </header>
-        <main className="p-3 sm:p-4 lg:p-6 max-w-5xl mx-auto">
+        <main className="p-3 sm:p-4 lg:p-6 max-w-6xl mx-auto">
           <Outlet />
         </main>
       </div>
@@ -172,7 +172,7 @@ function Shell({ name, onLogout }: { name: string; role?: string; onLogout: () =
             key={item.to}
             to={item.to}
             className={({ isActive }) =>
-              `flex-1 min-w-0 min-h-14 flex flex-col items-center justify-center gap-0.5 px-1 py-1.5 text-[11px] leading-tight text-center ${isActive ? 'text-primary font-semibold' : 'text-muted'}`
+              `flex-1 min-w-0 min-h-14 flex flex-col items-center justify-center gap-0.5 px-1 py-1.5 border-t-2 text-[11px] leading-tight text-center ${isActive ? 'text-primary border-primary font-semibold' : 'text-muted border-transparent'}`
             }
           >
             <span aria-hidden className="text-lg leading-none">{item.icon}</span>
@@ -184,7 +184,7 @@ function Shell({ name, onLogout }: { name: string; role?: string; onLogout: () =
           onClick={() => setMoreOpen(true)}
           aria-haspopup="dialog"
           aria-expanded={moreOpen}
-          className={`flex-1 min-w-0 min-h-14 flex flex-col items-center justify-center gap-0.5 px-1 py-1.5 text-[11px] leading-tight text-center ${moreActive ? 'text-primary font-semibold' : 'text-muted'}`}
+          className={`flex-1 min-w-0 min-h-14 flex flex-col items-center justify-center gap-0.5 px-1 py-1.5 border-t-2 text-[11px] leading-tight text-center ${moreActive ? 'text-primary border-primary font-semibold' : 'text-muted border-transparent'}`}
         >
           <span aria-hidden className="text-lg leading-none">⋯</span>
           Lainnya
@@ -200,7 +200,7 @@ function Shell({ name, onLogout }: { name: string; role?: string; onLogout: () =
               to={item.to}
               onClick={() => setMoreOpen(false)}
               className={({ isActive }) =>
-                `flex items-center gap-2.5 rounded-lg border border-border px-3 min-h-[44px] text-sm ${isActive ? 'bg-primary/10 text-primary font-semibold' : 'hover:bg-bg'}`
+                `flex items-center gap-2.5 rounded-lg border border-border px-3 min-h-[44px] text-sm ${isActive ? 'bg-primary-soft text-primary border-primary/40 font-semibold' : 'hover:bg-bg'}`
               }
             >
               <span aria-hidden>{item.icon}</span>

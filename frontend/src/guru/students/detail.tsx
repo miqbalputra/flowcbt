@@ -75,7 +75,7 @@ export default function StudentDetail() {
             ] as [string, unknown][]).filter(([, v]) => v !== undefined && v !== null && v !== '').map(([k, v]) => (
               <div key={k}>
                 <div className="text-xs text-muted">{k}</div>
-                <div className="font-medium">{typeof v === 'string' && /^\d{4}-/.test(v) ? fmtDate(v) : String(v)}</div>
+                <div className={`font-medium ${k === 'NIS' || k === 'Username' ? 'font-mono' : ''}`}>{typeof v === 'string' && /^\d{4}-/.test(v) ? fmtDate(v) : String(v)}</div>
               </div>
             ))}
           </div>
@@ -123,7 +123,7 @@ export default function StudentDetail() {
                         <td data-th="Percobaan">ke-{String(a.attempt_no ?? 1)}</td>
                         <td data-th="Nilai" className="font-bold">{String(a.score ?? a.final_score ?? '—')}</td>
                         <td data-th="Durasi">{fmtDuration(a.duration_seconds ?? a.duration)}</td>
-                        <td data-th="Status"><span className={`badge bg-transparent border border-current ${st.cls}`}>{st.label}</span></td>
+                        <td data-th="Status"><span className={`badge ${st.cls}`}>{st.label}</span></td>
                       </tr>
                     )
                   })}
