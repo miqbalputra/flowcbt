@@ -1,4 +1,36 @@
-node_modules/
-dist/
+# Data
+backend/data/
+frontend/dist/
+dev-dist/
 *.log
+.env
+.env.local
+
+# Go
+backend/tmp/
+*.test
+*.out
+
+# Node
+node_modules/
 *.tsbuildinfo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Binary hasil go build
+backend/api
+backend/probe
+*.exe
+
+# Binary hasil go build (seeder & worker)
+backend/seed
+backend/worker
+
+# Python
+__pycache__/
+*.pyc
+
+# snapshot lokal (bukan bagian proyek)
+.snapshot-chunk-*.json

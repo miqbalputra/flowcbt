@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"log/slog"
 	"net/http"
 	"os"
@@ -10,73 +10,78 @@ import (
 	"syscall"
 	"time"
 
-	"flowcbt/backend/internal/platform"
-	"flowcbt/backend/internal/server"
+	"flowcbt/backend/internal/api"
+	"flowcbt/backend/internal/app"
+	"flowcbt/backend/internal/auth"
+	"flowcbt/backend/internal/config"
+	"flowcbt/backend/internal/db"
 )
 
 func main() {
-	// C-13: image distroless tidak punya shell/wget. Binary yang sama diperintahkan
-	// Dockerfile HEALTHCHECK untuk memeriksa server lokal lewat mode ini.
-	if len(os.Args) > 1 && os.Args[1] == "-healthcheck" {
-		healthcheck()
-		return
-	}
-	cfg := platform.LoadConfig()
-	if err := cfg.Validate(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
+	cfg := config.Load()
+	ctx := context.Background()
+
+	if err := db.Migrate(ctx, cfg.DatabaseURL, db.EmbeddedMigrations(), slog.Default()); err != nil {
+		slog.Error("migrasi gagal", "err", err)
 		os.Exit(1)
 	}
-	log := platform.NewLogger(cfg.Env)
-
-	deps := server.NewDeps(cfg, log)
-	if deps == nil {
+	database, err := db.Connect(ctx, cfg.DatabaseURL, cfg.DatabaseAppURL)
+	if err != nil {
+		slog.Error("koneksi DB gagal", "err", err)
 		os.Exit(1)
 	}
-	defer deps.DB.Close()
+	seed(ctx, database, cfg)
 
-	r := server.Router(deps)
-	// C-02: batasi slowloris. WriteTimeout sengaja 0 karena endpoint SSE
-	// (/api/v1/reports/live/stream) butuh koneksi panjang; B-07 akan menambahkan
-	// heartbeat + SetWriteDeadline per-write sebelum timeout diaktifkan kembali.
+	a := app.New(cfg, database)
 	srv := &http.Server{
-		Addr:              cfg.HTTPAddr,
-		Handler:           r,
-		ReadHeaderTimeout: 10 * time.Second,
-		ReadTimeout:       15 * time.Second,
-		IdleTimeout:       120 * time.Second,
+		Addr:    ":" + cfg.HTTPPort,
+		Handler: api.NewRouter(a),
+		// WriteTimeout HARUS 0: koneksi SSE laporan real-time (FR-9.3) hidup
+		// hingga 30 menit. Batas baca header ketat (slowloris); batas body
+		// dilakukan per-request di httpx.Decode.
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      0,
+		IdleTimeout:       120 * time.Second,
 	}
-
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer cancel()
 	go func() {
-		log.Info("api listening", "addr", cfg.HTTPAddr, "env", cfg.Env)
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Error("server", "err", err)
+		slog.Info("FlowCBT API berjalan", "port", cfg.HTTPPort, "env", cfg.Env)
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			slog.Error("server berhenti", "err", err)
 			os.Exit(1)
 		}
 	}()
-	<-ctx.Done()
-	log.Info("shutting down")
-	shutCtx, c := context.WithTimeout(context.Background(), 10*time.Second)
-	defer c()
-	_ = srv.Shutdown(shutCtx)
 
-	var _ = slog.Default
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
+	<-stop
+	slog.Info("mematikan server...")
+	shutdownCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	_ = srv.Shutdown(shutdownCtx)
+	database.Close()
 }
 
-func healthcheck() {
-	addr := os.Getenv("HEALTHCHECK_ADDR")
-	if addr == "" {
-		addr = "http://127.0.0.1:8080/healthz"
+// seed memastikan superadmin platform ada.
+func seed(ctx context.Context, d *db.DB, cfg *config.Config) {
+	var count int
+	if err := d.Admin.QueryRow(ctx, `SELECT COUNT(1) FROM users WHERE role='superadmin'`).Scan(&count); err != nil {
+		return
 	}
-	client := &http.Client{Timeout: 3 * time.Second}
-	resp, err := client.Get(addr)
+	if count > 0 {
+		return
+	}
+	hash, err := auth.HashPassword(cfg.SeedSuperAdminPass)
 	if err != nil {
-		os.Exit(1)
+		return
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode >= http.StatusInternalServerError {
-		os.Exit(1)
+	_, err = d.Admin.Exec(ctx, `
+		INSERT INTO users(name, email, password_hash, role, status, email_verified_at)
+		VALUES ('Super Admin FlowCBT', $1, $2, 'superadmin', 'active', now())
+		ON CONFLICT DO NOTHING`, cfg.SeedSuperAdminEmail, hash)
+	if err != nil {
+		slog.Warn("seed superadmin", "err", err)
+	} else {
+		slog.Info("superadmin dibuat", "email", cfg.SeedSuperAdminEmail)
 	}
 }

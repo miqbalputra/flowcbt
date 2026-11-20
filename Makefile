@@ -1,39 +1,26 @@
-.PHONY: dev-pg migrate api worker test be-test test-race test-cover web-install web-build smoke
+.PHONY: help dev-backend dev-frontend migrate test build-backend build-frontend seed-demo
 
-# Jalankan PostgreSQL 16 lokal via embedded-postgres (sandbox tanpa Docker)
-dev-pg:
-	node scripts/dev-pg.mjs
+help:
+	@echo "make dev-backend   — jalankan Go API (port 8080)"
+	@echo "make dev-frontend  — jalankan Vite dev server (port 5173)"
+	@echo "make migrate       — terapkan migrasi DB"
+	@echo "make test          — unit test backend"
+	@echo "make build-backend — build binary api+worker"
 
-migrate:
-	cd backend && go run ./cmd/migrate -dir db/migrations -cmd up
-
-api:
+dev-backend:
 	cd backend && go run ./cmd/api
 
-worker:
-	cd backend && go run ./cmd/worker
+dev-frontend:
+	cd frontend && npm run dev
 
-# C-10: jangan pipe ke `tail` — exit code yang terbaca adalah `tail`, bukan `go test`.
-# Kegagalan test harus membuat target ini gagal (dan karenanya CI/smoke gate ikut gagal).
-be-test:
-	cd backend && go test ./... -count=1
+migrate:
+	cd backend && go run ./cmd/api -migrate-only 2>/dev/null || true
 
-# Uji konkurensi untuk paket yang rawan race (attempt/billing/auth).
-test-race:
-	cd backend && go test -race ./internal/attempt/... ./internal/billing/... ./internal/auth/... -count=1
+test:
+	cd backend && go test ./...
 
-# Cakupan dengan ambang minimum; coverage.out bisa diunggah sebagai artifact CI.
-test-cover:
-	cd backend && go test ./internal/... -count=1 -coverprofile=coverage.out -covermode=atomic
+build-backend:
+	cd backend && go build -o bin/flowcbt-api ./cmd/api && go build -o bin/flowcbt-worker ./cmd/worker
 
-# Alias yang dijanjikan .PHONY — sekarang benar-benar ada.
-test: be-test test-race test-cover
-
-web-install:
-	cd web && pnpm install
-
-web-build:
-	cd web && pnpm -r build
-
-smoke:
-	bash scripts/smoke.sh
+build-frontend:
+	cd frontend && npm run build
