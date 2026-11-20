@@ -5,91 +5,124 @@ import (
 	"testing"
 )
 
-func q(t string, key string, points float64, mode string, wrongPen bool) Question {
-	return Question{
-		Type: t, AnswerKeyJSON: json.RawMessage(key), Points: points,
-		ScoringMode: mode, PartialWrongPenalty: wrongPen,
+func mq(t *testing.T, s string) json.RawMessage {
+	t.Helper()
+	return json.RawMessage(s)
+}
+
+func TestMCQ(t *testing.T) {
+	q := &Question{ID: "1", Type: "mcq", Points: 2, AnswerKey: mq(t, `{"correct":"A"}`), ScoringMode: "all_or_nothing"}
+	if r := Grade(q, "A"); r.Correct != true || r.Score != 2 {
+		t.Fatalf("harus benar poin 2: %+v", r)
+	}
+	if r := Grade(q, "a"); !r.Correct { // case-insensitive
+		t.Fatalf("harus terima huruf kecil: %+v", r)
+	}
+	if r := Grade(q, "B"); r.Correct || r.Score != 0 {
+		t.Fatalf("harus salah: %+v", r)
+	}
+	if r := Grade(q, nil); r.Correct || r.Score != 0 {
+		t.Fatalf("jawaban kosong harus salah: %+v", r)
 	}
 }
 
-// Tabel-driven: semua tipe soal + rumus parsial FR-8.1b + normalisasi isian (PRD 14.1 unit test).
-func TestScore(t *testing.T) {
-	cases := []struct {
-		name string
-		q    Question
-		ans  string
-		want float64
-	}{
-		// PG
-		{"mcq benar", q("mcq", `{"correct":"A"}`, 2, "all_or_nothing", true), `{"selected":"A"}`, 2},
-		{"mcq salah", q("mcq", `{"correct":"A"}`, 2, "all_or_nothing", true), `{"selected":"B"}`, 0},
-		{"mcq case-insensitive", q("mcq", `{"correct":"A"}`, 2, "all_or_nothing", true), `{"selected":"a"}`, 2},
-		// PG kompleks all-or-nothing
-		{"mcqc aon semua benar", q("mcq_complex", `{"correct":["A","C"]}`, 3, "all_or_nothing", true), `{"selected":["A","C"]}`, 3},
-		{"mcqc aon kurang", q("mcq_complex", `{"correct":["A","C"]}`, 3, "all_or_nothing", true), `{"selected":["A"]}`, 0},
-		{"mcqc aon ada salah", q("mcq_complex", `{"correct":["A","C"]}`, 3, "all_or_nothing", true), `{"selected":["A","B","C"]}`, 0},
-		// PG kompleks parsial: poin × max(0,(benar−salah)/kunci)
-		{"mcqc parsial 2/3 benar", q("mcq_complex", `{"correct":["A","C","D"]}`, 3, "partial", true), `{"selected":["A","C"]}`, 2},   // (2-0)/3*3 = 2
-		{"mcqc parsial 1 benar 1 salah", q("mcq_complex", `{"correct":["A","C","D"]}`, 3, "partial", true), `{"selected":["A","B"]}`, 0}, // (1-1)/3 = 0
-		{"mcqc parsial tanpa penalti salah", q("mcq_complex", `{"correct":["A","C","D"]}`, 3, "partial", false), `{"selected":["A","B"]}`, 1}, // 1/3*3 = 1
-		// Menjodohkan
-		{"matching aon benar", q("matching", `{"pairs":{"L1":"R1","L2":"R2"}}`, 4, "all_or_nothing", true), `{"pairs":{"L1":"R1","L2":"R2"}}`, 4},
-		{"matching aon salah satu", q("matching", `{"pairs":{"L1":"R1","L2":"R2"}}`, 4, "all_or_nothing", true), `{"pairs":{"L1":"R1","L2":"R1"}}`, 0},
-		{"matching parsial 1/2", q("matching", `{"pairs":{"L1":"R1","L2":"R2"}}`, 4, "partial", true), `{"pairs":{"L1":"R1","L2":"R9"}}`, 2},
-		// Isian singkat + normalisasi
-		{"isian sama", q("short_answer", `{"accepted":["15"]}`, 2, "all_or_nothing", true), `{"text":"15"}`, 2},
-		{"isian spasi & kapital", q("short_answer", `{"accepted":["ibu kota jakarta"]}`, 2, "all_or_nothing", true), `{"text":"  Ibu   Kota   JAKARTA "}`, 2},
-		{"isian desimal koma", q("short_answer", `{"accepted":["15,5"]}`, 2, "all_or_nothing", true), `{"text":"15.5"}`, 2},
-		{"isian angka bulat vs desimal", q("short_answer", `{"accepted":["15"]}`, 2, "all_or_nothing", true), `{"text":"15,00"}`, 2},
-		{"isian salah", q("short_answer", `{"accepted":["15"]}`, 2, "all_or_nothing", true), `{"text":"16"}`, 0},
-		{"isian multi variasi", q("short_answer", `{"accepted":["fotosintesis","photosynthesis"]}`, 2, "all_or_nothing", true), `{"text":"Photosynthesis"}`, 2},
-		// Uraian: auto 0 (manual)
-		{"essay auto nol", q("essay", `null`, 10, "all_or_nothing", true), `{"text":"jawaban panjang"}`, 0},
+func TestMCQComplexAllOrNothing(t *testing.T) {
+	q := &Question{ID: "1", Type: "mcq_complex", Points: 3, AnswerKey: mq(t, `{"correct":["A","C"]}`), ScoringMode: "all_or_nothing"}
+	if r := Grade(q, []string{"A", "C"}); !r.Correct || r.Score != 3 {
+		t.Fatalf("benar semua: %+v", r)
 	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			got := Score(c.q, json.RawMessage(c.ans))
-			if got.Score != c.want {
-				t.Fatalf("Score() = %v, want %v", got.Score, c.want)
-			}
-		})
+	if r := Grade(q, []string{"A"}); r.Correct || r.Score != 0 {
+		t.Fatalf("sebagian harus salah (all-or-nothing): %+v", r)
+	}
+	if r := Grade(q, []string{"A", "C", "B"}); r.Correct || r.Score != 0 {
+		t.Fatalf("ada salah harus nol: %+v", r)
 	}
 }
+
+func TestMCQComplexPartial(t *testing.T) {
+	q := &Question{ID: "1", Type: "mcq_complex", Points: 3, AnswerKey: mq(t, `{"correct":["A","C"]}`), ScoringMode: "partial"}
+	// (2 benar - 0 salah) / 2 kunci = 1.0 → 3
+	if r := Grade(q, []string{"A", "C"}); r.Score != 3 {
+		t.Fatalf("dapat penuh: %+v", r)
+	}
+	// (1 - 0) / 2 = 0.5 → 1.5
+	if r := Grade(q, []string{"A"}); r.Score != 1.5 {
+		t.Fatalf("parsial 1.5: %+v", r)
+	}
+	// (1 - 1) / 2 = 0 → 0
+	if r := Grade(q, []string{"A", "B"}); r.Score != 0 {
+		t.Fatalf("parsial minus jadi nol: %+v", r)
+	}
+	// (2 - 1)/2 = 0.5 → 1.5
+	if r := Grade(q, []string{"A", "C", "B"}); r.Score != 1.5 {
+		t.Fatalf("parsial 2 benar 1 salah: %+v", r)
+	}
+}
+
+func TestMatching(t *testing.T) {
+	q := &Question{ID: "1", Type: "matching", Points: 4, ScoringMode: "partial",
+		AnswerKey: mq(t, `{"pairs":[{"left":"Indonesia","right":"Jakarta"},{"left":"Jepang","right":"Tokyo"}]}`)}
+	ans := map[string]any{"Indonesia": "Jakarta", "Jepang": "Tokyo"}
+	if r := Grade(q, ans); !r.Correct || r.Score != 4 {
+		t.Fatalf("semua pasangan benar: %+v", r)
+	}
+	ans2 := map[string]any{"Indonesia": "Jakarta", "Jepang": "Osaka"}
+	if r := Grade(q, ans2); r.Correct || r.Score != 2 { // 1/2 pasangan
+		t.Fatalf("parsial 2.0: %+v", r)
+	}
+	ans3 := map[string]any{"pairs": []map[string]string{{"left": "Indonesia", "right": "Jakarta"}, {"left": "Jepang", "right": "Tokyo"}}}
+	if r := Grade(q, ans3); !r.Correct || r.Score != 4 {
+		t.Fatalf("bentuk pairs: %+v", r)
+	}
+	// all_or_nothing
+	q.ScoringMode = "all_or_nothing"
+	if r := Grade(q, ans2); r.Correct || r.Score != 0 {
+		t.Fatalf("all_or_nothing: %+v", r)
+	}
+}
+
+func TestShortAnswer(t *testing.T) {
+	q := &Question{ID: "1", Type: "short_answer", Points: 2,
+		AnswerKey: mq(t, `{"answers":["15","lima belas"]}`)}
+	for _, a := range []any{"15", " 15 ", "15,0", "15.0", "15 cm", "  LIMA  BELAS "} {
+		if r := Grade(q, a); !r.Correct || r.Score != 2 {
+			t.Fatalf("harus terima %v: %+v", a, r)
+		}
+	}
+	for _, a := range []any{"16", "dua puluh", ""} {
+		if r := Grade(q, a); r.Correct {
+			t.Fatalf("harus salah: %v", a)
+		}
+	}
+}
+
+func TestEssayPending(t *testing.T) {
+	q := &Question{ID: "1", Type: "essay", Points: 10, AnswerKey: mq(t, `{"rubric":"..."}`)}
+	r := Grade(q, "apapun")
+	if r.Status != StatusPendingManual || r.Score != 0 {
+		t.Fatalf("uraian menunggu penilaian: %+v", r)
+	}
+}
+
+// ---- Uji formula nilai akhir (FR-8.2) ----
 
 func TestFinalScore(t *testing.T) {
-	// FR-8.2: nilai = (raw/max)×100 − penalti, clamp [0,100], 2 desimal
-	if got := FinalScore(17, 21, 0, 2); got != 80.95 {
-		t.Fatalf("final = %v, want 80.95", got)
+	cases := []struct {
+		obtained, max float64
+		want          float64
+	}{
+		{17.5, 20, 87.5},
+		{0, 10, 0},
+		{30, 30, 100},
 	}
-	if got := FinalScore(10, 21, 5, 2); got != 42.62 {
-		t.Fatalf("final dengan penalti = %v, want 42.62", got)
+	for _, c := range cases {
+		got := FinalScore(c.obtained, c.max, 0)
+		if got != c.want {
+			t.Fatalf("FinalScore(%v,%v) = %v, want %v", c.obtained, c.max, got, c.want)
+		}
 	}
-	if got := FinalScore(1, 21, 30, 2); got != 0 {
-		t.Fatalf("clamp bawah = %v, want 0", got)
-	}
-	if got := FinalScore(21, 21, 0, 0); got != 100 {
-		t.Fatalf("penuh = %v, want 100", got)
-	}
-}
-
-func TestPenalty(t *testing.T) {
-	// FR-5.8A: 5 poin per pelanggaran, maks 30 (skala 100)
-	if got := Penalty(1, "points", 5, 30); got != 5 {
-		t.Fatalf("penalty 1 = %v", got)
-	}
-	if got := Penalty(10, "points", 5, 30); got != 30 {
-		t.Fatalf("penalty dibatasi max = %v, want 30", got)
-	}
-	if got := Penalty(3, "percent", 10, 30); got != 30 {
-		t.Fatalf("penalty persen = %v", got)
-	}
-	if got := Penalty(3, "none", 10, 30); got != 0 {
-		t.Fatalf("mode none = %v", got)
-	}
-}
-
-func TestNormalizeShortAnswer(t *testing.T) {
-	if got := NormalizeShortAnswer("  Budi   Santoso "); got != "budi santoso" {
-		t.Fatalf("normalize = %q", got)
+	// penalti tidak membuat nilai negatif
+	if got := FinalScore(2, 10, 30); got != 0 {
+		t.Fatalf("penalti max nolkan nilai: %v", got)
 	}
 }
