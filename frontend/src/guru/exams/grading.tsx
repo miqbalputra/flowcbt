@@ -10,6 +10,7 @@ import { renderSimpleHtml } from '@/lib/sanitize'
 import { toast } from '@/components/toast'
 import { Modal } from '@/components/modal'
 import { asList, asDict, errMessage, fmtDateTime } from '../types'
+import { IconCheck } from '@/components/icons'
 
 export default function GradingPage() {
   const { id = '' } = useParams() // exam id
@@ -72,7 +73,7 @@ export default function GradingPage() {
           { score: val, reason: reason || 'koreksi uraian' }, 'PUT')
       }
       await send(`/exams/${id}/regrade`, {})
-      toast('Nilai tersimpan & attempt dinilai ulang ✔', 'success')
+      toast('Nilai tersimpan & attempt dinilai ulang', 'success')
       setOpen(null)
       setReason('')
       void qc.invalidateQueries({ queryKey: ['exams', id, 'attempts'] })
@@ -90,7 +91,7 @@ export default function GradingPage() {
       <PageHeader title="Koreksi Uraian" desc={String(exam?.name ?? 'Ujian')} />
       {err && <ErrorBox error={err} onRetry={() => void load()} />}
       {needs.length === 0 ? (
-        <EmptyState icon="✅" title="Tidak ada uraian menunggu penilaian">
+        <EmptyState icon={<IconCheck size={18} className="text-success" />} title="Tidak ada uraian menunggu penilaian">
           Semua nilai sudah final untuk ujian ini.
         </EmptyState>
       ) : (

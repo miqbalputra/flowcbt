@@ -7,6 +7,7 @@ import { downloadFile } from '../files'
 import { toast } from '@/components/toast'
 import { EmptyState, ErrorBox, PageHeader, SkeletonRows, BarRow, SortHeader, StatusBadge, TableToolbar, sortRowsBy, type SortDir } from '../ui'
 import {  asDict, asList, attemptStatus, qtypeLabel, fmtDate, fmtDuration, unwrap, unwrapList, qRows } from '../types'
+import { IconChart2, IconDownload, IconStudents } from '@/components/icons'
 
 export default function ReportExam() {
   const { id } = useParams()
@@ -72,13 +73,13 @@ export default function ReportExam() {
         action={
           <div className="flex flex-wrap gap-1.5 justify-end">
             <button className="btn-ghost text-sm" disabled={exporting !== ''} onClick={() => void exportRekap('xlsx')}>
-              {exporting === 'xlsx' ? 'Mengunduh…' : '⬇ XLSX'}
+              {exporting === 'xlsx' ? 'Mengunduh…' : <><IconDownload size={14} /> XLSX</>}
             </button>
             <button className="btn-ghost text-sm" disabled={exporting !== ''} onClick={() => void exportRekap('csv')}>
-              {exporting === 'csv' ? 'Mengunduh…' : '⬇ CSV'}
+              {exporting === 'csv' ? 'Mengunduh…' : <><IconDownload size={14} /> CSV</>}
             </button>
             <button className="btn-ghost text-sm" disabled={exporting !== ''} onClick={() => void exportRekap('pdf')}>
-              {exporting === 'pdf' ? 'Mengunduh…' : '⬇ PDF'}
+              {exporting === 'pdf' ? 'Mengunduh…' : <><IconDownload size={14} /> PDF</>}
             </button>
           </div>
         }
@@ -119,7 +120,7 @@ export default function ReportExam() {
           </select>
         </TableToolbar>
         {rows.length === 0 ? (
-          <EmptyState icon="🧑‍🎓" title="Tidak ada peserta pada kelas ini" />
+          <EmptyState icon={<IconStudents />} title="Tidak ada peserta pada kelas ini" />
         ) : (
           <div className="overflow-x-auto lg:overflow-visible">
             <table className="table-base responsive-table">

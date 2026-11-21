@@ -6,6 +6,7 @@ import { api } from '@/lib/api'
 import { useLiveStream } from '@/lib/useLiveStream'
 import { EmptyState, ErrorBox, PageHeader, SkeletonRows } from '../ui'
 import {  asDict, asList, fmtDuration, unwrap } from '../types'
+import { IconChart2 } from '@/components/icons'
 
 export default function ReportsLive() {
   const nav = useNavigate()
@@ -27,7 +28,7 @@ export default function ReportsLive() {
 
   return (
     <div className="space-y-4">
-      <PageHeader title="Laporan Live" desc="Ujian yang sedang berjalan — klik untuk memantau per siswa."
+      <PageHeader title="Laporan Live" desc="Ujian yang sedang berjalan — klik untuk memantau per siswa." icon={<IconChart2 size={18} />}
         action={
           <span className={`badge ${liveStatus === 'live' ? 'bg-success-soft text-success' : 'badge-soft text-muted'}`}>
             {liveStatus === 'live' ? '● Real-time' : liveStatus === 'connecting' ? '● Menyambung…' : '● Polling 30 dtk'}
@@ -39,7 +40,7 @@ export default function ReportsLive() {
       ) : live.isError ? (
         <ErrorBox error={live.error} />
       ) : rows.length === 0 ? (
-        <EmptyState icon="📊" title="Tidak ada ujian berjalan" children="Nanti muncul otomatis saat ujian dibuka." />
+        <EmptyState icon={<IconChart2 />} title="Tidak ada ujian berjalan" children="Nanti muncul otomatis saat ujian dibuka." />
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
           {rows.map((r, i) => {

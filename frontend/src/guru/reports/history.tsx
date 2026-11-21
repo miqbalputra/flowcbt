@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom'
 import { api } from '@/lib/api'
 import { EmptyState, ErrorBox, PageHeader, SkeletonRows, StatusBadge, TableToolbar } from '../ui'
 import { asDict, asList, errMessage, fmtDateTime, qs, unwrap } from '../types'
+import { IconChart2, IconExam } from '@/components/icons'
 
 export default function ReportsHistory() {
   const nav = useNavigate()
@@ -38,7 +39,7 @@ export default function ReportsHistory() {
 
   return (
     <div className="space-y-4">
-      <PageHeader title="Riwayat Ujian" desc="Laporan ujian yang sudah selesai — klik baris untuk statistik lengkap." />
+      <PageHeader title="Riwayat Ujian" desc="Laporan ujian yang sudah selesai — klik baris untuk statistik lengkap." icon={<IconChart2 size={18} />} />
 
       <div className="card grid grid-cols-2 sm:grid-cols-5 gap-2">
         <div className="col-span-2">
@@ -76,7 +77,7 @@ export default function ReportsHistory() {
       ) : list.isError ? (
         <ErrorBox error={list.error} />
       ) : rows.length === 0 ? (
-        <EmptyState icon="🗂" title="Tidak ada ujian pada filter ini" children="Coba longgarkan rentang tanggal atau mapel." />
+        <EmptyState icon={<IconExam />} title="Tidak ada ujian pada filter ini" children="Coba longgarkan rentang tanggal atau mapel." />
       ) : (
         <>
           <TableToolbar count={rows.length} label="ujian" />

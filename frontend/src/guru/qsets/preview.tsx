@@ -1,6 +1,7 @@
 // Pratinjau tampilan siswa untuk satu soal (FR-4.4) — dipakai dari editor paket soal
 import { Modal } from '@/components/modal'
 import {  LETTERS, qtypeLabel, renderSimpleHtml, type QType, asDict } from '../types'
+import { IconCheck } from '@/components/icons'
 import type { Dict } from '../types'
 
 export function QuestionPreview({
@@ -21,7 +22,7 @@ export function QuestionPreview({
   const keys = Array.isArray(q.keys) ? q.keys.map(String) : []
 
   return (
-    <Modal open={open} onClose={onClose} title="👀 Pratinjau tampilan siswa" footer={<button type="button" className="btn-primary" onClick={onClose}>Tutup</button>}>
+    <Modal open={open} onClose={onClose} title="Pratinjau tampilan siswa" footer={<button type="button" className="btn-primary" onClick={onClose}>Tutup</button>}>
       <div className="rounded-lg border border-border p-4 bg-bg space-y-3" style={{ maxWidth: 380, margin: '0 auto' }}>
         <div className="text-xs text-muted">{title} · soal {qtypeLabel(type)}</div>
 
@@ -43,7 +44,7 @@ export function QuestionPreview({
                 <div key={i} className={`flex items-center gap-2 rounded-lg border p-2.5 text-sm min-h-[44px] ${isKey ? 'border-success text-success' : 'border-border'}`}>
                   <span className="font-bold shrink-0">{label}.</span>
                   <span className="min-w-0" dangerouslySetInnerHTML={{ __html: renderSimpleHtml(String(o.text ?? '')) }} />
-                  {isKey && <span className="ml-auto shrink-0">✓</span>}
+                  {isKey && <IconCheck size={14} className="ml-auto shrink-0 text-success" />} 
                 </div>
               )
             })}

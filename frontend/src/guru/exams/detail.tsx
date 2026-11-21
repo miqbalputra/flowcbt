@@ -9,6 +9,7 @@ import { toast } from '@/components/toast'
 import { ConfirmDialog, Modal } from '@/components/modal'
 import { EmptyState, ErrorBox, PageHeader, SkeletonRows, StatusBadge } from '../ui'
 import {  asDict, asList, attemptStatus, copyText, errMessage, fmtDateTime, fmtDuration, unwrap, unwrapList } from '../types'
+import { IconKey, IconStudents } from '@/components/icons'
 
 /** ISO → nilai input datetime-local (zona lokal WIB area guru) */
 function toLocalInput(iso: string): string {
@@ -81,7 +82,7 @@ export default function ExamDetail() {
     try {
       const res = unwrap(await api(`/exams/${id}/token/regenerate`, { method: 'POST' }))
       const token = String(asDict(res).token ?? '')
-      await copyText(token, 'Token baru disalin 📋')
+      await copyText(token, 'Token baru disalin')
       toast(`Token baru: ${token}`, 'success')
       refresh()
     } catch (err) {
@@ -112,7 +113,7 @@ export default function ExamDetail() {
     setBusy(true)
     try {
       await api(`/exams/${id}/participants/${resetting.student_id}/reset-attempt`, { method: 'PUT' })
-      toast(`Percobaan ${String(resetting.student_name ?? '')} direset 🔁`, 'success')
+      toast(`Percobaan ${String(resetting.student_name ?? '')} direset`, 'success')
       setResetting(null)
       refresh()
     } catch (err) {
@@ -127,7 +128,7 @@ export default function ExamDetail() {
     setBusy(true)
     try {
       await api(`/exams/${id}/participants/${forcing.student_id}/force-submit`, { method: 'PUT' })
-      toast(`${String(forcing.student_name ?? '')} dipaksa selesai 🔒`, 'success')
+      toast(`${String(forcing.student_name ?? '')} dipaksa selesai`, 'success')
       setForcing(null)
       refresh()
     } catch (err) {
@@ -182,8 +183,8 @@ export default function ExamDetail() {
           {e.close_at && <span className="text-muted">— tutup {fmtDateTime(e.close_at)}</span>}
           {typeof e.token === 'string' && e.token && (
             <button type="button" className="btn-ghost btn-sm font-mono"
-              onClick={() => void copyText(e.token, 'Token disalin 📋')} title="Salin token">
-              {e.token}
+              onClick={() => void copyText(e.token, 'Token disalin')} title="Salin token">
+              <IconKey size={12} /> {e.token}
             </button>
           )}
         </div>
@@ -227,7 +228,7 @@ export default function ExamDetail() {
         ) : attempts.isError ? (
           <ErrorBox error={attempts.error} />
         ) : rows.length === 0 ? (
-          <EmptyState icon="🧑‍🎓" title="Belum ada yang mengerjakan" />
+          <EmptyState icon={<IconStudents />} title="Belum ada yang mengerjakan" />
         ) : (
           <div className="overflow-x-auto lg:overflow-visible">
           <table className="table-base responsive-table">

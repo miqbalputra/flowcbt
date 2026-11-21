@@ -9,6 +9,7 @@ import { toast } from '@/components/toast'
 import { ConfirmDialog, Modal } from '@/components/modal'
 import { Donut, ErrorBox, PageHeader, SkeletonRows } from '../ui'
 import { asDict, asList, attemptStatus, copyText, errMessage, fmtDateTime, unwrap } from '../types'
+import { IconChart2, IconLeft, IconWifi, IconWifiOff } from '@/components/icons'
 
 export default function ReportLiveExam() {
   const { examId } = useParams()
@@ -82,7 +83,7 @@ export default function ReportLiveExam() {
     setBusy(true)
     try {
       await api(`/exams/${exam.id}/participants/${resetting.student_id}/reset-attempt`, { method: 'PUT' })
-      toast(`Percobaan ${String(resetting.name ?? '')} direset — siswa bisa mengerjakan ulang 🔁`, 'success')
+      toast(`Percobaan ${String(resetting.name ?? '')} direset — siswa bisa mengerjakan ulang`, 'success')
       setResetting(null)
       refresh()
     } catch (err) {
@@ -97,7 +98,7 @@ export default function ReportLiveExam() {
     setBusy(true)
     try {
       await api(`/exams/${exam.id}/participants/${forcing.student_id}/force-submit`, { method: 'PUT' })
-      toast(`${String(forcing.name ?? '')} dipaksa selesai 🔒`, 'success')
+      toast(`${String(forcing.name ?? '')} dipaksa selesai`, 'success')
       setForcing(null)
       refresh()
     } catch (err) {
@@ -115,7 +116,7 @@ export default function ReportLiveExam() {
   if (live.isError) {
     return (
       <div className="space-y-4">
-        <PageHeader title="Pantauan Live" action={<Link className="btn-ghost text-sm" to="/reports/live">← Semua live</Link>} />
+        <PageHeader title="Pantauan Live" icon={<IconChart2 size={18} />} action={<Link className="btn-ghost text-sm" to="/reports/live"><IconLeft size={14} /> Semua live</Link>} />
         <ErrorBox error={live.error} />
       </div>
     )
@@ -126,7 +127,7 @@ export default function ReportLiveExam() {
       <PageHeader
         title={String(exam.name ?? 'Pantauan Live')}
         desc={String(exam.subject_name ?? '')}
-        action={<Link className="btn-ghost text-sm" to="/reports/live">← Semua live</Link>}
+        action={<Link className="btn-ghost text-sm" to="/reports/live"><IconLeft size={14} /> Semua live</Link>} icon={<IconChart2 size={18} />}
       />
 
       {/* ringkasan: donut div (FR-9.2) */}
@@ -199,7 +200,7 @@ export default function ReportLiveExam() {
                 <td data-th="Status"><span className={`badge ${st.cls}`}>{st.label}</span></td>
                 <td data-th="Koneksi">
                   <span className={`inline-flex items-center gap-1.5 text-xs ${online ? 'text-success' : 'text-danger'}`}>
-                    <span className={`w-2 h-2 rounded-full inline-block ${online ? 'bg-success' : 'bg-danger'}`} />
+                    {online ? <IconWifi size={14} /> : <IconWifiOff size={14} />}
                     {online ? 'Online' : 'Offline'}
                   </span>
                 </td>

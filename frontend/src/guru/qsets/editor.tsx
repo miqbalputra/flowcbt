@@ -11,9 +11,10 @@ import { ConfirmDialog, Modal } from '@/components/modal'
 import { EmptyState, ErrorBox, PageHeader, SkeletonRows, StatusBadge } from '../ui'
 import { QuestionPreview } from './preview'
 import {
-  LETTERS, SCHOOL_LEVELS, QTYPES, asDict, asList, errMessage, qtypeIcon, qtypeLabel,
+  LETTERS, SCHOOL_LEVELS, QTYPES, asDict, asList, errMessage, qtypeIco, qtypeLabel,
   renderSimpleHtml, unwrap, type Dict, type QType,
 } from '../types'
+import { IconCopy, IconEye, IconPlus, IconTrash, IconX } from '@/components/icons'
 
 let uid = 0
 function newQuestion(type: QType): Dict {
@@ -112,7 +113,7 @@ export default function QsetEditor() {
     if (!stimOpen || isNew) return
     try {
       await send(`/question-sets/${id}/stimuli`, { title: stimOpen.title, content: stimOpen.content }, 'POST')
-      toast('Wacana ditambahkan 📖', 'success')
+      toast('Wacana ditambahkan', 'success')
       setStimOpen(null)
       void qc.invalidateQueries({ queryKey: ['question-set', id] })
       if (detail.data) {
@@ -218,7 +219,7 @@ export default function QsetEditor() {
       return setId
     },
     onSuccess: (setId, vars) => {
-      toast(vars?.publish ? 'Paket soal dipublish! 🎉' : 'Draft tersimpan ✅', 'success')
+      toast(vars?.publish ? 'Paket soal dipublish' : 'Draft tersimpan', 'success')
       void qc.invalidateQueries({ queryKey: ['question-sets'] })
       void qc.invalidateQueries({ queryKey: ['question-set', setId] })
       if (isNew) nav(`/question-sets/${setId}/edit`, { replace: true })
@@ -324,7 +325,7 @@ export default function QsetEditor() {
           <h3 className="font-semibold">Wacana / stimulus</h3>
           {isNew
             ? <span className="text-xs text-muted">Simpan draft dulu untuk menambah wacana</span>
-            : <button type="button" className="btn-ghost text-sm" onClick={() => setStimOpen({ title: '', content: '' })}>＋ Wacana</button>}
+            : <button type="button" className="btn-ghost text-sm" onClick={() => setStimOpen({ title: '', content: '' })}><IconPlus size={14} /> Wacana</button>}
         </div>
         {stimuli.length === 0
           ? <p className="text-sm text-muted">Belum ada wacana dibagikan — soal boleh berdiri sendiri.</p>
@@ -348,25 +349,26 @@ export default function QsetEditor() {
       <div className="space-y-3">
         <div className="flex items-center justify-between gap-2">
           <h3 className="font-semibold">Soal ({questions.length})</h3>
-          <button type="button" className="btn-primary text-sm" onClick={() => setAddOpen(true)}>＋ Tambah Soal</button>
+          <button type="button" className="btn-primary text-sm" onClick={() => setAddOpen(true)}><IconPlus size={14} /> Tambah Soal</button>
         </div>
 
         {questions.map((question, qi) => {
           const type = String(question.type) as QType
+          const TypeIco = qtypeIco(type)
           const options = asList(question.options)
           const stimulus = question.stimuli_id ? stimulusHtmlFor(question.stimuli_id) : ''
           return (
             <div key={String(question._uid ?? qi)} className="card space-y-3">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="badge bg-primary-soft text-primary font-mono">#{qi + 1}</span>
-                <span className="badge badge-soft">{qtypeIcon(type)} {qtypeLabel(type)}</span>
+                <span className="badge badge-soft"><TypeIco size={12} /> {qtypeLabel(type)}</span>
                 <div className="ml-auto flex gap-1.5">
                   <button type="button" aria-label="Naikkan soal" className="btn-ghost !min-w-11 w-9 h-11 !p-0 disabled:opacity-40"
                     disabled={qi === 0} onClick={() => move(qi, -1)}>↑</button>
                   <button type="button" aria-label="Turunkan soal" className="btn-ghost !min-w-11 w-9 h-11 !p-0 disabled:opacity-40"
                     disabled={qi === questions.length - 1} onClick={() => move(qi, 1)}>↓</button>
-                  <button type="button" aria-label="Duplikat soal" className="btn-ghost w-11 h-11 !p-0" onClick={() => dupQuestion(qi)}>📄</button>
-                  <button type="button" aria-label="Hapus soal" className="btn-danger w-11 h-11 !p-0" onClick={() => setDeleting(question)}>🗑</button>
+                  <button type="button" aria-label="Duplikat soal" className="btn-ghost w-11 h-11 !p-0" onClick={() => dupQuestion(qi)}><IconCopy size={16} /></button>
+                  <button type="button" aria-label="Hapus soal" className="btn-danger w-11 h-11 !p-0" onClick={() => setDeleting(question)}><IconTrash size={16} /></button>
                 </div>
               </div>
 
@@ -381,7 +383,7 @@ export default function QsetEditor() {
                 {Boolean(question.body) && (
                   <button type="button" className="btn-ghost text-xs mt-1.5"
                     onClick={() => setPreview({ q: question, stimulusHtml: stimulus })}>
-                    👀 Pratinjau tampilan siswa
+                    <IconEye size={14} /> Pratinjau tampilan siswa
                   </button>
                 )}
               </div>
@@ -394,7 +396,7 @@ export default function QsetEditor() {
                     <button type="button" className="btn-ghost btn-sm"
                       disabled={options.length >= 5}
                       onClick={() => patchQuestion(qi, { options: [...options, { label: LETTERS[options.length] ?? '?', text: '' }] })}>
-                      ＋ opsi
+                      <IconPlus size={12} /> opsi
                     </button>
                   </div>
                   {options.map((o, oi) => (
@@ -408,7 +410,7 @@ export default function QsetEditor() {
                         onClick={() => {
                           const rest = options.filter((_, k) => k !== oi)
                           patchQuestion(qi, { options: rest.map((x, k) => ({ ...x, label: LETTERS[k] ?? x.label })), key: question.key === o.label ? '' : question.key })
-                        }}>✕</button>
+                        }}><IconX size={14} /></button>
                     </div>
                   ))}
                   <label className="flex items-center gap-2 text-sm min-h-[44px]">
@@ -456,7 +458,7 @@ export default function QsetEditor() {
                   <div className="flex items-center justify-between">
                     <span className="label !mb-0">Pasangan kiri ↔ kanan</span>
                     <button type="button" className="btn-ghost btn-sm"
-                      onClick={() => patchQuestion(qi, { pairs: [...asList(question.pairs), { left: '', right: '' }] })}>＋ pasangan</button>
+                      onClick={() => patchQuestion(qi, { pairs: [...asList(question.pairs), { left: '', right: '' }] })}><IconPlus size={12} /> pasangan</button>
                   </div>
                   {asList(question.pairs).map((p, pi) => (
                     <div key={pi} className="grid grid-cols-[1fr_1fr_auto] gap-2 items-center">
@@ -465,7 +467,7 @@ export default function QsetEditor() {
                       <input className="input !min-h-0" aria-label="Kanan" placeholder="kolom kanan" value={String(p.right ?? '')}
                         onChange={e => patchQuestion(qi, { pairs: asList(question.pairs).map((x, k) => (k === pi ? { ...x, right: e.target.value } : x)) })} />
                       <button type="button" aria-label="Hapus pasangan" className="btn-ghost w-9 h-11 !p-0"
-                        onClick={() => patchQuestion(qi, { pairs: asList(question.pairs).filter((_, k) => k !== pi) })}>✕</button>
+                        onClick={() => patchQuestion(qi, { pairs: asList(question.pairs).filter((_, k) => k !== pi) })}><IconX size={14} /></button>
                     </div>
                   ))}
                   <div>
@@ -484,7 +486,7 @@ export default function QsetEditor() {
                   <div className="flex items-center justify-between">
                     <span className="label !mb-0">Daftar kunci (case-insensitive)</span>
                     <button type="button" className="btn-ghost btn-sm"
-                      onClick={() => patchQuestion(qi, { keys: [...asList(question.keys).map(String), ''] })}>＋ kunci</button>
+                      onClick={() => patchQuestion(qi, { keys: [...asList(question.keys).map(String), ''] })}><IconPlus size={12} /> kunci</button>
                   </div>
                   {asList(question.keys).map((k, ki) => (
                     <div key={ki} className="flex gap-2">
@@ -492,7 +494,7 @@ export default function QsetEditor() {
                         onChange={e => patchQuestion(qi, { keys: asList(question.keys).map((x, j) => (j === ki ? e.target.value : x)) })} />
                       <button type="button" aria-label="Hapus kunci" className="btn-ghost w-9 h-11 !p-0"
                         disabled={asList(question.keys).length <= 1}
-                        onClick={() => patchQuestion(qi, { keys: asList(question.keys).filter((_, j) => j !== ki) })}>✕</button>
+                        onClick={() => patchQuestion(qi, { keys: asList(question.keys).filter((_, j) => j !== ki) })}><IconX size={14} /></button>
                     </div>
                   ))}
                 </div>
@@ -526,7 +528,7 @@ export default function QsetEditor() {
         })}
 
         {questions.length === 0 && (
-          <EmptyState icon="❓" title="Belum ada soal" children="Klik ＋ Tambah Soal — pilih salah satu dari 5 tipe soal AKM." />
+          <EmptyState icon={<IconEye />} title="Belum ada soal">{'Klik "Tambah Soal" — pilih salah satu dari 5 tipe soal AKM.'}</EmptyState>
         )}
       </div>
 
@@ -557,7 +559,7 @@ export default function QsetEditor() {
           {QTYPES.map(t => (
             <button key={t.value} type="button" className="btn-ghost justify-start"
               onClick={() => { setAddOpen(false); setQuestions(qs => [...qs, newQuestion(t.value)]) }}>
-              <span aria-hidden>{t.icon}</span> {t.label}
+              <t.ico size={16} /> {t.label}
             </button>
           ))}
         </div>

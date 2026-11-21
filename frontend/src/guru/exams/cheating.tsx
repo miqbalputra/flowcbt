@@ -10,6 +10,7 @@ import { toast } from '@/components/toast'
 import { Modal } from '@/components/modal'
 import { EmptyState, ErrorBox, PageHeader, SkeletonRows } from '../ui'
 import { asDict, asList, errMessage, fmtDateTime, unwrap } from '../types'
+import { IconShield } from '@/components/icons'
 
 const DECISIONS = [
   { value: 'valid', label: 'Valid — pertahankan penalti', reasonRequired: false },
@@ -51,7 +52,7 @@ export default function ExamCheating() {
     setBusy(true)
     try {
       await send(`/attempts/${deciding.attempt_id}/cheating-decision`, { decision, reason: reason.trim() }, 'PUT')
-      toast('Keputusan tersimpan — masuk audit log 🗂', 'success')
+      toast('Keputusan tersimpan — masuk audit log', 'success')
       setDeciding(null)
       setReason('')
       refresh()
@@ -85,7 +86,7 @@ export default function ExamCheating() {
       ) : report.isError ? (
         <ErrorBox error={report.error} />
       ) : rows.length === 0 ? (
-        <EmptyState icon="🛡" title="Tidak ada laporan kecurangan" children="Belum ada siswa yang ditandai pada ujian ini." />
+        <EmptyState icon={<IconShield />} title="Tidak ada laporan kecurangan" children="Belum ada siswa yang ditandai pada ujian ini." />
       ) : (
         <div className="overflow-x-auto lg:overflow-visible">
         <table className="table-base responsive-table">

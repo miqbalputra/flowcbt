@@ -8,6 +8,7 @@ import { toast } from '@/components/toast'
 import { Modal } from '@/components/modal'
 import { ErrorBox, PageHeader, SkeletonRows } from '../ui'
 import {  asDict, asList, copyText, errMessage, fmtDateTime, qs, unwrap, unwrapList, qRows } from '../types'
+import { IconCheck, IconCopy } from '@/components/icons'
 
 type ExamForm = {
   name: string
@@ -154,14 +155,14 @@ export default function ExamWizard() {
       const examId = String(asDict(created).id ?? '')
       await send(`/exams/${examId}/assignments`, ({ class_ids: form.class_ids, student_ids: form.student_ids }), 'PUT')
       if (!publish) {
-        toast('Ujian disimpan sebagai draft ✅', 'success')
+        toast('Ujian disimpan sebagai draft', 'success')
         nav(`/exams/${examId}`)
         return
       }
       const pub = unwrap(await api(`/exams/${examId}/publish`, { method: 'POST' }))
       const pd = asDict(pub)
       setDone({ token: String(pd.token ?? '—'), code: String(pd.exam_code ?? '—') })
-      toast('Ujian dipublish 🚀', 'success')
+      toast('Ujian dipublish', 'success')
     } catch (err) {
       toast(errMessage(err), 'error')
     } finally {
@@ -171,11 +172,11 @@ export default function ExamWizard() {
 
   const waMessage = done
     ? [
-        `Halo! Ujian *${form.name}* sudah dibuka ya 📝`,
+        `Halo! Ujian *${form.name}* sudah dibuka ya,`,
         `Kode ujian: *${done.code}*`,
         `Token: *${done.token}*`,
         `Dibuka: ${fmtDateTime(form.open_at)} — ditutup: ${fmtDateTime(form.close_at)} (WIB)`,
-        'Mau pakai FlowCBT. Semangat mengerjakan! 💪',
+        'Mau pakai FlowCBT. Semangat mengerjakan!',
       ].join('\n')
     : ''
 
@@ -355,19 +356,19 @@ export default function ExamWizard() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <label className="flex items-center gap-2 text-sm min-h-[44px]">
               <input type="checkbox" checked={form.shuffle_questions} onChange={e => set('shuffle_questions', e.target.checked)} />
-              🎲 Acak urutan soal
+              Acak urutan soal
             </label>
             <label className="flex items-center gap-2 text-sm min-h-[44px]">
               <input type="checkbox" checked={form.shuffle_options} onChange={e => set('shuffle_options', e.target.checked)} />
-              🎲 Acak urutan pilihan
+              Acak urutan pilihan
             </label>
             <label className="flex items-center gap-2 text-sm min-h-[44px]">
               <input type="checkbox" checked={form.free_navigation} onChange={e => set('free_navigation', e.target.checked)} />
-              ↔️ Navigasi bebas (bisa mundur)
+              Navigasi bebas (bisa mundur)
             </label>
             <label className="flex items-center gap-2 text-sm min-h-[44px]">
               <input type="checkbox" checked={form.require_all_answered} onChange={e => set('require_all_answered', e.target.checked)} />
-              ✅ Wajib semua soal dijawab
+              Wajib semua soal dijawab
             </label>
           </div>
           <div>
@@ -412,7 +413,7 @@ export default function ExamWizard() {
                 </label>
                 <label className="flex items-center gap-2 text-sm min-h-[44px]">
                   <input type="checkbox" checked={form.anti_cheat_camera} onChange={e => set('anti_cheat_camera', e.target.checked)} />
-                  📷 Kamera (default off)
+                  Kamera (default off)
                 </label>
               </div>
             </>
@@ -447,7 +448,7 @@ export default function ExamWizard() {
       {/* sukses publish → token & kode ujian */}
       {done && (
         <div className="card space-y-3 border-success">
-          <h3 className="font-semibold text-lg">🎉 Ujian dipublish!</h3>
+          <h3 className="font-semibold text-lg flex items-center gap-2"><IconCheck size={18} className="text-success" /> Ujian dipublish!</h3>
           <div className="rounded-lg border border-border p-3 space-y-2">
             <div className="flex items-center gap-2">
               <span className="text-sm text-muted w-20 shrink-0">Kode ujian</span>
@@ -459,8 +460,8 @@ export default function ExamWizard() {
             </div>
           </div>
           <div className="flex flex-col sm:flex-row gap-2">
-            <button type="button" className="btn-ghost flex-1" onClick={() => void copyText(waMessage, 'Pesan WhatsApp disalin 📋')}>
-              📋 Salin pesan WA
+            <button type="button" className="btn-ghost flex-1" onClick={() => void copyText(waMessage, 'Pesan WhatsApp disalin')}>
+              <IconCopy size={14} /> Salin pesan WA
             </button>
             <button type="button" className="btn-primary flex-1" onClick={() => nav('/exams')}>
               Ke daftar ujian

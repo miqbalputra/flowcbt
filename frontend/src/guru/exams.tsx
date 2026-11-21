@@ -6,6 +6,7 @@ import { api } from '@/lib/api'
 import { toast } from '@/components/toast'
 import { ConfirmDialog } from '@/components/modal'
 import { EmptyState, ErrorBox, PageHeader, SkeletonRows, SortHeader, StatusBadge, TableToolbar, sortRowsBy, type SortDir } from './ui'
+import { IconExam, IconPlus } from '@/components/icons'
 import {  asDict, copyText, errMessage, fmtDateTime, fmtRp, unwrap, unwrapList, qRows } from './types'
 
 export default function Exams() {
@@ -38,7 +39,7 @@ export default function Exams() {
       const res = unwrap(await api(`/exams/${publishing.id}/publish`, { method: 'POST' }))
       const d = asDict(res)
       const token = String(d.token ?? '')
-      if (token) await copyText(token, 'Token ujian disalin 📋')
+      if (token) await copyText(token, 'Token ujian disalin')
       toast(`Ujian dipublish! Kode ujian: ${String(d.exam_code || '—')}`, 'success')
       setPublishing(null)
       refresh()
@@ -63,7 +64,7 @@ export default function Exams() {
   }
 
   function copyToken(t: string) {
-    void copyText(t, 'Token disalin 📋')
+    void copyText(t, 'Token disalin')
   }
 
   return (
@@ -71,7 +72,8 @@ export default function Exams() {
       <PageHeader
         title="Ujian"
         desc="Jadwalkan paket soal menjadi sesi ujian."
-        action={<button type="button" className="btn-primary" onClick={() => nav('/exams/new')}>＋ Ujian Baru</button>}
+        icon={<IconExam size={18} />}
+        action={<button type="button" className="btn-primary" onClick={() => nav('/exams/new')}><IconPlus size={16} /> Ujian Baru</button>}
       />
 
       <TableToolbar count={rows.length} label="ujian" />
@@ -81,7 +83,7 @@ export default function Exams() {
       ) : list.isError ? (
         <ErrorBox error={list.error} />
       ) : rows.length === 0 ? (
-        <EmptyState icon="📝" title="Belum ada ujian" children="Klik ＋ Ujian Baru untuk menjadwalkan paket soal." />
+        <EmptyState icon={<IconExam />} title="Belum ada ujian">{'Klik tombol "Ujian Baru" untuk menjadwalkan paket soal.'}</EmptyState>
       ) : (
         <div className="overflow-x-auto lg:overflow-visible">
           <table className="table-base responsive-table">
