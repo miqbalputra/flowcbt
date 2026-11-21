@@ -35,3 +35,7 @@ __pycache__/
 # snapshot lokal (bukan bagian proyek)
 .snapshot-chunk-*.json
 .snapshot-push*-part*.json
+
+# Ikon PNG digenerate via scripts/make-icons.sh (binary tidak disimpan di git)
+frontend/public/pwa-*.png
+backend/public/pwa-*.png
