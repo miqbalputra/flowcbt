@@ -1,6 +1,7 @@
 package students
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -216,5 +217,50 @@ func TestCSVBytes(t *testing.T) {
 func TestLowerKey(t *testing.T) {
 	if lowerKey("  X IPA 1 ") != "x ipa 1" {
 		t.Fatal("lowerKey")
+	}
+}
+
+// Regresi: detail siswa dulu menambahkan ` AND s.id=$1` pada studentDetailSelect
+// yang berakhir dengan klausa JOIN ... ON, sehingga filter menempel ke ON dan
+// tidak menyaring apa pun (detail selalu mengembalikan siswa pertama di tenant).
+func TestStudentDetailByIDFiltersInWhere(t *testing.T) {
+	if strings.Contains(strings.ToUpper(studentDetailSelect), "WHERE") {
+		t.Fatalf("studentDetailSelect tidak boleh memuat WHERE: %q", studentDetailSelect)
+	}
+	if !strings.Contains(studentDetailSelect, "JOIN classes c ON c.id = s.class_id") {
+		t.Fatalf("bentuk studentDetailSelect berubah, periksa klausa JOIN: %q", studentDetailSelect)
+	}
+	if !strings.HasSuffix(studentDetailByID, " WHERE s.id=$1") {
+		t.Fatalf("studentDetailByID harus memfilter dengan WHERE s.id=$1: %q", studentDetailByID)
+	}
+	if strings.Contains(studentDetailByID, "class_id AND s.id") {
+		t.Fatalf("filter detail menempel pada klausa ON: %q", studentDetailByID)
+	}
+}
+
+// Regresi: jumlah kolom studentDetailSelect harus sama dengan tujuan Scan di
+// scanStudentDetail (15). Dulu query kontak memilih 5 kolom untuk 4 tujuan Scan
+// sehingga parent_phone bergeser ke phone dan HP siswa selalu kosong.
+func TestStudentDetailSelectFifteenColumns(t *testing.T) {
+	upper := strings.ToUpper(studentDetailSelect)
+	i := strings.Index(upper, "FROM STUDENTS")
+	if i < 0 {
+		t.Fatalf("studentDetailSelect tak memuat FROM: %q", studentDetailSelect)
+	}
+	cols, depth := 1, 0
+	for _, c := range studentDetailSelect[:i] {
+		switch c {
+		case '(':
+			depth++
+		case ')':
+			depth--
+		case ',':
+			if depth == 0 {
+				cols++
+			}
+		}
+	}
+	if cols != 15 {
+		t.Fatalf("studentDetailSelect memilih %d kolom, mau 15: %q", cols, studentDetailSelect)
 	}
 }

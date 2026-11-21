@@ -18,7 +18,7 @@ import { apiUrl, uploadFile } from './files'
 import { getAccessToken } from '@/lib/api'
 
 const PAGE = 25
-const EMPTY = { full_name: '', gender: 'L', class_id: '', nis: '' }
+const EMPTY = { full_name: '', gender: 'L', class_id: '', nis: '', birth_place: '', birth_date: '', phone: '', parent_phone: '' }
 
 /* ------------------------- import wizard: stepper ------------------------- */
 
@@ -246,17 +246,42 @@ export default function Students() {
   }
 
   // ---------- CRUD ----------
+  /** Buka modal edit dengan data lengkap (list tak memuat data lahir & HP). */
+  async function openEdit(id: string) {
+    try {
+      const d = unwrap(await api(`/students/${id}`))
+      setEditing({
+        id,
+        full_name: String(d.full_name ?? d.name ?? ''),
+        gender: String(d.gender ?? 'L').toUpperCase() === 'P' ? 'P' : 'L',
+        class_id: String(d.class_id ?? ''),
+        nis: String(d.nis ?? ''),
+        birth_place: String(d.birth_place ?? ''),
+        birth_date: String(d.birth_date ?? ''),
+        phone: String(d.phone ?? ''),
+        parent_phone: String(d.parent_phone ?? ''),
+      })
+    } catch (err) {
+      toast(errMessage(err), 'error')
+    }
+  }
+
   async function save(e: FormEvent) {
     e.preventDefault()
     if (!editing) return
     if (!editing.full_name.trim()) { toast('Nama siswa wajib diisi', 'error'); return }
     setBusy(true)
     const body: Record<string, unknown> = {
-      full_name: editing.full_name.trim(),
+      name: editing.full_name.trim(),
       gender: editing.gender,
+      birth_place: editing.birth_place.trim(),
+      phone: editing.phone.trim(),
+      parent_phone: editing.parent_phone.trim(),
     }
     if (editing.class_id) body.class_id = editing.class_id
     if (editing.nis.trim()) body.nis = editing.nis.trim()
+    // tanggal harus YYYY-MM-DD; kosong = hapus
+    if (/^\d{4}-\d{2}-\d{2}$/.test(editing.birth_date)) body.birth_date = editing.birth_date
     try {
       if (editing.id) {
         await send(`/students/${editing.id}`, body, 'PUT')
@@ -490,13 +515,7 @@ export default function Students() {
                           <button
                             type="button"
                             className="btn-ghost btn-sm"
-                            onClick={() => setEditing({
-                              id: String(r.id ?? ''),
-                              full_name: String(r.full_name ?? r.name ?? ''),
-                              gender: String(r.gender ?? 'L').toUpperCase() === 'P' ? 'P' : 'L',
-                              class_id: String(r.class_id ?? ''),
-                              nis: String(r.nis ?? ''),
-                            })}
+                            onClick={() => void openEdit(String(r.id ?? ''))}
                           >
                             Edit
                           </button>
@@ -588,6 +607,54 @@ export default function Students() {
             />
             <p className="hint mt-1">Dipakai saat import massal; boleh dikosongkan.</p>
           </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label className="label" htmlFor="st-birth-place">Tempat lahir</label>
+              <input
+                id="st-birth-place"
+                className="input"
+                value={editing?.birth_place ?? ''}
+                onChange={e => setEditing(f => (f ? { ...f, birth_place: e.target.value } : f))}
+                placeholder="Purbalingga"
+              />
+            </div>
+            <div>
+              <label className="label" htmlFor="st-birth-date">Tanggal lahir</label>
+              <input
+                id="st-birth-date"
+                type="date"
+                className="input"
+                value={editing?.birth_date ?? ''}
+                onChange={e => setEditing(f => (f ? { ...f, birth_date: e.target.value } : f))}
+              />
+            </div>
+          </div>
+          <p className="hint -mt-1">Tempat & tanggal lahir tercetak di kartu ujian (gaya TKA).</p>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label className="label" htmlFor="st-phone">HP siswa (WhatsApp)</label>
+              <input
+                id="st-phone"
+                className="input mono"
+                inputMode="tel"
+                value={editing?.phone ?? ''}
+                onChange={e => setEditing(f => (f ? { ...f, phone: e.target.value } : f))}
+                placeholder="0812xxxxxxx"
+              />
+            </div>
+            <div>
+              <label className="label" htmlFor="st-parent-phone">HP orang tua</label>
+              <input
+                id="st-parent-phone"
+                className="input mono"
+                inputMode="tel"
+                value={editing?.parent_phone ?? ''}
+                onChange={e => setEditing(f => (f ? { ...f, parent_phone: e.target.value } : f))}
+                placeholder="0812xxxxxxx"
+              />
+            </div>
+          </div>
+          <p className="hint -mt-1">Dipakai tombol kirim kartu ujian via WhatsApp (HP siswa didahulukan).</p>
         </form>
       </Modal>
 

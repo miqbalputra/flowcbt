@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"flowcbt/backend/internal/app"
+	"flowcbt/backend/internal/cards"
 	"flowcbt/backend/internal/exams"
 	"flowcbt/backend/internal/httpx"
 	"flowcbt/backend/internal/questionsets"
@@ -29,7 +30,8 @@ func mountModules(a *app.App, r chi.Router) {
 	students.Init(a).Routes(r)     // kelas, siswa, import/export, auth siswa (PRD M3, M1.3)
 	exams.Init(a).Routes(r)        // ujian & pengerjaan (PRD M5–M8)
 	reports.Init(a).Routes(r)
-	registered := []string{"questionsets", "students", "exams", "reports"}
+	cards.Init(a).Routes(r) // kartu ujian (kartu peserta TKA) + identitas sekolah
+	registered := []string{"questionsets", "students", "exams", "reports", "cards"}
 	_ = registered
 }
 

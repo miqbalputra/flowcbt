@@ -20,6 +20,9 @@ type Config struct {
 	SeedSuperAdminEmail string
 	SeedSuperAdminPass  string
 
+	// PublicBaseURL alamat publik aplikasi (tautan di pesan WhatsApp/QR); opsional.
+	PublicBaseURL string
+
 	UploadDir string
 	// Penyimpanan media per tenant default 1 GB (konfigurasi PRD 3.2)
 	StorageMediaPerTenantBytes int64
@@ -51,6 +54,7 @@ func Load() *Config {
 		RefreshTokenTTL:            refreshTTL,
 		SeedSuperAdminEmail:        env("SEED_SUPERADMIN_EMAIL", "superadmin@flowcbt.id"),
 		SeedSuperAdminPass:         env("SEED_SUPERADMIN_PASS", "Admin#12345"),
+		PublicBaseURL:              env("PUBLIC_BASE_URL", ""),
 		UploadDir:                  env("UPLOAD_DIR", "./data/uploads"),
 		StorageMediaPerTenantBytes: 1 << 30, // 1 GB default
 	}

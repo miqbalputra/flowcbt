@@ -74,6 +74,8 @@ export const IconTrash = (p: IconProps) => (<I {...p}><path d="M3 6h18" /><path 
 export const IconEdit = (p: IconProps) => (<I {...p}><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" /></I>)
 export const IconCopy = (p: IconProps) => (<I {...p}><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></I>)
 export const IconEraser = (p: IconProps) => (<I {...p}><path d="m7 21-4.3-4.3a1 1 0 0 1 0-1.4l9-9a1 1 0 0 1 1.4 0l6.3 6.3a1 1 0 0 1 0 1.4L13 21H7Z" /><path d="M22 21H7" /><path d="m5 11 8 8" /></I>)
+export const IconPrint = (p: IconProps) => (<I {...p}><path d="M6 9V2h12v7" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect x="6" y="14" width="12" height="8" rx="1" /></I>)
+export const IconPhone = (p: IconProps) => (<I {...p}><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.9.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92Z" /></I>)
 export const IconRefresh = (p: IconProps) => (<I {...p}><path d="M21 12a9 9 0 1 1-2.64-6.36" /><path d="M21 3v6h-6" /></I>)
 export const IconPlay = (p: IconProps) => (<I {...p}><polygon points="6 3 20 12 6 21 6 3" /></I>)
 export const IconFlag = (p: IconProps) => (<I {...p}><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" /><path d="M4 22v-7" /></I>)

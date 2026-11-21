@@ -282,6 +282,78 @@ menulis tag HTML; yang tersimpan hanya HTML dari allowlist.
   dibersihkan lewat SQL (`replace(..., '&amp;nbsp;', '&nbsp;')` di `questions`,
   `stimuli`).
 
+## Tambahan 2026-11-22 (putaran 9 — Kartu Ujian gaya TKA + WhatsApp)
+
+Permintaan: kartu peserta seperti **TKA asli** (template PDF dari Google Drive),
+unduh PDF semua/per siswa, dan kirim otomatis lewat WhatsApp.
+
+### Template & tata letak cetak
+- Template TKA diunduh dari Drive (`1RqVpJBb7ETT1X4sJH4JyWw58fhPux6F4`, 8 hlm)
+  lalu direplikasi dengan `fpdf` (`internal/cards/pdf.go`): **3 peserta per
+  halaman A4**, tiap peserta **2 salinan** (PANITIA kiri, PESERTA kanan).
+- Kepala halaman 3 baris (pemerintah/kementerian → satuan pendidikan), lalu
+  tabel 4 baris: Nomor Peserta, Nama Peserta, Tmp & Tanggal Lahir, Asal Sekolah;
+  bawah: kotak foto 3×4, tanda tangan "Kota, tanggal / Kepala Satuan Pendidikan,
+  / nama / NIP", dan QR.
+- Foto dibaca **hanya** dari media lokal (`/api/v1/media/{tenant}/{file}` →
+  `UploadDir`); tanpa jaringan. Tanpa foto → kotak placeholder "FOTO 3x4".
+
+### Nomor peserta
+- Format TKA: `TA-{yy}-{region_code}-{school_code}-{urut:04d}-{check digit Luhn}`
+  contoh `TA-26-03-10-0028-0001-2`.
+- Disimpan stabil di tabel `exam_cards` (unique `exam_id+student_id` dan
+  `exam_id+number`), ada `POST /exams/{id}/cards/renumber` untuk menata ulang.
+- `region_code`/`school_code` diisi lewat modal **Identitas sekolah**
+  (`GET/PUT /school-profile`), sekaligus untuk kepala kartu (kota, kepala
+  sekolah, NIP).
+
+### PDF & WhatsApp
+- `GET /exams/{id}/cards/pdf` (semua peserta) dan
+  `GET /exams/{id}/cards/{studentID}/pdf` (satu peserta).
+- QR memakai `github.com/skip2/go-qrcode`, payload
+  `FLOWCBT|{examCode}|{number}|{studentCode}`.
+- Teks WhatsApp dibuat backend (nama, nomor peserta, kelas, TTL, ujian, jadwal
+  WIB, durasi, token, tautan PDF) → FE hanya menyusun `https://wa.me/<62…>?text=`.
+  `08xx` dinormalkan ke `628xx`; tautan PDF muncul bila `PUBLIC_BASE_URL` diisi
+  (env baru, default kosong) dan **tetap** butuh login guru untuk mengunduh.
+
+### File
+- Backend baru: `internal/cards/{module,data,handlers,pdf}.go`; migrasi
+  `0006_exam_cards.up.sql` (kolom tenants: address, city, principal_name,
+  principal_nip, region_code, school_code; students: birth_place, birth_date,
+  phone; tabel `exam_cards` + RLS + grant).
+- Frontend baru: `guru/exams/cards.tsx` (statistik, tabel desktop + list mobile,
+  unduh PDF semua/per siswa, tautan WA + salin teks, modal identitas sekolah),
+  route `/exams/:id/cards`, tombol **Kartu Ujian** di detail ujian, ikon
+  `IconPrint`/`IconPhone`.
+- `students.tsx`: field tempat/tanggal lahir, HP siswa, HP orang tua; modal edit
+  memuat detail dulu (list tak memuat data lahir/HP).
+
+### Bug yang ketemu saat uji (diperbaiki)
+- `GET /api/v1/students/{id}` **mengabaikan id**: `studentSelect` berakhir dengan
+  klausa `JOIN ... ON`, lalu detail menambahkan `` ` AND s.id=$1` `` sehingga
+  filter menempel ke ON dan **selalu mengembalikan siswa pertama tenant** (yang
+  muncul: tamu "Tamu Satu"). Kini `studentDetailByID` memakai `WHERE`, dengan
+  `scanStudentDetail` (15 kolom) — sekaligus menghapus query kontak kedua.
+- Query kontak memilih 5 kolom tapi hanya 4 tujuan `Scan` → `parent_phone`
+  bergeser ke `phone`, HP ortu hilang dan HP siswa selalu kosong.
+- `students.tsx` mengirim `full_name` padahal API memakai `name` → simpan edit
+  tidak berubah. Regresi dijaga `TestStudentDetailByIDFiltersInWhere` &
+  `TestStudentDetailSelectFifteenColumns`.
+- Kartu statistik "Jadwal" memotong tanggal di 375 px ("22 Nov 20…") → tanggal
+  ringkas + tahun di baris keterangan.
+- Catatan data uji: dua siswa demo (NIS 2001/2011) sempat berubah nama jadi
+  "Tamu Satu" akibat bug di atas; sudah dikembalikan lewat SQL.
+
+### Verifikasi
+- `go vet ./...`, `go test ./...`, `tsc -b --noEmit`, `npm run build` hijau.
+- PDF: 30 peserta → 10 halaman, 30× "Nomor Peserta"; per siswa → 1 halaman;
+  render PNG dibandingkan dengan template TKA.
+- Playwright (Chromium, data lokal): 30 baris kartu, nomor
+  `TA-26-03-10-0028-0001-2`, href WA benar, unduh semua (`kartu-DEMO01.pdf`) &
+  per siswa (`kartu-TA-26-….pdf`), simpan identitas sekolah 200, form siswa
+  simpan→muat ulang bertahan, 375 px tanpa overflow, 0 error konsol.
+
 ## Remaining backlog (P1/P2, tidak memblokir MVP)
 
 - E2E PWA offline di browser nyata (Playwright), uji beban k6.

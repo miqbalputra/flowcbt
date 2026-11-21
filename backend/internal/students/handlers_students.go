@@ -36,6 +36,9 @@ type studentDetail struct {
 	studentRow
 	Email       string `json:"email"`
 	ParentPhone string `json:"parent_phone"`
+	Phone       string `json:"phone"`
+	BirthPlace  string `json:"birth_place"`
+	BirthDate   string `json:"birth_date"` // YYYY-MM-DD / kosong
 }
 
 const studentSelect = `
@@ -63,19 +66,17 @@ func (m *Module) getStudent(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, httpx.ErrNotFound)
 		return
 	}
-	var s studentRow
-	var email, phone string
+	var s *studentDetail
 	err := m.a.DB.WithTenant(ctx, tenantID, func(tx pgx.Tx) error {
-		if err := tx.QueryRow(ctx, studentSelect+` AND s.id=$1`, id).Scan(
-			&s.ID, &s.StudentCode, &s.NIS, &s.Name, &s.Gender,
-			&s.ClassID, &s.ClassName, &s.Username, &s.Status, &s.IsGuest); err != nil {
-			if err == pgx.ErrNoRows {
-				return httpx.ErrNotFound
-			}
-			return err
+		var err error
+		// studentDetailByID memakai WHERE — jangan menambahkan `AND s.id=$1`
+		// pada studentDetailSelect karena klausa itu akan menempel ke ON milik
+		// JOIN dan tidak menyaring apa pun.
+		s, err = scanStudentDetail(tx.QueryRow(ctx, studentDetailByID, id))
+		if err == pgx.ErrNoRows {
+			return httpx.ErrNotFound
 		}
-		_ = tx.QueryRow(ctx, `SELECT COALESCE(email,''), COALESCE(parent_phone,'') FROM students WHERE id=$1`, id).Scan(&email, &phone)
-		return nil
+		return err
 	})
 	if err != nil {
 		httpx.Error(w, err)
@@ -85,7 +86,8 @@ func (m *Module) getStudent(w http.ResponseWriter, r *http.Request) {
 		"id": s.ID, "student_code": s.StudentCode, "nis": s.NIS, "name": s.Name,
 		"gender": s.Gender, "class_id": s.ClassID, "class_name": s.ClassName,
 		"username": s.Username, "status": s.Status, "is_guest": s.IsGuest,
-		"email": email, "parent_phone": phone,
+		"email": s.Email, "parent_phone": s.ParentPhone, "phone": s.Phone,
+		"birth_place": s.BirthPlace, "birth_date": s.BirthDate,
 	}
 	httpx.OK(w, map[string]any{"data": out})
 }
@@ -168,6 +170,9 @@ type createStudentReq struct {
 	NIS         *string `json:"nis"`
 	Email       *string `json:"email"`
 	ParentPhone *string `json:"parent_phone"`
+	Phone       *string `json:"phone" validate:"omitempty,max=30"`
+	BirthPlace  *string `json:"birth_place" validate:"omitempty,max=80"`
+	BirthDate   *string `json:"birth_date" validate:"omitempty,datetime=2006-01-02"`
 }
 
 // POST /students — cek kuota (billing.Quota), buat kode siswa + username + password awal.
@@ -187,6 +192,7 @@ func (m *Module) createStudent(w http.ResponseWriter, r *http.Request) {
 	}
 	name := strings.TrimSpace(req.Name)
 	nis, email, phone := trimPtr(req.NIS), trimPtr(req.Email), trimPtr(req.ParentPhone)
+	phoneSelf, birthPlace, birthDate := trimPtr(req.Phone), trimPtr(req.BirthPlace), trimPtr(req.BirthDate)
 
 	// Kuota siswa (pool admin via billing) — cek sebelum menulis.
 	q, err := m.billing.Quota(ctx, tenantID)
@@ -212,6 +218,7 @@ func (m *Module) createStudent(w http.ResponseWriter, r *http.Request) {
 	for attempt := 0; attempt < 5; attempt++ {
 		created, tempPwd, err = m.insertStudentTx(ctx, tenantID, actorID, &insertStudentArgs{
 			name: name, gender: gender, classID: classID, nis: nis, email: email, phone: phone,
+			phoneSelf: phoneSelf, birthPlace: birthPlace, birthDate: birthDate,
 		})
 		if err == nil {
 			break
@@ -230,6 +237,7 @@ func (m *Module) createStudent(w http.ResponseWriter, r *http.Request) {
 
 type insertStudentArgs struct {
 	name, gender, classID, nis, email, phone string
+	phoneSelf, birthPlace, birthDate         string
 }
 
 // insertStudentTx: insert siswa + baris awal student_class_history (dalam satu trx tenant).
@@ -267,15 +275,16 @@ func (m *Module) insertStudentTx(ctx context.Context, tenantID, actorID string, 
 		}
 		out = &studentDetail{}
 		err = tx.QueryRow(ctx, `
-			INSERT INTO students(tenant_id, student_code, nis, name, gender, class_id, username, password_hash, email, parent_phone)
-			VALUES ($1,$2,NULLIF($3,''),$4,$5,NULLIF($6,'')::uuid,$7,$8,NULLIF($9,''),NULLIF($10,''))
-			RETURNING id::text, student_code, COALESCE(nis,''), name, gender,
-			  COALESCE(class_id::text,''), COALESCE((SELECT name FROM classes c WHERE c.id=students.class_id),''),
-			  COALESCE(username,''), status, is_guest, COALESCE(email,''), COALESCE(parent_phone,'')`,
-			tenantID, code, a.nis, a.name, a.gender, a.classID, username, hash, a.email, a.phone).
+			INSERT INTO students(tenant_id, student_code, nis, name, gender, class_id, username, password_hash,
+			  email, parent_phone, phone, birth_place, birth_date)
+			VALUES ($1,$2,NULLIF($3,''),$4,$5,NULLIF($6,'')::uuid,$7,$8,NULLIF($9,''),NULLIF($10,''),
+			  NULLIF($11,''),$12,NULLIF($13,'')::date)
+			RETURNING `+studentDetailColumns,
+			tenantID, code, a.nis, a.name, a.gender, a.classID, username, hash, a.email, a.phone,
+			a.phoneSelf, a.birthPlace, a.birthDate).
 			Scan(&out.ID, &out.StudentCode, &out.NIS, &out.Name, &out.Gender,
 				&out.ClassID, &out.ClassName, &out.Username, &out.Status, &out.IsGuest,
-				&out.Email, &out.ParentPhone)
+				&out.Email, &out.ParentPhone, &out.Phone, &out.BirthPlace, &out.BirthDate)
 		if err != nil {
 			return err
 		}
@@ -302,6 +311,9 @@ type updateStudentReq struct {
 	NIS         *string `json:"nis"`
 	Email       *string `json:"email"`
 	ParentPhone *string `json:"parent_phone"`
+	Phone       *string `json:"phone" validate:"omitempty,max=30"`
+	BirthPlace  *string `json:"birth_place" validate:"omitempty,max=80"`
+	BirthDate   *string `json:"birth_date" validate:"omitempty,datetime=2006-01-02"`
 }
 
 // PUT /students/{id} — perubahan kelas menulis riwayat student_class_history (FR-3.5).
@@ -344,7 +356,7 @@ func (m *Module) updateStudent(w http.ResponseWriter, r *http.Request) {
 
 	updated := &studentDetail{}
 	err := m.a.DB.WithTenant(ctx, tenantID, func(tx pgx.Tx) error {
-		cur, err := scanStudentDetail(tx.QueryRow(ctx, studentDetailSelect+" WHERE s.id=$1", id))
+		cur, err := scanStudentDetail(tx.QueryRow(ctx, studentDetailByID, id))
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				return httpx.ErrNotFound
@@ -359,6 +371,7 @@ func (m *Module) updateStudent(w http.ResponseWriter, r *http.Request) {
 			gender = *req.Gender
 		}
 		nis, email, phone := cur.NIS, cur.Email, cur.ParentPhone
+		phoneSelf, birthPlace, birthDate := cur.Phone, cur.BirthPlace, cur.BirthDate
 		if req.NIS != nil {
 			nis = *req.NIS
 		}
@@ -367,6 +380,15 @@ func (m *Module) updateStudent(w http.ResponseWriter, r *http.Request) {
 		}
 		if req.ParentPhone != nil {
 			phone = *req.ParentPhone
+		}
+		if req.Phone != nil {
+			phoneSelf = strings.TrimSpace(*req.Phone)
+		}
+		if req.BirthPlace != nil {
+			birthPlace = strings.TrimSpace(*req.BirthPlace)
+		}
+		if req.BirthDate != nil {
+			birthDate = strings.TrimSpace(*req.BirthDate)
 		}
 		classID := cur.ClassID
 		if hasClass {
@@ -399,13 +421,14 @@ func (m *Module) updateStudent(w http.ResponseWriter, r *http.Request) {
 		}
 		return tx.QueryRow(ctx, `
 			UPDATE students SET name=$2, gender=$3, class_id=NULLIF($4,'')::uuid,
-			  nis=NULLIF($5,''), email=NULLIF($6,''), parent_phone=NULLIF($7,'')
+			  nis=NULLIF($5,''), email=NULLIF($6,''), parent_phone=NULLIF($7,''),
+			  phone=$8, birth_place=$9, birth_date=NULLIF($10,'')::date
 			WHERE id=$1
 			RETURNING `+studentDetailColumns,
-			id, name, gender, classID, nis, email, phone).
+			id, name, gender, classID, nis, email, phone, phoneSelf, birthPlace, birthDate).
 			Scan(&updated.ID, &updated.StudentCode, &updated.NIS, &updated.Name, &updated.Gender,
 				&updated.ClassID, &updated.ClassName, &updated.Username, &updated.Status, &updated.IsGuest,
-				&updated.Email, &updated.ParentPhone)
+				&updated.Email, &updated.ParentPhone, &updated.Phone, &updated.BirthPlace, &updated.BirthDate)
 	})
 	if err != nil {
 		httpx.Error(w, err)
@@ -570,17 +593,25 @@ func (m *Module) trackRecord(w http.ResponseWriter, r *http.Request) {
 const studentDetailSelect = `
 SELECT s.id::text, s.student_code, COALESCE(s.nis,''), s.name, s.gender,
   COALESCE(s.class_id::text,''), COALESCE(c.name,''), COALESCE(s.username,''), s.status, s.is_guest,
-  COALESCE(s.email,''), COALESCE(s.parent_phone,'')
+  COALESCE(s.email,''), COALESCE(s.parent_phone,''), COALESCE(s.phone,''), s.birth_place,
+  COALESCE(to_char(s.birth_date,'YYYY-MM-DD'),'')
 FROM students s LEFT JOIN classes c ON c.id = s.class_id`
+
+// studentDetailByID — WAJIB memakai WHERE: studentDetailSelect berakhir dengan
+// klausa JOIN ... ON, sehingga menambahkan `AND s.id=$1` hanya memperluas ON
+// dan detail malah mengembalikan siswa pertama di tenant.
+const studentDetailByID = studentDetailSelect + ` WHERE s.id=$1`
 
 const studentDetailColumns = `id::text, student_code, COALESCE(nis,''), name, gender,
   COALESCE(class_id::text,''), COALESCE((SELECT name FROM classes c WHERE c.id=students.class_id),''),
-  COALESCE(username,''), status, is_guest, COALESCE(email,''), COALESCE(parent_phone,'')`
+  COALESCE(username,''), status, is_guest, COALESCE(email,''), COALESCE(parent_phone,''),
+  COALESCE(phone,''), birth_place, COALESCE(to_char(birth_date,'YYYY-MM-DD'),'')`
 
 func scanStudentDetail(row pgx.Row) (*studentDetail, error) {
 	var s studentDetail
 	err := row.Scan(&s.ID, &s.StudentCode, &s.NIS, &s.Name, &s.Gender,
-		&s.ClassID, &s.ClassName, &s.Username, &s.Status, &s.IsGuest, &s.Email, &s.ParentPhone)
+		&s.ClassID, &s.ClassName, &s.Username, &s.Status, &s.IsGuest, &s.Email, &s.ParentPhone,
+		&s.Phone, &s.BirthPlace, &s.BirthDate)
 	if err != nil {
 		return nil, err
 	}
@@ -591,7 +622,7 @@ func (m *Module) studentWithClass(ctx context.Context, tenantID, id string) (*st
 	var s *studentDetail
 	err := m.a.DB.WithTenant(ctx, tenantID, func(tx pgx.Tx) error {
 		var err error
-		s, err = scanStudentDetail(tx.QueryRow(ctx, studentDetailSelect+" WHERE s.id=$1", id))
+		s, err = scanStudentDetail(tx.QueryRow(ctx, studentDetailByID, id))
 		if errors.Is(err, pgx.ErrNoRows) {
 			return httpx.ErrNotFound
 		}

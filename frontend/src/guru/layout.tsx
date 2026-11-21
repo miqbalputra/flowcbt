@@ -67,6 +67,7 @@ function titleFor(pathname: string): string {
     [/^\/question-sets/, 'Bank Soal'],
     [/^\/exams\/new/, 'Buat Ujian'],
     [/^\/exams\/[^/]+\/cheating/, 'Laporan Kecurangan'],
+    [/^\/exams\/[^/]+\/cards/, 'Kartu Ujian'],
     [/^\/exams\/[^/]+/, 'Detail Ujian'],
     [/^\/exams/, 'Ujian'],
     [/^\/reports\/live\/[^/]+/, 'Pantauan Live'],

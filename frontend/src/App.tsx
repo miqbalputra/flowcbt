@@ -17,6 +17,7 @@ import ExamWizard from './guru/exams/wizard'
 import ExamDetail from './guru/exams/detail'
 import ExamCheating from './guru/exams/cheating'
 import ExamGrading from './guru/exams/grading'
+import ExamCards from './guru/exams/cards'
 import ReportsLive from './guru/reports/live'
 import ReportLiveExam from './guru/reports/live-detail'
 import ReportsHistory from './guru/reports/history'
@@ -50,6 +51,7 @@ export default function App() {
         <Route path="/exams/:id" element={<ExamDetail />} />
         <Route path="/exams/:id/cheating" element={<ExamCheating />} />
         <Route path="/exams/:id/grading" element={<ExamGrading />} />
+        <Route path="/exams/:id/cards" element={<ExamCards />} />
         <Route path="/reports/live" element={<ReportsLive />} />
         <Route path="/reports/live/:examId" element={<ReportLiveExam />} />
         <Route path="/reports/history" element={<ReportsHistory />} />

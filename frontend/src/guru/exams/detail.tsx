@@ -40,6 +40,7 @@ import {
   IconExam,
   IconKey,
   IconPlay,
+  IconPrint,
   IconRefresh,
   IconShield,
   IconStudents,
@@ -264,9 +265,14 @@ export default function ExamDetail() {
         desc={String(e.subject_name ?? 'Manajemen sesi ujian')}
         icon={<IconExam size={18} />}
         action={
-          <Link to={`/reports/live/${id}`} className="btn-ghost">
-            <IconChart2 size={16} /> Pantau Live
-          </Link>
+          <>
+            <Link to={`/reports/live/${id}`} className="btn-ghost">
+              <IconChart2 size={16} /> Pantau Live
+            </Link>
+            <Link to={`/exams/${id}/cards`} className="btn-ghost">
+              <IconPrint size={16} /> Kartu Ujian
+            </Link>
+          </>
         }
       />
 
