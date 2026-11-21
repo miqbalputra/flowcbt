@@ -146,15 +146,11 @@ export function statusBadge(s: unknown): { label: string; cls: string } {
   }
 }
 
-/** Teks soal menerima HTML sederhana — sanitize whitelist tags (v1 textarea, tanpa editor berat) */
-const HTML_TAGS = ['b', 'strong', 'i', 'em', 'u', 'br', 'p', 'ul', 'ol', 'li', 'sub', 'sup', 'code']
-export function renderSimpleHtml(raw: string): string {
-  let s = (raw || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-  for (const t of HTML_TAGS) {
-    s = s.replace(new RegExp(`&lt;(/?)${t}&gt;`, 'gi'), `<$1${t}>`)
-  }
-  return s
-}
+/**
+ * Teks soal = TEKS BIASA (tanpa HTML). Renderer + util kapital/daftar otomatis
+ * ada di `@/lib/sanitize` (satu sumber kebenaran untuk guru & siswa).
+ */
+export { renderText, renderInline, htmlToText, autoCapitalize } from '@/lib/sanitize'
 
 /** salin ke clipboard + toast */
 export async function copyText(text: string, successMsg = 'Disalin ke clipboard'): Promise<void> {

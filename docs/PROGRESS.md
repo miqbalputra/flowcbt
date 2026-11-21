@@ -175,6 +175,49 @@ Spesifikasi di `docs/DESIGN_SYSTEM.md`.
   error; alur siswa (login → dashboard → Lanjutkan → attempt) di 1440 & 375 OK;
   jendela demo DEMO01 diperpanjang 8 jam untuk pengujian.
 
+## Tambahan 2026-11-21 (putaran 7 — teks soal jadi TEKS BIASA, tanpa HTML)
+
+Keputusan produk: guru **tidak lagi** menulis tag HTML. Hint lama
+"Boleh HTML sederhana: `<b> <i> <ul> <li> <table>`" + toolbar B/I/U/daftar
+dihapus — guru SMP/SMA bingung dan tag bocor sebagai teks. Menggantikan rencana
+TipTap/rich text (PRD §12 "sanitasi rich text") dengan pendekatan yang lebih
+sederhana dan lebih aman: teks biasa masuk, HTML aman keluar saat render.
+
+### Editor Bank Soal
+- Kotak **Teks soal** & **Isi wacana** kini teks biasa. Tombol tinggal `1.` dan `•`
+  (pasang/lepas penanda daftar di baris kursor) + pratinjau tampilan siswa.
+- **Daftar otomatis:** Enter di butir daftar melanjutkan penomoran/butir
+  (`1.` → `2.`, `•` → `•`, indentasi dipertahankan); Enter pada butir kosong
+  mengakhiri daftar. Berlaku juga di opsi, pasangan menjodohkan, rubrik, pembahasan.
+- **Huruf kapital otomatis** saat mengetik: awal teks, awal baris, dan setelah
+  `.` `!` `?`. Angka tidak disentuh (`5 km` tetap kecil, `3.14` aman), penanda
+  daftar (`1.`, `a.`, `ii.`, `-`) tidak diubah.
+- Kursor dijaga dengan `flushSync` (bukan `requestAnimationFrame` — rAF sempat
+  "mencuri" kursor saat mengetik cepat/paste; ditemukan lewat uji Playwright).
+
+### Render (guru & siswa)
+- `lib/sanitize.ts` ditulis ulang: `htmlToText()` (kompatibilitas data lama),
+  `autoCapitalize()`, `renderText()` (paragraf + `<ol>/<ul>` + kapital),
+  `renderInline()` (opsi/pasangan). Semua teks di-escape lebih dulu → tidak ada
+  tag kiriman pengguna yang lolos (lebih ketat dari allowlist tag sebelumnya).
+- Kelas CSS baru `.rich-text` mengembalikan gaya daftar/paragraf yang direset
+  preflight Tailwind (butir, nomor, huruf `a)`/`A)`, `li::marker` muted).
+- Data lama ber-`<p>/<br>/<li>` otomatis dikonversi ke teks biasa saat dibuka &
+  disimpan ulang (isi tetap, `<b>` tebal hilang); soal tanpa tag tetap utuh.
+- Normalisasi juga dipakai di pratinjau, halaman grading guru, layar ujian siswa,
+  kartu wacana, dan opsi/pasangan (tidak ada lagi HTML mentah tampil sebagai teks).
+- Logika Enter/penanda dipisah ke `guru/qsets/textEdit.ts` (fungsi murni) agar
+  bisa diuji tanpa DOM.
+
+### Verifikasi
+- `tsc` 0 error; `npm run build` lulus (precache 22 entri).
+- Uji perilaku di Chromium (Playwright): ketik butir bernomor dengan huruf kecil →
+  nomor lanjut + kapital benar; Enter pada butir kosong keluar daftar; ketik di
+  tengah teks tidak menggeser kursor; tombol `1.`/`•` bekerja; 0 error konsol.
+- Uji renderer (node): paragraf, daftar angka/butir/huruf, `start` non-1,
+  HTML lama (`<p>`, `<ul>`, `<li>`), entitas backend (`&lt;`), XSS (`<script>`,
+  `<img onerror>`), teks kosong.
+
 ## Remaining backlog (P1/P2, tidak memblokir MVP)
 
 - E2E PWA offline di browser nyata (Playwright), uji beban k6.

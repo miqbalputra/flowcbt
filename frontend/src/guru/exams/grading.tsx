@@ -17,7 +17,7 @@ import {
   StatCard,
   TableToolbar,
 } from '../ui'
-import { renderSimpleHtml } from '@/lib/sanitize'
+import { renderText } from '@/lib/sanitize'
 import { toast } from '@/components/toast'
 import { Modal } from '@/components/modal'
 import { asList, asDict, attemptStatus, errMessage, fmtDateTime } from '../types'
@@ -269,8 +269,8 @@ export default function GradingPage() {
                   </div>
                   <div className="space-y-2.5 p-3">
                     <div
-                      className="break-words text-sm"
-                      dangerouslySetInnerHTML={{ __html: renderSimpleHtml(String(q.body ?? '')) }}
+                      className="rich-text break-words text-sm"
+                      dangerouslySetInnerHTML={{ __html: renderText(String(q.body ?? '')) }}
                     />
                     <div>
                       <div className="section-label mb-1">Jawaban siswa</div>

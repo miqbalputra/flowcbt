@@ -23,7 +23,7 @@ import {
   IconLeft, IconRight, IconShrink, LogoMark,
 } from '@/components/icons'
 import { toast } from '@/components/toast'
-import { renderSimpleHtml } from '@/lib/sanitize'
+import { renderText } from '@/lib/sanitize'
 import type { AttemptRecord, FetchedQuestion, StudentProfile } from '../types'
 
 type Rules = {
@@ -563,8 +563,8 @@ export default function Attempt() {
                   <>
                     <StimulusCard text={stimContent(q)} title={stimTitle(q)} />
                     <div
-                      className="question-body whitespace-pre-wrap break-words [&_img]:my-2 [&_img]:max-w-full [&_img]:rounded [&_table]:my-2 [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:border-border [&_td]:p-1.5 [&_th]:border [&_th]:border-border [&_th]:bg-canvas [&_th]:p-1.5"
-                      dangerouslySetInnerHTML={{ __html: renderSimpleHtml(String(q.body ?? '')) }}
+                      className="question-body rich-text break-words [&_img]:my-2 [&_img]:max-w-full [&_img]:rounded [&_table]:my-2 [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:border-border [&_td]:p-1.5 [&_th]:border [&_th]:border-border [&_th]:bg-canvas [&_th]:p-1.5"
+                      dangerouslySetInnerHTML={{ __html: renderText(String(q.body ?? '')) }}
                     />
                     <div className="mt-5">
                       <div className="section-label mb-2">Pilih jawaban</div>

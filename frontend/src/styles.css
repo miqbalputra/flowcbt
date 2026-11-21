@@ -520,6 +520,29 @@ input[type="checkbox"], input[type="radio"] {
 .timer-warn { color: var(--c-danger); }
 
 /* ============================================================
+   TEKS SOAL (dari teks biasa guru → paragraf + daftar otomatis)
+   Guru menulis teks biasa; renderText() mengubahnya jadi <p>/<ul>/<ol>.
+   Preflight Tailwind menghapus gaya daftar, jadi dikembalikan di sini.
+   ============================================================ */
+.rich-text { overflow-wrap: anywhere; }
+.rich-text > :first-child { margin-top: 0; }
+.rich-text > :last-child { margin-bottom: 0; }
+.rich-text p { margin: 0 0 0.55em; }
+.rich-text ul,
+.rich-text ol { margin: 0.25em 0 0.6em; padding-left: 1.4rem; }
+.rich-text ul { list-style: disc outside; }
+.rich-text ol { list-style: decimal outside; }
+.rich-text ol[data-marker="a"] { list-style: lower-alpha outside; }
+.rich-text ol[data-marker="A"] { list-style: upper-alpha outside; }
+.rich-text li { margin: 0.15em 0; padding-left: 0.15rem; }
+.rich-text li::marker { color: var(--c-muted); font-variant-numeric: tabular-nums; }
+.rich-text b,
+.rich-text strong { font-weight: 700; }
+.rich-text i,
+.rich-text em { font-style: italic; }
+.rich-text u { text-decoration: underline; }
+
+/* ============================================================
    UTIL
    ============================================================ */
 .skeleton {

@@ -2,7 +2,7 @@
 // v3 "Portal Ujian": tiruan lembar ujian siswa — kepala lembar (judul + chip tipe/poin),
 // stimulus, batang soal, opsi bergaya kartu jawaban, dan catatan kunci untuk guru.
 import { Modal } from '@/components/modal'
-import { LETTERS, qtypeLabel, renderSimpleHtml, type QType, asDict } from '../types'
+import { LETTERS, qtypeLabel, renderInline, renderText, type QType, asDict } from '../types'
 import { IconCheck } from '@/components/icons'
 import type { Dict } from '../types'
 
@@ -17,7 +17,7 @@ export function QuestionPreview({
 }) {
   if (!q) return null
   const type = String(q.type ?? 'pg') as QType
-  const body = renderSimpleHtml(String(q.body ?? ''))
+  const body = renderText(String(q.body ?? ''))
   const options = Array.isArray(q.options) ? q.options.map((o: unknown) => asDict(o)) : []
   const correct = Array.isArray(q.correct) ? q.correct.map(String) : q.key ? [String(q.key)] : []
   const pairs = Array.isArray(q.pairs) ? q.pairs.map((p: unknown) => asDict(p)) : []
@@ -46,13 +46,13 @@ export function QuestionPreview({
         <div className="space-y-3 p-3">
           {stimulusHtml && (
             <div
-              className="rounded-md border border-border bg-canvas p-2.5 text-[13px] leading-relaxed"
+              className="rich-text rounded-md border border-border bg-canvas p-2.5 text-[13px] leading-relaxed"
               dangerouslySetInnerHTML={{ __html: stimulusHtml }}
             />
           )}
 
           {/* batang soal */}
-          <div className="text-sm leading-relaxed" dangerouslySetInnerHTML={{ __html: body }} />
+          <div className="rich-text text-sm leading-relaxed" dangerouslySetInnerHTML={{ __html: body }} />
 
           {(type === 'pg' || type === 'pg_kompleks') && (
             <div className="space-y-2" role="group" aria-label="Pilihan jawaban">
@@ -76,7 +76,7 @@ export function QuestionPreview({
                     </span>
                     <span
                       className="min-w-0 flex-1 leading-relaxed"
-                      dangerouslySetInnerHTML={{ __html: renderSimpleHtml(String(o.text ?? '')) }}
+                      dangerouslySetInnerHTML={{ __html: renderInline(String(o.text ?? '')) }}
                     />
                     {isKey && <IconCheck size={14} className="mt-0.5 shrink-0 text-success" />}
                   </div>
@@ -94,7 +94,7 @@ export function QuestionPreview({
                   <div
                     key={`l-${i}`}
                     className="flex min-h-11 items-center gap-2 rounded-md border border-primary-line bg-primary-soft p-2.5 text-sm"
-                    dangerouslySetInnerHTML={{ __html: renderSimpleHtml(String(p.left ?? '')) }}
+                    dangerouslySetInnerHTML={{ __html: renderInline(String(p.left ?? '')) }}
                   />
                 ))}
               </div>
@@ -104,7 +104,7 @@ export function QuestionPreview({
                   <div
                     key={`r-${i}`}
                     className="flex min-h-11 items-center gap-2 rounded-md border border-border-strong bg-surface p-2.5 text-sm"
-                    dangerouslySetInnerHTML={{ __html: renderSimpleHtml(String(p.right ?? '')) }}
+                    dangerouslySetInnerHTML={{ __html: renderInline(String(p.right ?? '')) }}
                   />
                 ))}
               </div>

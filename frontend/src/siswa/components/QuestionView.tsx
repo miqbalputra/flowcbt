@@ -5,7 +5,7 @@
 // Kontrak LAMA dipertahankan: prop (q, value, onChange, disabled) + AnswerValue.
 import { useState } from 'react'
 import type { FetchedQuestion } from '../types'
-import { renderSimpleHtml } from '@/lib/sanitize'
+import { htmlToText, renderText } from '@/lib/sanitize'
 import { IconCheck, IconX, IconBook, IconChevronDown, IconChevronUp } from '@/components/icons'
 
 /** Bentuk jawaban lintas tipe: string, string[], atau map pasangan matching. */
@@ -111,7 +111,7 @@ function McqList({
             className={cardCls(active, disabled)}
           >
             <LetterBox letter={LETTERS[i] ?? '·'} active={active} />
-            <span className="min-w-0 flex-1 break-words leading-relaxed">{o.text || `Pilihan ${LETTERS[i]}`}</span>
+            <span className="min-w-0 flex-1 break-words leading-relaxed">{htmlToText(o.text) || `Pilihan ${LETTERS[i]}`}</span>
             <ChoiceMark active={active} />
           </button>
         )
@@ -151,7 +151,7 @@ function McqComplexList({
             className={cardCls(active, disabled)}
           >
             <LetterBox letter={LETTERS[i] ?? '·'} active={active} />
-            <span className="min-w-0 flex-1 break-words leading-relaxed">{o.text || `Pilihan ${LETTERS[i]}`}</span>
+            <span className="min-w-0 flex-1 break-words leading-relaxed">{htmlToText(o.text) || `Pilihan ${LETTERS[i]}`}</span>
             <ChoiceMark active={active} multiple />
           </button>
         )
@@ -245,7 +245,7 @@ function MatchingPairs({
                   {i + 1}
                 </span>
                 <span className="min-w-0 flex-1 break-words leading-snug">
-                  {l.text}
+                  {htmlToText(l.text)}
                   {pairedTo && (
                     <span
                       className="ml-1 inline-block rounded-sm px-1 font-mono text-[11px] font-bold text-white align-middle"
@@ -285,7 +285,7 @@ function MatchingPairs({
                 >
                   {String.fromCharCode(65 + ri)}
                 </span>
-                <span className="min-w-0 flex-1 break-words leading-snug">{r.text}</span>
+                <span className="min-w-0 flex-1 break-words leading-snug">{htmlToText(r.text)}</span>
                 {taken && <IconCheck size={12} className="shrink-0 text-muted" />}
               </button>
             )
@@ -311,7 +311,7 @@ function MatchingPairs({
                       {i + 1} ↔ {String.fromCharCode(65 + ri)}
                     </span>
                     <span className="min-w-0 flex-1 truncate text-muted">
-                      {l.text} ↔ {right[ri]?.text}
+                      {htmlToText(l.text)} ↔ {htmlToText(right[ri]?.text ?? '')}
                     </span>
                     <button
                       type="button"
@@ -422,7 +422,7 @@ function EssayInput({
 
 /* ------------------------ stimulus (wacana) pelipat ------------------------ */
 
-/** Stimulus/wacana collapsible — TERSANITASI via renderSimpleHtml (XSS-safe). */
+/** Stimulus/wacana collapsible — teks biasa guru → HTML aman via renderText (XSS-safe). */
 export function StimulusCard({ text, title = 'Wacana' }: { text?: string | null; title?: string }) {
   const [open, setOpen] = useState(true)
   if (!text) return null
@@ -442,9 +442,9 @@ export function StimulusCard({ text, title = 'Wacana' }: { text?: string | null;
       </button>
       {open && (
         <div
-          className="whitespace-pre-wrap px-3.5 py-3 leading-relaxed"
-          // hanya tag allowlist tanpa atribut (PRD §12) — body/stimulus dari guru
-          dangerouslySetInnerHTML={{ __html: renderSimpleHtml(text) }}
+          className="rich-text px-3.5 py-3 leading-relaxed"
+          // teks biasa dari guru di-escape penuh oleh renderText (PRD §12)
+          dangerouslySetInnerHTML={{ __html: renderText(text) }}
         />
       )}
     </div>
