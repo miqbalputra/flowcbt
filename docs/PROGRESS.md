@@ -116,6 +116,18 @@ Unit test baru: auth limiter, webhook HMAC/fail-closed, recoverer JSON, worker e
   ujian (`?format=pdf`) & track record siswa (`/students/{id}/track-record?format=pdf`);
   tombol XLSX/CSV/PDF di laporan + PDF di profil siswa.
 
+## Tambahan 2026-11-20 (putaran 5 — Enterprise UI/UX directive)
+
+- **Overhaul Slate + Precision Blue** (tanpa gradien purple/glow, radius ketat
+  `rounded-md/lg`, border `slate-200/800` di atas shadow) di seluruh guru + siswa.
+- **Font self-hosted:** Inter Variable untuk UI, JetBrains Mono Variable khusus kode
+  ujian, token, nomor soal, timer & nilai (via `@fontsource-variable`).
+- **Ikon SVG stroke set** (`components/icons.tsx`, ~45 ikon + LogoMark) — audit
+  emoji = 0 di seluruh UI guru & siswa.
+- **Surface rapi:** SearchBox berikon, badge status pill lembut, chips tipe soal,
+  EmptyState ilustratif, PageHeader dengan ikon, auth split-brand 2 kolom.
+- Smoke E2E 53/53 hijau; build PWA precache 22 entri.
+
 ## Remaining backlog (P1/P2, tidak memblokir MVP)
 
 - E2E PWA offline di browser nyata (Playwright), uji beban k6.
