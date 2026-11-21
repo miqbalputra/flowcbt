@@ -1,5 +1,5 @@
 // Router area guru/admin — dipasang di sini sesuai sitemap PRD §11.1
-import { Link, Navigate, Route, Routes } from 'react-router-dom'
+import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { ThemeToggle } from './components/ThemeToggle'
 import ProtectedLayout from './guru/layout'
 import Login from './guru/auth/login'
@@ -27,6 +27,7 @@ import SiswaRoutes from './siswa/SiswaRoutes'
 
 // Halaman fondasi — sistem fitur dipasang bertahap
 export default function App() {
+  const loc = useLocation()
   return (
     <Routes>
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
@@ -63,16 +64,15 @@ export default function App() {
       <Route
         path="*"
         element={
-          <div className="min-h-full flex items-center justify-center p-6">
-            <div className="card max-w-sm w-full text-center space-y-3">
-              <div className="text-2xl font-bold text-primary">FlowCBT</div>
-              <div className="text-muted">404 — Halaman tidak ditemukan</div>
-              {location.pathname.startsWith('/s/') ? (
-                <Link to="/s/exams" className="btn-primary w-full">Ke daftar ujian</Link>
-              ) : (
-                <Link to="/dashboard" className="btn-primary w-full">Ke Dashboard</Link>
-              )}
-              <div className="flex justify-center"><ThemeToggle /></div>
+          <div className="flex min-h-dvh items-center justify-center bg-bg p-6">
+            <div className="w-full max-w-sm space-y-3 rounded-lg border border-border bg-surface p-5 text-center shadow-xs">
+              <div className="mono text-xs font-bold uppercase tracking-[0.14em] text-muted">404</div>
+              <div className="text-lg font-bold tracking-tight">Halaman tidak ditemukan</div>
+              <p className="text-sm text-muted">Tautan mungkin sudah dipindahkan atau tidak lagi tersedia.</p>
+              <Link to={loc.pathname.startsWith('/s/') ? '/s/exams' : '/dashboard'} className="btn btn-primary btn-block">
+                {loc.pathname.startsWith('/s/') ? 'Ke daftar ujian' : 'Ke Dashboard'}
+              </Link>
+              <div className="flex justify-center pt-1"><ThemeToggle /></div>
             </div>
           </div>
         }

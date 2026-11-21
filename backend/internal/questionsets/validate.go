@@ -163,8 +163,8 @@ func validateQuestion(typ, optionsRaw, answerKeyRaw string, points float64, scor
 	case "matching":
 		var opts matchOptions
 		strictDecode(v, "options", optionsRaw, &opts)
-		v.checkRange("options.left", len(opts.Left), 4, 6)
-		v.checkRange("options.right", len(opts.Right), 4, 6)
+		v.checkRange("options.left", len(opts.Left), 2, 10)
+		v.checkRange("options.right", len(opts.Right), 2, 10)
 		leftSet, rightSet := map[string]bool{}, map[string]bool{}
 		for _, l := range opts.Left {
 			leftSet[strings.TrimSpace(l)] = true
@@ -184,7 +184,7 @@ func validateQuestion(typ, optionsRaw, answerKeyRaw string, points float64, scor
 		}
 		var key answerPairs
 		strictDecode(v, "answer_key", answerKeyRaw, &key)
-		v.checkRange("answer_key.pairs", len(key.Pairs), 4, 6)
+		v.checkRange("answer_key.pairs", len(key.Pairs), 2, 10)
 		leftUsed := map[string]bool{}
 		for i, p := range key.Pairs {
 			l, r := strings.TrimSpace(p.Left), strings.TrimSpace(p.Right)

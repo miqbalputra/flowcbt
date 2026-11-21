@@ -128,6 +128,53 @@ Unit test baru: auth limiter, webhook HMAC/fail-closed, recoverer JSON, worker e
   EmptyState ilustratif, PageHeader dengan ikon, auth split-brand 2 kolom.
 - Smoke E2E 53/53 hijau; build PWA precache 22 entri.
 
+## Tambahan 2026-11-21 (putaran 6 — "Portal Ujian" gaya ANBK/Pusmendik)
+
+Audit UI/UX menyeluruh bermula dari referensi simulasi TKA Pusmendik (via snapshot arsip),
+dengan palet khas FlowCBT (Slate + Precision Blue, aksen ink `#0f1e33` + garis aksen 3px).
+Spesifikasi di `docs/DESIGN_SYSTEM.md`.
+
+### Desain
+- **Editor siswa (Attempt)**: appbar institusional + identity, strip peserta/timer/sinkron/
+  font-size/fullscreen, split panel `soal | Daftar Soal` full-height (CSS `exam-main` flex),
+  bar aksi bawah 48px (Kembali/Ragu/Lanjut bersifat teks di mobile), peta soal bottom-sheet.
+- **AuthPortal siswa full-bleed** (login & tamu): split brand layar penuh di desktop.
+- **Tabs** responsif (label pendek + padding adaptif → 4 tab muat di 375px), aksi tabel
+  bergaya outline konsisten (`tbody .btn-quiet` + varian danger), StatCard label tuntas
+  (tanpa truncasi), tombol merah destruktif hanya outline.
+- Istilah Indonesia konsisten: Published→Terbit, Draft→Draf, Unpublish→Tarik Terbit(an),
+  Publish→Terbitkan; durasi live "7 j 46 mnt" (bukan "466 mnt").
+
+### Perbaikan data/logika (hasil audit)
+- **Resume attempt (FR-6.1/FR-7.8):** `/student/me/exams` mengembalikan
+  `active_attempt_id`; attempt in_progress tetap bucket "open" meski kuota percobaan habis;
+  dashboard siswa tombol "Lanjutkan" langsung ke runner; runner hidrat dari server
+  (paket soal + jawaban) bila cache perangkat kosong / ganti browser.
+- **Editor Bank Soal (KRITIS):** normalisasi tipe kanonik backend (mcq/mcq_complex/
+  matching/short_answer/essay ↔ pg/pg_kompleks/menjodohkan/isian/uraian), answer_key
+  (correct/pairs/answers/rubric), options {id,text}; payload simpan kini valid —
+  7/7 soal demo tersimpan 200 OK; toolbar format teks (B/I/U/daftar) untuk teks soal.
+  Backend: rentang pasangan menjodohkan dilonggarkan 2–10 (sebelumnya 4–6 menolak data sah).
+- **Pagination guru:** `next_cursor` numerik kini dikenali → "Muat lebih banyak" muncul
+  (siswa 31, sebelumnya 25 terpotong).
+- **Countdown badge "dilaporkan curang"** di laporan live: hanya bila status bukan
+  none/kosong (sebelumnya semua baris berbadge).
+- **Billing:** kartu paket menampilkan satuan harga benar (per bulan / sekali bayar /
+  14 hari), kuota peserta (min–maks siswa) dan kuota ujian; trial nonaktif utk dibeli;
+  invoice kolom "Tanggal" (created_at) + modal "Detail transaksi" (link PDF internal
+  dihapus — tidak pernah tersedia).
+- **Nilai skala-100:** Riwayat siswa & halaman Done memakai final_score (80) bukan skor
+  mentah (17); Done menampilkan skor mentah + penalti pelanggaran transparan (AC-8),
+  status "Nilai sementara" bila uraian belum dinilai.
+- **Statistik paket soal:** `question_count` (kontrak sebenarnya) → "Total soal" benar.
+
+### Verifikasi
+- `tsc` 0 error; build PWA OK (precache 22); smoke E2E API **53/53 PASS**;
+  `go test ./internal/questionsets ./internal/grading` hijau.
+- Playwright: 16 halaman guru × (1440/375) tanpa horizontal overflow & tanpa console
+  error; alur siswa (login → dashboard → Lanjutkan → attempt) di 1440 & 375 OK;
+  jendela demo DEMO01 diperpanjang 8 jam untuk pengujian.
+
 ## Remaining backlog (P1/P2, tidak memblokir MVP)
 
 - E2E PWA offline di browser nyata (Playwright), uji beban k6.

@@ -31,7 +31,8 @@ type studentExamItem struct {
 	DurationMinutes int       `json:"duration_minutes"`
 	MaxAttempts     int       `json:"max_attempts"`
 	AttemptsUsed    int       `json:"attempts_used"`
-	BestScore       *float64  `json:"best_score"`     // null bila nilai belum dirilis
+	BestScore       *float64  `json:"best_score"` // null bila nilai belum dirilis
+	ActiveAttemptID *string   `json:"active_attempt_id"`
 	Status          string    `json:"status_peserta"` // upcoming|open|done
 	Paused          bool      `json:"paused"`
 	ScoreReleased   bool      `json:"score_released"`
@@ -43,7 +44,10 @@ SELECT e.id::text, e.name, e.subject_name, e.exam_code, e.open_at, e.close_at,
 	e.score_released, e.paused, e.login_mode,
 	(SELECT COUNT(1) FROM attempts a WHERE a.exam_id=e.id AND a.student_id=$1) AS attempts_used,
 	(SELECT MAX(a.final_score::float8) FROM attempts a
-		WHERE a.exam_id=e.id AND a.student_id=$1 AND a.status IN ('graded','submitted')) AS best_score
+		WHERE a.exam_id=e.id AND a.student_id=$1 AND a.status IN ('graded','submitted')) AS best_score,
+	(SELECT a.id::text FROM attempts a
+		WHERE a.exam_id=e.id AND a.student_id=$1 AND a.status='in_progress'
+		ORDER BY a.started_at DESC LIMIT 1) AS active_attempt_id
 FROM exams e
 LEFT JOIN exam_participants ep ON ep.exam_id=e.id AND ep.student_id=$1
 WHERE e.status='published' AND (
@@ -102,7 +106,8 @@ func (m *Module) myExams(w http.ResponseWriter, r *http.Request) {
 			var loginMode string
 			if err := rows.Scan(&it.ID, &it.Name, &it.SubjectName, &it.ExamCode,
 				&it.OpenAt, &it.CloseAt, &it.DurationMinutes, &it.MaxAttempts,
-				&it.ScoreReleased, &it.Paused, &loginMode, &it.AttemptsUsed, &best); err != nil {
+				&it.ScoreReleased, &it.Paused, &loginMode, &it.AttemptsUsed, &best,
+				&it.ActiveAttemptID); err != nil {
 				return err
 			}
 			// Ujian khusus guest tidak muncul untuk peserta akun, dan sebaliknya.
@@ -116,7 +121,7 @@ func (m *Module) myExams(w http.ResponseWriter, r *http.Request) {
 			if it.ScoreReleased && best != nil {
 				it.BestScore = best
 			}
-			it.Status = examPhase(now, it.OpenAt, it.CloseAt, it.AttemptsUsed, it.MaxAttempts)
+			it.Status = examPhase(now, it.OpenAt, it.CloseAt, it.AttemptsUsed, it.MaxAttempts, it.ActiveAttemptID != nil)
 			items = append(items, it)
 		}
 		return rows.Err()
@@ -138,12 +143,16 @@ func (m *Module) myExams(w http.ResponseWriter, r *http.Request) {
 }
 
 // examPhase kategori status peserta terhadap satu ujian.
-func examPhase(now, openAt, closeAt time.Time, attemptsUsed, maxAttempts int) string {
+func examPhase(now, openAt, closeAt time.Time, attemptsUsed, maxAttempts int, hasActive bool) string {
 	switch {
 	case now.Before(openAt):
 		return "upcoming"
 	case now.After(closeAt):
 		return "done"
+	case hasActive:
+		// Attempt yang belum disubmit tetap bisa dilanjutkan walau kuota
+		// percobaan sudah terpakai (FR-6.1 tombol Mulai/Lanjutkan).
+		return "open"
 	case attemptsUsed > 0 && attemptsUsed >= maxAttempts:
 		return "done"
 	default:
