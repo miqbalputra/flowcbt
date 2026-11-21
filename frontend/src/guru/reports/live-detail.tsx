@@ -3,13 +3,57 @@ import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api } from '@/lib/api'
-import { useLiveStream } from '@/lib/useLiveStream'
+import { useLiveStream, type LiveStreamStatus } from '@/lib/useLiveStream'
 import { send } from '../rpc'
 import { toast } from '@/components/toast'
 import { ConfirmDialog, Modal } from '@/components/modal'
-import { Donut, ErrorBox, PageHeader, SkeletonRows } from '../ui'
-import { asDict, asList, attemptStatus, copyText, errMessage, fmtDateTime, unwrap } from '../types'
-import { IconChart2, IconLeft, IconWifi, IconWifiOff } from '@/components/icons'
+import {
+  Callout, Donut, EmptyState, ErrorBox, PageHeader, Panel, ProgressBar, SearchBox,
+  SkeletonRows, StatCard, TableToolbar,
+} from '../ui'
+import { asDict, asList, attemptStatus, errMessage, unwrap } from '../types'
+import {
+  IconChart2, IconCheck, IconClock, IconLeft, IconRefresh, IconShield,
+  IconStudents, IconWifi, IconWifiOff,
+} from '@/components/icons'
+
+/** warna garis badge mengikuti tone teks dari attemptStatus() */
+function softLine(cls: string): string {
+  if (cls.includes('danger')) return 'border-danger-line'
+  if (cls.includes('warn')) return 'border-warn-line'
+  if (cls.includes('success')) return 'border-success-line'
+  if (cls.includes('primary')) return 'border-primary-line'
+  return 'border-border'
+}
+
+function isOnline(s: Record<string, any>): boolean {
+  return Boolean(s.online ?? String(s.connection ?? 'online') === 'online')
+}
+
+/** Indikator sumber data live: SSE, sedang menyegarkan, atau fallback polling. */
+function LivePill({ status, fetching }: { status: LiveStreamStatus; fetching: boolean }) {
+  if (status === 'live') {
+    return (
+      <span className="badge border border-success-line bg-success-soft text-success">
+        <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-current" />
+        Real-time
+      </span>
+    )
+  }
+  if (fetching) {
+    return (
+      <span className="badge border border-primary-line bg-primary-soft text-primary">
+        <IconRefresh size={11} /> Menyegarkan…
+      </span>
+    )
+  }
+  return (
+    <span className="badge border border-border bg-canvas text-muted">
+      <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-current" />
+      Polling 10 dtk
+    </span>
+  )
+}
 
 export default function ReportLiveExam() {
   const { examId } = useParams()
@@ -41,7 +85,17 @@ export default function ReportLiveExam() {
   const d = live.data ? asDict(live.data) : {}
   const exam = asDict(d.exam ?? {})
   const summary = asDict(d.summary ?? {})
-  const allStudents = asList(d.students ?? [])
+  // Normalisasi kontrak backend: student_name/student_class/total_questions.
+  const allStudents = asList(d.students ?? []).map(s => {
+    const row: Record<string, unknown> = { ...s }
+    row.name = s.name ?? s.student_name ?? 'Tanpa Nama'
+    row.class = s.class ?? s.student_class ?? ''
+    row.class_id = s.class_id ?? s.class ?? s.student_class ?? ''
+    row.total = s.total ?? s.total_questions ?? 0
+    row.cheating = s.cheating ?? s.cheating_status ?? 'none'
+    row.flagged = !['', 'none', '0', 'false', 'undefined', 'null'].includes(String(row.cheating ?? 'none'))
+    return row
+  })
 
   const classOptions = (() => {
     const seen = new Map<string, string>()
@@ -68,7 +122,7 @@ export default function ReportLiveExam() {
     setBusy(true)
     try {
       await send(`/exams/${exam.id}/participants/${extending.student_id}/extend-time`, { seconds: extraMinutes * 60 }, 'PUT')
-      toast(`+${extraMinutes} menit untuk ${String(extending.name ?? 'siswa')} ⏱`, 'success')
+      toast(`+${extraMinutes} menit untuk ${String(extending.name ?? 'siswa')}`, 'success')
       setExtending(null)
       refresh()
     } catch (err) {
@@ -112,12 +166,27 @@ export default function ReportLiveExam() {
   const done = Number(summary.done ?? 0)
   const notStarted = Number(summary.not_started ?? 0)
   const total = Number(summary.total ?? 0)
+  const participants = total || working + done + notStarted
+  const ready = !live.isLoading && !live.isError
+  const stat = (n: number) => (ready ? String(n) : '—')
+
+  // indikator turunan dari baris peserta yang tampil (tanpa query tambahan)
+  const onlineCount = students.filter(isOnline).length
+  const violationTotal = students.reduce((acc, s) => acc + Number(s.violations ?? 0), 0)
+  const reportedCount = students.filter(s => String(s.cheating ?? 'none') !== 'none').length
 
   if (live.isError) {
     return (
       <div className="space-y-4">
-        <PageHeader title="Pantauan Live" icon={<IconChart2 size={18} />} action={<Link className="btn-ghost text-sm" to="/reports/live"><IconLeft size={14} /> Semua live</Link>} />
-        <ErrorBox error={live.error} />
+        <PageHeader
+          eyebrow="Pantauan Real-time"
+          title="Pantauan Live"
+          icon={<IconChart2 size={18} />}
+          action={<Link className="btn-ghost btn-sm" to="/reports/live"><IconLeft size={14} /> Semua live</Link>}
+        />
+        <Panel title="Data Pantauan" icon={<IconChart2 size={15} />}>
+          <ErrorBox error={live.error} onRetry={() => void live.refetch()} />
+        </Panel>
       </div>
     )
   }
@@ -125,108 +194,223 @@ export default function ReportLiveExam() {
   return (
     <div className="space-y-4">
       <PageHeader
+        eyebrow="Pantauan Real-time"
         title={String(exam.name ?? 'Pantauan Live')}
         desc={String(exam.subject_name ?? '')}
-        action={<Link className="btn-ghost text-sm" to="/reports/live"><IconLeft size={14} /> Semua live</Link>} icon={<IconChart2 size={18} />}
+        icon={<IconChart2 size={18} />}
+        action={
+          <>
+            <LivePill status={liveStatus} fetching={live.isFetching} />
+            <Link className="btn-ghost btn-sm" to="/reports/live"><IconLeft size={14} /> Semua live</Link>
+          </>
+        }
       />
 
-      {/* ringkasan: donut div (FR-9.2) */}
-      <div className="card space-y-3">
-        <div className="flex items-center justify-between gap-2">
-          <h3 className="font-semibold">Progres peserta</h3>
-          <span className={`text-xs font-medium px-2 py-1 rounded-full ${liveStatus === 'live' ? 'bg-success-soft text-success' : live.isFetching ? 'bg-primary-soft text-primary' : 'badge-soft text-muted'}`}>
-            {liveStatus === 'live' ? '● Real-time' : live.isFetching ? '⏳ menyegarkan…' : '● polling 10 dtk'}
-          </span>
-        </div>
-        {live.isLoading ? (
-          <div className="space-y-2">
-            <div className="skeleton h-32 w-36" />
-            <div className="skeleton h-4 w-48" />
-          </div>
-        ) : (
-          <>
-            <Donut
-              parts={[
-                { value: working, color: 'var(--c-primary)', label: 'Mengerjakan' },
-                { value: done, color: 'var(--c-success)', label: 'Selesai' },
-                { value: notStarted, color: 'var(--c-border)', label: 'Belum mulai' },
-              ]}
-            />
-            <p className="text-sm text-muted">Total peserta: {total || working + done + notStarted}</p>
-          </>
-        )}
+      <div className="grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-4">
+        <StatCard label="Mengerjakan" value={stat(working)} hint="percobaan aktif" tone="primary" icon={<IconClock size={14} />} />
+        <StatCard label="Selesai" value={stat(done)} hint="jawaban terkumpul" tone="success" icon={<IconCheck size={14} />} />
+        <StatCard label="Belum mulai" value={stat(notStarted)} hint="belum membuka ujian" icon={<IconStudents size={14} />} />
+        <StatCard label="Total peserta" value={stat(participants)} hint="sesuai penugasan ujian" icon={<IconChart2 size={14} />} />
       </div>
 
-      {/* filter & pencarian */}
-      <div className="flex gap-2 flex-wrap items-center">
-        <select className="input max-w-44" value={classId} onChange={e => setClassId(e.target.value)} aria-label="Filter kelas">
-          <option value="">Semua kelas</option>
-          {classOptions.map(([cid, label]) => <option key={cid} value={cid}>{label}</option>)}
-        </select>
-        <input className="input max-w-56" type="search" aria-label="Cari nama siswa" placeholder="Cari nama siswa…" value={search} onChange={e => setSearch(e.target.value)} />
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        {/* ringkasan komposisi status (FR-9.2) */}
+        <Panel title="Progres Peserta" icon={<IconChart2 size={15} />}>
+          {live.isLoading ? (
+            <SkeletonRows rows={2} cols={2} />
+          ) : (
+            <>
+              <Donut
+                parts={[
+                  { value: working, color: 'var(--c-primary)', label: 'Mengerjakan' },
+                  { value: done, color: 'var(--c-success)', label: 'Selesai' },
+                  { value: notStarted, color: 'var(--c-border)', label: 'Belum mulai' },
+                ]}
+              />
+              <p className="mt-2 text-sm text-muted">
+                Total peserta: <span className="mono font-semibold text-text">{participants}</span>
+              </p>
+            </>
+          )}
+        </Panel>
+
+        {/* indikator koneksi & kedisiplinan */}
+        <Panel title="Indikator Peserta" icon={<IconShield size={15} />}>
+          {live.isLoading ? (
+            <SkeletonRows rows={2} cols={2} />
+          ) : (
+            <>
+              <ul className="divide-y divide-border">
+                <li className="flex items-center justify-between gap-2 py-2 first:pt-0">
+                  <span className="inline-flex items-center gap-1.5 text-sm text-muted">
+                    <IconWifi size={14} className="text-success" aria-hidden /> Online
+                  </span>
+                  <span className="mono text-sm font-bold">{onlineCount}</span>
+                </li>
+                <li className="flex items-center justify-between gap-2 py-2">
+                  <span className="inline-flex items-center gap-1.5 text-sm text-muted">
+                    <IconWifiOff size={14} className="text-danger" aria-hidden /> Offline
+                  </span>
+                  <span className="mono text-sm font-bold">{students.length - onlineCount}</span>
+                </li>
+                <li className="flex items-center justify-between gap-2 py-2">
+                  <span className="text-sm text-muted">Pelanggaran tercatat</span>
+                  <span className={`badge border ${violationTotal > 0 ? 'border-warn-line bg-warn-soft text-warn' : 'border-border bg-canvas text-muted'}`}>
+                    <span className="mono">{violationTotal}×</span>
+                  </span>
+                </li>
+                <li className="flex items-center justify-between gap-2 py-2 last:pb-0">
+                  <span className="text-sm text-muted">Dilaporkan sistem</span>
+                  <span className={`badge border ${reportedCount > 0 ? 'border-danger-line bg-danger-soft text-danger' : 'border-border bg-canvas text-muted'}`}>
+                    <span className="mono">{reportedCount}</span> peserta
+                  </span>
+                </li>
+              </ul>
+              <p className="hint mt-2.5 border-t border-border pt-2">
+                Dihitung dari baris peserta yang tampil — filter kelas dan pencarian ikut berlaku.
+              </p>
+            </>
+          )}
+        </Panel>
       </div>
 
       {/* tabel siswa dengan status & aksi pengawas (FR-9.2, FR-9.4) */}
-      <div className="overflow-x-auto lg:overflow-visible">
-      <table className="table-base responsive-table">
-        <thead>
-          <tr><th>Nama</th><th>Kelas</th><th>Progres</th><th>Status</th><th>Koneksi</th><th>Pelanggaran</th><th>Nilai</th><th>Aksi</th></tr>
-        </thead>
-        <tbody>
-          {students.map((s, i) => {
-            const st = attemptStatus(s.status)
-            const online = Boolean(s.online ?? String(s.connection ?? 'online') === 'online')
-            const violations = Number(s.violations ?? 0)
-            return (
-              <tr key={s.attempt_id ?? s.student_id ?? i}>
-                <td data-th="Nama" className="font-medium">
-                  {String(s.name ?? '—')}
-                  {String(s.student_id ?? '') !== '' && (
-                    <div className="text-xs">
-                      <button type="button" className="text-primary hover:underline" onClick={() => nav(`/students/${s.student_id}`)}>
-                        track record →
-                      </button>
-                    </div>
-                  )}
-                </td>
-                <td data-th="Kelas">{String(s.class ?? '—')}</td>
-                <td data-th="Progres">
-                  <b>{Number(s.answered ?? 0)}/{Number(s.total ?? 0)}</b>
-                  <div className="h-1.5 rounded-full bg-border/40 mt-1 max-w-24">
-                    <div className="h-full rounded-full bg-primary"
-                      style={{ width: `${Number(s.total ?? 0) > 0 ? Math.round((Number(s.answered ?? 0) / Number(s.total)) * 100) : 0}%` }} />
-                  </div>
-                </td>
-                <td data-th="Status"><span className={`badge ${st.cls}`}>{st.label}</span></td>
-                <td data-th="Koneksi">
-                  <span className={`inline-flex items-center gap-1.5 text-xs ${online ? 'text-success' : 'text-danger'}`}>
-                    {online ? <IconWifi size={14} /> : <IconWifiOff size={14} />}
-                    {online ? 'Online' : 'Offline'}
-                  </span>
-                </td>
-                <td data-th="Pelanggaran">
-                  {violations > 0
-                    ? <span className={`badge ${violations >= 3 ? 'bg-danger-soft text-danger' : 'bg-warn-soft text-warn'}`}>{violations}×</span>
-                    : <span className="text-xs text-muted">—</span>}
-                  {Boolean(s.cheating) && <div><span className="badge bg-danger-soft text-danger">dilaporkan</span></div>}
-                </td>
-                <td data-th="Nilai">
-                  {s.score !== undefined && s.score !== null ? String(s.score)
-                    : s.final_score !== undefined && s.final_score !== null ? String(s.final_score) : '—'}
-                </td>
-                <td data-th="Aksi">
-                  <div className="flex gap-1.5 flex-wrap">
-                    <button type="button" className="btn-ghost btn-sm" onClick={() => { setExtraMinutes(5); setExtending(s) }}>+ Waktu</button>
-                    <button type="button" className="btn-ghost btn-sm" onClick={() => setResetting(s)}>Reset</button>
-                    <button type="button" className="btn-danger btn-sm" onClick={() => setForcing(s)}>Paksa selesai</button>
-                  </div>
-                </td>
-              </tr>
-            )
-          })}
-        </tbody>
-      </table>
-      </div>
+      <Panel
+        title="Peserta"
+        icon={<IconStudents size={15} />}
+        flush
+      >
+        <div className="space-y-2.5 border-b border-border p-3">
+          <Callout tone="info">
+            Aksi pengawas (tambah waktu, reset, paksa selesai) langsung berlaku pada percobaan siswa.
+          </Callout>
+          <TableToolbar count={students.length} label="peserta">
+            <SearchBox
+              value={search}
+              onChange={setSearch}
+              label="Cari nama siswa"
+              placeholder="Cari nama siswa…"
+              className="w-full sm:w-52"
+            />
+            <select
+              className="input sm:max-w-44"
+              value={classId}
+              onChange={e => setClassId(e.target.value)}
+              aria-label="Filter kelas"
+            >
+              <option value="">Semua kelas</option>
+              {classOptions.map(([cid, label]) => <option key={cid} value={cid}>{label}</option>)}
+            </select>
+            <button
+              type="button"
+              className="btn-ghost btn-sm"
+              onClick={() => void live.refetch()}
+              disabled={live.isFetching}
+            >
+              <IconRefresh size={13} /> Segarkan
+            </button>
+          </TableToolbar>
+        </div>
+
+        {live.isLoading ? (
+          <div className="p-3"><SkeletonRows rows={4} cols={4} /></div>
+        ) : students.length === 0 ? (
+          <EmptyState icon={<IconStudents />} title="Tidak ada peserta pada filter ini">
+            Longgarkan filter kelas atau ubah kata kunci pencarian.
+          </EmptyState>
+        ) : (
+          <div className="table-scroll">
+            <table className="table-base responsive-table">
+              <thead>
+                <tr>
+                  <th scope="col">Nama</th>
+                  <th scope="col">Kelas</th>
+                  <th scope="col">Progres</th>
+                  <th scope="col">Status</th>
+                  <th scope="col">Koneksi</th>
+                  <th scope="col">Pelanggaran</th>
+                  <th scope="col" className="num">Nilai</th>
+                  <th scope="col">Aksi</th>
+                </tr>
+              </thead>
+              <tbody>
+                {students.map((s, i) => {
+                  const st = attemptStatus(s.status)
+                  const online = isOnline(s)
+                  const violations = Number(s.violations ?? 0)
+                  const answered = Number(s.answered ?? 0)
+                  const totalQ = Number(s.total ?? 0)
+                  return (
+                    <tr key={String(s.attempt_id ?? s.student_id ?? i)}>
+                      <td data-th="Nama">
+                        <div className="min-w-0">
+                          <span className="block font-semibold">{String(s.name ?? '—')}</span>
+                          {String(s.student_id ?? '') !== '' && (
+                            <button
+                              type="button"
+                              className="btn-quiet btn-sm !px-0"
+                              onClick={() => nav(`/students/${s.student_id}`)}
+                            >
+                              track record →
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                      <td data-th="Kelas">{String(s.class ?? '—')}</td>
+                      <td data-th="Progres">
+                        <div className="flex flex-col items-end gap-1 sm:items-start">
+                          <span className="mono text-xs font-semibold">{answered}/{totalQ}</span>
+                          <div className="w-24 sm:w-28">
+                            <ProgressBar value={answered} max={Math.max(1, totalQ)} label={`Progres ${String(s.name ?? 'siswa')}`} />
+                          </div>
+                        </div>
+                      </td>
+                      <td data-th="Status">
+                        <span className={`badge border ${softLine(st.cls)} ${st.cls}`}>{st.label}</span>
+                      </td>
+                      <td data-th="Koneksi">
+                        <span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${online ? 'text-success' : 'text-danger'}`}>
+                          {online ? <IconWifi size={14} aria-hidden /> : <IconWifiOff size={14} aria-hidden />}
+                          {online ? 'Online' : 'Offline'}
+                        </span>
+                      </td>
+                      <td data-th="Pelanggaran">
+                        <div className="flex flex-wrap items-center justify-end gap-1 sm:justify-start">
+                          {violations > 0 ? (
+                            <span className={`badge border ${violations >= 3 ? 'border-danger-line bg-danger-soft text-danger' : 'border-warn-line bg-warn-soft text-warn'}`}>
+                              <span className="mono">{violations}×</span>
+                            </span>
+                          ) : (
+                            <span className="text-xs text-muted">—</span>
+                          )}
+                          {Boolean(s.flagged) && (
+                            <span className="badge border border-danger-line bg-danger-soft text-danger">dilaporkan curang</span>
+                          )}
+                        </div>
+                      </td>
+                      <td data-th="Nilai" className="num font-semibold">
+                        {s.score !== undefined && s.score !== null ? String(s.score)
+                          : s.final_score !== undefined && s.final_score !== null ? String(s.final_score) : '—'}
+                      </td>
+                      <td data-th="Aksi">
+                        <div className="flex flex-wrap justify-end gap-1.5 sm:justify-start">
+                          <button type="button" className="btn-ghost btn-sm" onClick={() => { setExtraMinutes(5); setExtending(s) }}>
+                            + Waktu
+                          </button>
+                          <button type="button" className="btn-quiet btn-sm" onClick={() => setResetting(s)}>Reset</button>
+                          <button type="button" className="btn-quiet btn-sm !text-danger" onClick={() => setForcing(s)}>
+                            Paksa selesai
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Panel>
 
       <Modal
         open={!!extending}
@@ -243,9 +427,18 @@ export default function ReportLiveExam() {
       >
         <div>
           <label className="label" htmlFor="lv-min">Tambahan waktu (menit)</label>
-          <input id="lv-min" type="number" min={1} step={1} className="input" value={extraMinutes}
-            onChange={e => setExtraMinutes(Number(e.target.value) || 0)} />
-          <p className="text-xs text-muted mt-1">= {extraMinutes * 60} detik</p>
+          <input
+            id="lv-min"
+            type="number"
+            min={1}
+            step={1}
+            className="input"
+            value={extraMinutes}
+            onChange={e => setExtraMinutes(Number(e.target.value) || 0)}
+          />
+          <p className="hint mt-1">
+            Durasi dikirim ke server: <span className="mono font-semibold text-text">{extraMinutes * 60}</span> detik
+          </p>
         </div>
       </Modal>
 

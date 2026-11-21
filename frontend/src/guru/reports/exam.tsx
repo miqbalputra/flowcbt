@@ -5,15 +5,30 @@ import { Link, useParams } from 'react-router-dom'
 import { api } from '@/lib/api'
 import { downloadFile } from '../files'
 import { toast } from '@/components/toast'
-import { EmptyState, ErrorBox, PageHeader, SkeletonRows, BarRow, SortHeader, StatusBadge, TableToolbar, sortRowsBy, type SortDir } from '../ui'
-import {  asDict, asList, attemptStatus, qtypeLabel, fmtDate, fmtDuration, unwrap, unwrapList, qRows } from '../types'
-import { IconChart2, IconDownload, IconStudents } from '@/components/icons'
+import {
+  BarRow, EmptyState, ErrorBox, PageHeader, Panel, ProgressBar, SkeletonRows,
+  SortHeader, StatCard, TableToolbar, sortRowsBy, type SortDir,
+} from '../ui'
+import { asDict, asList, attemptStatus, fmtDate, fmtDuration, qtypeLabel, qRows, unwrap, unwrapList } from '../types'
+import {
+  IconChart, IconChart2, IconCheck, IconClock, IconDownload, IconStudents,
+  IconTrendDown, IconTrendUp,
+} from '@/components/icons'
+
+/** warna garis badge mengikuti tone teks dari attemptStatus() */
+function softLine(cls: string): string {
+  if (cls.includes('danger')) return 'border-danger-line'
+  if (cls.includes('warn')) return 'border-warn-line'
+  if (cls.includes('success')) return 'border-success-line'
+  if (cls.includes('primary')) return 'border-primary-line'
+  return 'border-border'
+}
 
 export default function ReportExam() {
   const { id } = useParams()
 
   const report = useQuery({ queryKey: ['reports', 'exam', id], queryFn: async () => unwrap(await api(`/reports/exams/${id}`)) })
-  const items = useQuery({ queryKey: ['reports', 'exam', id, 'item-analysis'], queryFn: () => unwrapList(api(`/reports/exams/${id}/item-analysis`)) })
+  const items = useQuery({ queryKey: ['reports', 'exam', id, 'item-analysis'], queryFn: async () => unwrapList(await api(`/reports/exams/${id}/item-analysis`)) })
 
   const [classFilter, setClassFilter] = useState('')
   const [exporting, setExporting] = useState<'' | 'xlsx' | 'csv' | 'pdf'>('')
@@ -53,88 +68,153 @@ export default function ReportExam() {
     }
   }
 
-  if (report.isLoading) return <div className="space-y-4"><PageHeader title="Laporan Ujian" /><SkeletonRows rows={6} cols={4} /></div>
-  if (report.isError) return <div className="space-y-4"><PageHeader title="Laporan Ujian" /><ErrorBox error={report.error} /></div>
+  if (report.isLoading) {
+    return (
+      <div className="space-y-4">
+        <PageHeader eyebrow="Laporan per Ujian" title="Laporan Ujian" icon={<IconChart2 size={18} />} />
+        <Panel title="Statistik Ujian" icon={<IconChart2 size={15} />}>
+          <SkeletonRows rows={6} cols={4} />
+        </Panel>
+      </div>
+    )
+  }
+  if (report.isError) {
+    return (
+      <div className="space-y-4">
+        <PageHeader eyebrow="Laporan per Ujian" title="Laporan Ujian" icon={<IconChart2 size={18} />} />
+        <Panel title="Statistik Ujian" icon={<IconChart2 size={15} />}>
+          <ErrorBox error={report.error} onRetry={() => void report.refetch()} />
+        </Panel>
+      </div>
+    )
+  }
 
-  const ST_CARDS: [string, string][] = [
-    ['Rata-rata', String(stats.avg ?? '—')],
-    ['Median', String(stats.median ?? '—')],
-    ['Tertinggi', String(stats.max ?? '—')],
-    ['Terendah', String(stats.min ?? '—')],
-    ['Kelulusan (KKM)', `${Math.round(Number(stats.pass_rate ?? 0) * 100)}%`],
-    ['Durasi rata-rata', fmtDuration(stats.avg_duration_seconds)],
-  ]
+  const participantCount = Number(stats.participants ?? 0)
+  const submittedCount = Number(stats.submitted ?? 0)
 
   return (
     <div className="space-y-4">
       <PageHeader
+        eyebrow="Laporan per Ujian"
         title={String(exam.name ?? 'Laporan Ujian')}
         desc={`${String(exam.subject_name ?? '')}${exam.close_at ? ` · selesai ${fmtDate(exam.close_at)}` : ''}`}
+        icon={<IconChart2 size={18} />}
         action={
-          <div className="flex flex-wrap gap-1.5 justify-end">
-            <button className="btn-ghost text-sm" disabled={exporting !== ''} onClick={() => void exportRekap('xlsx')}>
-              {exporting === 'xlsx' ? 'Mengunduh…' : <><IconDownload size={14} /> XLSX</>}
+          <>
+            <button type="button" className="btn-ghost btn-sm" disabled={exporting !== ''} onClick={() => void exportRekap('xlsx')}>
+              {exporting === 'xlsx' ? 'Mengunduh…' : <><IconDownload size={13} /> XLSX</>}
             </button>
-            <button className="btn-ghost text-sm" disabled={exporting !== ''} onClick={() => void exportRekap('csv')}>
-              {exporting === 'csv' ? 'Mengunduh…' : <><IconDownload size={14} /> CSV</>}
+            <button type="button" className="btn-ghost btn-sm" disabled={exporting !== ''} onClick={() => void exportRekap('csv')}>
+              {exporting === 'csv' ? 'Mengunduh…' : <><IconDownload size={13} /> CSV</>}
             </button>
-            <button className="btn-ghost text-sm" disabled={exporting !== ''} onClick={() => void exportRekap('pdf')}>
-              {exporting === 'pdf' ? 'Mengunduh…' : <><IconDownload size={14} /> PDF</>}
+            <button type="button" className="btn-ghost btn-sm" disabled={exporting !== ''} onClick={() => void exportRekap('pdf')}>
+              {exporting === 'pdf' ? 'Mengunduh…' : <><IconDownload size={13} /> PDF</>}
             </button>
-          </div>
+          </>
         }
       />
 
       {/* kartu statistik (FR-9.8) — label uppercase + angka mono */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-        {ST_CARDS.map(([label, value]) => (
-          <div key={label} className="card">
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-muted truncate">{label}</div>
-            <div className="mt-1 font-mono font-bold text-xl leading-tight truncate">{value}</div>
-          </div>
-        ))}
+      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 sm:gap-3 lg:grid-cols-3">
+        <StatCard
+          label="Rata-rata"
+          value={String(stats.avg ?? '—')}
+          hint="nilai akhir peserta"
+          tone="primary"
+          icon={<IconChart2 size={14} />}
+        />
+        <StatCard
+          label="Median"
+          value={String(stats.median ?? '—')}
+          hint="titik tengah sebaran"
+          icon={<IconChart size={14} />}
+        />
+        <StatCard
+          label="Tertinggi"
+          value={String(stats.max ?? '—')}
+          hint="nilai maksimum"
+          tone="success"
+          icon={<IconTrendUp size={14} />}
+        />
+        <StatCard
+          label="Terendah"
+          value={String(stats.min ?? '—')}
+          hint="nilai minimum"
+          tone="warn"
+          icon={<IconTrendDown size={14} />}
+        />
+        <StatCard
+          label="Kelulusan (KKM)"
+          value={`${Math.round(Number(stats.pass_rate ?? 0) * 100)}%`}
+          hint="peserta mencapai KKM"
+          tone="primary"
+          icon={<IconCheck size={14} />}
+        />
+        <StatCard
+          label="Durasi rata-rata"
+          value={fmtDuration(stats.avg_duration_seconds)}
+          hint="waktu pengerjaan"
+          icon={<IconClock size={14} />}
+        />
       </div>
 
       {/* distribusi nilai (histogram sederhana) */}
       {distribution.length > 0 && (
-        <div className="card space-y-3">
-          <h3 className="font-semibold">Distribusi nilai</h3>
+        <Panel
+          title="Distribusi Nilai"
+          icon={<IconChart size={15} />}
+          action={
+            <span className="text-xs text-muted">
+              <span className="mono font-semibold text-text">{submittedCount}</span> dari{' '}
+              <span className="mono font-semibold text-text">{participantCount}</span> peserta
+            </span>
+          }
+          bodyClassName="space-y-3"
+        >
           {(() => {
             const maxCount = Math.max(1, ...distribution.map(b => Number(asDict(b)[1] ?? 0)))
             return distribution.map((b, i) => {
               const bd = asDict(b)
-              const range = String(bd[0] ?? bd.range ?? `-${i}`)
+              const range = String(bd[0] ?? bd.bucket ?? bd.range ?? `-${i}`)
               const count = Number(bd[1] ?? bd.count ?? 0)
               return <BarRow key={range + i} label={range} value={count} max={maxCount} />
             })
           })()}
-        </div>
+        </Panel>
       )}
 
       {/* tabel nilai siswa + filter kelas (FR-3.6, FR-9.10) */}
-      <div className="space-y-2">
-        <TableToolbar count={rows.length} label="siswa">
-          <select className="input sm:!w-auto sm:max-w-44" value={classFilter} onChange={e => setClassFilter(e.target.value)} aria-label="Filter kelas">
-            <option value="">Semua kelas</option>
-            {classes.map(([cid, label]) => <option key={cid} value={cid}>{label}</option>)}
-          </select>
-        </TableToolbar>
+      <Panel title="Nilai Siswa" icon={<IconStudents size={15} />} flush>
+        <div className="border-b border-border p-3">
+          <TableToolbar count={rows.length} label="siswa">
+            <select
+              className="input sm:max-w-44"
+              value={classFilter}
+              onChange={e => setClassFilter(e.target.value)}
+              aria-label="Filter kelas"
+            >
+              <option value="">Semua kelas</option>
+              {classes.map(([cid, label]) => <option key={cid} value={cid}>{label}</option>)}
+            </select>
+          </TableToolbar>
+        </div>
+
         {rows.length === 0 ? (
           <EmptyState icon={<IconStudents />} title="Tidak ada peserta pada kelas ini" />
         ) : (
-          <div className="overflow-x-auto lg:overflow-visible">
+          <div className="table-scroll">
             <table className="table-base responsive-table">
               <thead>
                 <tr>
-                  <th>Siswa</th>
-                  <th>Kelas</th>
-                  <th>Percobaan</th>
-                  <th aria-sort={sort ? (sort === 'asc' ? 'ascending' : 'descending') : undefined}>
+                  <th scope="col">Siswa</th>
+                  <th scope="col">Kelas</th>
+                  <th scope="col">Percobaan</th>
+                  <th scope="col" className="num" aria-sort={sort ? (sort === 'asc' ? 'ascending' : 'descending') : undefined}>
                     <SortHeader label="Nilai Akhir" active={!!sort} dir={sort ?? 'desc'} onClick={toggleScoreSort} />
                   </th>
-                  <th>Durasi</th>
-                  <th>Status</th>
-                  <th>Track record</th>
+                  <th scope="col">Durasi</th>
+                  <th scope="col">Status</th>
+                  <th scope="col">Track record</th>
                 </tr>
               </thead>
               <tbody>
@@ -142,15 +222,17 @@ export default function ReportExam() {
                   const st = attemptStatus(s.status)
                   return (
                     <tr key={s.student_id ?? s.attempt_id ?? i}>
-                      <td data-th="Siswa" className="font-medium">{String(s.name ?? '—')}</td>
+                      <td data-th="Siswa" className="font-semibold">{String(s.name ?? '—')}</td>
                       <td data-th="Kelas">{String(s.class_name ?? s.class ?? '—')}</td>
-                      <td data-th="Percobaan">ke-{String(s.attempt_no ?? 1)}</td>
-                      <td data-th="Nilai Akhir" className="font-mono font-bold">{String(s.final_score ?? s.score ?? '—')}</td>
-                      <td data-th="Durasi">{fmtDuration(s.duration_seconds ?? s.duration)}</td>
-                      <td data-th="Status"><span className={`badge ${st.cls}`}>{st.label}</span></td>
-                      <td data-th="Track">
+                      <td data-th="Percobaan"><span className="mono">ke-{String(s.attempt_no ?? 1)}</span></td>
+                      <td data-th="Nilai Akhir" className="num font-bold">{String(s.final_score ?? s.score ?? '—')}</td>
+                      <td data-th="Durasi" className="mono whitespace-nowrap">{fmtDuration(s.duration_seconds ?? s.duration)}</td>
+                      <td data-th="Status">
+                        <span className={`badge border ${softLine(st.cls)} ${st.cls}`}>{st.label}</span>
+                      </td>
+                      <td data-th="Track record">
                         {s.student_id ? (
-                          <Link className="text-primary text-xs hover:underline" to={`/students/${s.student_id}`}>
+                          <Link className="btn-quiet btn-sm !px-0 !text-primary" to={`/students/${s.student_id}`}>
                             profil →
                           </Link>
                         ) : (
@@ -164,41 +246,68 @@ export default function ReportExam() {
             </table>
           </div>
         )}
-      </div>
+      </Panel>
 
       {/* analisis butir soal (FR-9.9) */}
-      <div className="card space-y-3">
-        <h3 className="font-semibold">Analisis butir soal</h3>
+      <Panel
+        title="Analisis Butir Soal"
+        icon={<IconChart2 size={15} />}
+        action={
+          qRows(items).length > 0 ? (
+            <span className="badge border border-border bg-canvas text-muted">
+              <span className="mono">{qRows(items).length}</span> butir
+            </span>
+          ) : undefined
+        }
+      >
         {items.isLoading ? (
           <SkeletonRows rows={3} cols={3} />
         ) : items.isError ? (
-          <ErrorBox error={items.error} />
+          <ErrorBox error={items.error} onRetry={() => void items.refetch()} />
         ) : qRows(items).length === 0 ? (
-          <p className="text-sm text-muted">Belum cukup data untuk analisis butir.</p>
+          <EmptyState icon={<IconChart2 />} title="Belum cukup data untuk analisis butir">
+            Analisis muncul setelah ada jawaban siswa yang dinilai.
+          </EmptyState>
         ) : (
-          <div className="space-y-2.5">
+          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
             {qRows(items).map((it, i) => {
               const row = asDict(it)
               const correctPct = Number(row.correct_pct ?? 0)
-              const hard = correctPct < 30 ? 'text-danger' : correctPct < 55 ? 'text-warn' : 'text-success'
+              const tone = correctPct < 30 ? 'danger' : correctPct < 55 ? 'warn' : 'success'
+              const hard = tone === 'danger' ? 'text-danger' : tone === 'warn' ? 'text-warn' : 'text-success'
               return (
-                <div key={row.question_id ?? i} className="space-y-1">
-                  <div className="flex justify-between gap-2 text-sm">
-                    <span className="truncate mr-2">
-                      <b>#{Number(row.order_no ?? i + 1)}</b> · {qtypeLabel(row.type)}
-                      {row.points !== undefined && <span className="text-muted"> · {String(row.points)} poin</span>}
-                    </span>
-                    <span className={`shrink-0 font-bold ${hard}`}>{Math.round(correctPct)}% benar</span>
+                <div key={row.question_id ?? i} className="rounded-md border border-border bg-surface p-2.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-semibold">
+                        <span className="mono">#{Number(row.order_no ?? i + 1)}</span> · {qtypeLabel(row.type)}
+                      </div>
+                      <div className="mt-0.5 text-[11px] text-muted">
+                        {row.points !== undefined && (
+                          <>
+                            <span className="mono">{String(row.points)}</span> poin ·{' '}
+                          </>
+                        )}
+                        <span className="mono">{Number(row.correct_count ?? 0)}</span>
+                        {' / '}
+                        <span className="mono">{Number(row.answered_count ?? 0)}</span> benar
+                      </div>
+                    </div>
+                    <span className={`mono shrink-0 whitespace-nowrap text-sm font-bold ${hard}`}>{Math.round(correctPct)}% benar</span>
                   </div>
-                  <div className={`h-2 rounded-full bg-border/40 ${hard}`}>
-                    <div className="h-full rounded-full bg-current" style={{ width: `${Math.max(2, Math.min(100, Math.round(correctPct)))}%` }} />
+                  <div className="mt-1.5">
+                    <ProgressBar
+                      value={Math.max(2, Math.min(100, Math.round(correctPct)))}
+                      tone={tone}
+                      label={`Persentase benar butir ${Number(row.order_no ?? i + 1)}`}
+                    />
                   </div>
                 </div>
               )
             })}
           </div>
         )}
-      </div>
+      </Panel>
     </div>
   )
 }
