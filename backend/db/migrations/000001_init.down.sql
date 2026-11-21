@@ -1,4 +1,0 @@
-DROP FUNCTION IF EXISTS current_tenant_id();
-DROP FUNCTION IF EXISTS set_updated_at();
-DROP EXTENSION IF EXISTS pg_trgm;
-DROP EXTENSION IF EXISTS citext;
