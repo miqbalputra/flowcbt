@@ -27,7 +27,9 @@ export const qRows = (q: unknown): Dict[] => {
 }
 export const qNext = (q: unknown): string | null => {
   const o = asDict((q as { data?: unknown })?.data)
-  return typeof o.next === 'string' ? o.next : null
+  if (typeof o.next === 'string') return o.next
+  if (typeof o.next === 'number') return String(o.next)
+  return null
 }
 
 /** {data:[...], next_cursor?} → rows + cursor */
@@ -35,8 +37,10 @@ export function unwrapList(res: unknown): { rows: Dict[]; next: string | null } 
   const o = asDict(res)
   const raw = o.data !== undefined ? o.data : o
   const rows = Array.isArray(raw) ? raw.map(asDict) : []
-  const next = [o.next_cursor, asDict(raw).next_cursor].find(v => typeof v === 'string')
-  return { rows, next: (next as string) ?? null }
+  const next = [o.next_cursor, asDict(raw).next_cursor].find(
+    v => typeof v === 'string' || (typeof v === 'number' && Number.isFinite(v)),
+  )
+  return { rows, next: next === undefined || next === null ? null : String(next) }
 }
 
 export function errMessage(e: unknown): string {
@@ -64,8 +68,10 @@ export function fmtDateTime(s: unknown): string {
 /** durasi detik → "12 menit 30 detik" */
 export function fmtDuration(seconds: unknown): string {
   const s = Math.max(0, Math.round(Number(seconds) || 0))
-  const m = Math.floor(s / 60)
+  const h = Math.floor(s / 3600)
+  const m = Math.floor((s % 3600) / 60)
   const r = s % 60
+  if (h > 0) return m === 0 ? `${h} jam` : `${h} j ${m} mnt`
   if (m === 0) return `${r} detik`
   return r === 0 ? `${m} menit` : `${m} mnt ${r} dtk`
 }
@@ -128,7 +134,7 @@ export function statusBadge(s: unknown): { label: string; cls: string } {
   const v = String(s ?? '')
   switch (v) {
     case 'draft': return { label: 'Draft', cls: 'badge-soft text-muted' }
-    case 'published': return { label: 'Published', cls: 'bg-success-soft text-success' }
+    case 'published': return { label: 'Terbit', cls: 'bg-success-soft text-success' }
     case 'archived': return { label: 'Arsip', cls: 'badge-soft text-muted' }
     case 'paid': return { label: 'Lunas', cls: 'bg-success-soft text-success' }
     case 'pending': return { label: 'Menunggu', cls: 'bg-warn-soft text-warn' }

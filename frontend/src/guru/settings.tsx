@@ -1,23 +1,24 @@
-// Pengaturan (§11): profil guru/admin, kelola guru + restrict kelas, tema.
+// Pengaturan (§11): profil guru/admin, keamanan akun, tema, kelola guru + restrict kelas.
 // Profil: PUT /auth/me {name?, phone?, password?}; kelola guru: GET/POST /teachers, PUT/DELETE /teachers/{id}
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { send } from './rpc'
 import { toast } from '@/components/toast'
-import { ConfirmDialog, Modal } from '@/components/modal'
+import { Modal } from '@/components/modal'
+import { ConfirmDialog } from '@/components/modal'
 import { ThemeToggle } from '@/components/ThemeToggle'
-import { EmptyState, ErrorBox, PageHeader, SkeletonRows, TableToolbar } from './ui'
-import {  asDict, asList, copyText, errMessage, ROLE_LABELS, unwrap, unwrapList, qRows } from './types'
-import { IconPlus, IconSettings, IconStudents } from '@/components/icons'
+import { Callout, EmptyState, ErrorBox, PageHeader, Panel, SkeletonRows, TableToolbar } from './ui'
+import { asDict, asList, copyText, errMessage, ROLE_LABELS, unwrap, unwrapList, qRows } from './types'
+import { IconKey, IconPlus, IconSettings, IconShield, IconStudents, IconSun } from '@/components/icons'
 
 type Teacher = { id: string; name: string; email: string; role: string; class_ids: string[] }
 
 export default function Settings() {
   const qc = useQueryClient()
   const me = useQuery({ queryKey: ['auth', 'me'], queryFn: async () => unwrap(await api('/auth/me')) })
-  const teachers = useQuery({ queryKey: ['teachers'], queryFn: () => unwrapList(api('/teachers')) })
-  const classes = useQuery({ queryKey: ['classes', 'settings'], queryFn: () => unwrapList(api('/classes')) })
+  const teachers = useQuery({ queryKey: ['teachers'], queryFn: async () => unwrapList(await api('/teachers')) })
+  const classes = useQuery({ queryKey: ['classes', 'settings'], queryFn: async () => unwrapList(await api('/classes')) })
 
   const m = me.data ? asDict(me.data.user ?? me.data) : {}
   const [name, setName] = useState('')
@@ -104,104 +105,205 @@ export default function Settings() {
     }
   }
 
+  const teacherRows = qRows(teachers)
+  const classRows = qRows(classes)
+  const myRole = String(m.role ?? '')
+
   return (
     <div className="space-y-4">
-      <PageHeader title="Pengaturan" desc="Profil Anda, kelola guru, dan tampilan." icon={<IconSettings size={18} />} />
+      <PageHeader
+        eyebrow="Akun & Lembaga"
+        title="Pengaturan"
+        desc="Profil Anda, keamanan akun, tampilan, dan akses guru."
+        icon={<IconSettings size={18} />}
+      />
 
-      {/* profil (PUT /auth/me) */}
-      <div className="card space-y-3">
-        <h3 className="font-semibold">Profil</h3>
-        {me.isError ? (
-          <ErrorBox error={me.error} />
-        ) : (
-          <div className="space-y-3">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)]">
+        {/* profil + keamanan (PUT /auth/me) */}
+        <Panel
+          title="Profil & keamanan"
+          icon={<IconShield size={15} />}
+          footer={
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="hint">Perubahan berlaku setelah disimpan.</span>
+              <button type="button" className="btn-primary" disabled={busy || me.isLoading} onClick={() => void saveProfile()}>
+                Simpan profil
+              </button>
+            </div>
+          }
+        >
+          {me.isLoading ? (
+            <SkeletonRows rows={2} cols={2} />
+          ) : me.isError ? (
+            <ErrorBox error={me.error} onRetry={() => void me.refetch()} />
+          ) : (
+            <div className="space-y-4">
               <div>
-                <label className="label" htmlFor="st-name">Nama</label>
-                <input id="st-name" className="input" value={name} onChange={e => setName(e.target.value)}
-                  placeholder={String(m.full_name ?? m.name ?? '')} />
+                <div className="section-label mb-2">Identitas</div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className="label" htmlFor="st-name">Nama</label>
+                    <input
+                      id="st-name"
+                      className="input"
+                      value={name}
+                      onChange={e => setName(e.target.value)}
+                      placeholder={String(m.full_name ?? m.name ?? '')}
+                    />
+                  </div>
+                  <div>
+                    <label className="label" htmlFor="st-phone">Nomor HP</label>
+                    <input
+                      id="st-phone"
+                      className="input mono"
+                      value={phone}
+                      onChange={e => setPhone(e.target.value)}
+                      placeholder={String(m.phone ?? '—')}
+                    />
+                  </div>
+                </div>
+                <div className="mt-2.5 flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted">
+                  <span>
+                    Email <b className="ml-1 font-semibold text-text">{String(m.email ?? '—')}</b>
+                  </span>
+                  <span>
+                    Peran <b className="ml-1 font-semibold text-text">{ROLE_LABELS[myRole] ?? (myRole || '—')}</b>
+                  </span>
+                </div>
               </div>
-              <div>
-                <label className="label" htmlFor="st-phone">Nomor HP</label>
-                <input id="st-phone" className="input" value={phone} onChange={e => setPhone(e.target.value)}
-                  placeholder={String(m.phone ?? '—')} />
+
+              <div className="border-t border-border pt-3">
+                <div className="section-label mb-2 flex items-center gap-1.5">
+                  <IconKey size={12} aria-hidden /> Keamanan akun
+                </div>
+                <label className="label" htmlFor="st-pass">
+                  Ganti password <span className="font-normal text-muted">(kosongkan bila tak diubah)</span>
+                </label>
+                <input
+                  id="st-pass"
+                  className="input"
+                  type="password"
+                  autoComplete="new-password"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                />
+                <p className="hint mt-1">Isi hanya bila ingin mengganti sandi akun; kosongkan untuk mempertahankan sandi lama.</p>
               </div>
             </div>
-            <div>
-              <label className="label" htmlFor="st-pass">Ganti password <span className="font-normal">(kosongkan bila tak diubah)</span></label>
-              <input id="st-pass" className="input" type="password" autoComplete="new-password"
-                value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" />
+          )}
+        </Panel>
+
+        {/* tampilan */}
+        <Panel title="Tampilan" icon={<IconSun size={15} />}>
+          <div className="flex items-center justify-between gap-3 rounded-md border border-border bg-canvas px-3 py-2.5">
+            <div className="min-w-0">
+              <div className="text-sm font-semibold">Tema aplikasi</div>
+              <p className="mt-0.5 text-xs text-muted">Terang atau gelap, tersimpan di perangkat ini.</p>
             </div>
-            <div className="flex flex-wrap gap-2 items-center">
-              <button type="button" className="btn-primary" disabled={busy} onClick={() => void saveProfile()}>Simpan profil</button>
-              <span className="text-xs text-muted ml-auto flex items-center gap-2">
-                Tema <ThemeToggle />
-              </span>
-            </div>
+            <ThemeToggle />
           </div>
-        )}
+          <p className="hint mt-2">Bawaan mengikuti preferensi tampilan perangkat Anda.</p>
+        </Panel>
       </div>
 
       {/* kelola guru (admin sekolah) */}
-      <div className="card space-y-3">
-        <div className="flex items-center justify-between gap-2">
-          <h3 className="font-semibold">Kelola guru</h3>
-          <button type="button" className="btn-primary text-sm"
-            onClick={() => setEditT({ name: '', email: '', role: 'teacher', class_ids: [] })}><IconPlus size={14} /> Undang Guru</button>
+      <Panel
+        title="Kelola guru"
+        icon={<IconStudents size={15} />}
+        flush
+        action={
+          <button
+            type="button"
+            className="btn-primary btn-sm"
+            onClick={() => setEditT({ name: '', email: '', role: 'teacher', class_ids: [] })}
+          >
+            <IconPlus size={14} /> Undang guru
+          </button>
+        }
+        footer={<span className="hint">Batasi akses kelas bila guru hanya boleh mengelola kelas tertentu.</span>}
+      >
+        <div className="border-b border-border p-3">
+          <TableToolbar count={teacherRows.length} label="guru">
+            <span className="text-xs text-muted">Tanpa batasan = akses semua kelas</span>
+          </TableToolbar>
         </div>
+
         {teachers.isLoading ? (
-          <SkeletonRows rows={2} cols={4} />
+          <div className="p-3">
+            <SkeletonRows rows={2} cols={4} />
+          </div>
         ) : teachers.isError ? (
-          <ErrorBox error={teachers.error} />
-        ) : qRows(teachers).length === 0 ? (
-          <EmptyState icon={<IconStudents />} title="Belum ada guru lain" children="Undang via email di samping." />
+          <div className="p-3">
+            <ErrorBox error={teachers.error} onRetry={() => void teachers.refetch()} />
+          </div>
+        ) : teacherRows.length === 0 ? (
+          <EmptyState icon={<IconStudents size={20} />} title="Belum ada guru lain">
+            Undang rekan guru lewat tombol "Undang guru" di kanan atas.
+          </EmptyState>
         ) : (
-          <>
-            <TableToolbar count={qRows(teachers).length} label="guru" />
-            <div className="overflow-x-auto lg:overflow-visible">
-              <table className="table-base responsive-table">
-                <thead>
-                  <tr><th>Nama</th><th>Email</th><th>Peran</th><th>Akses kelas</th><th>Aksi</th></tr>
-                </thead>
-                <tbody>
-                  {qRows(teachers).map((t, i) => {
-                    const teacher = asDict(t)
-                    const ids = asList(teacher.class_ids ?? teacher.restricted_class_ids ?? []).map(String)
-                    return (
-                      <tr key={teacher.id ?? i}>
-                        <td data-th="Nama" className="font-medium">{String(teacher.name ?? '—')}</td>
-                        <td data-th="Email" className="break-all">{String(teacher.email ?? '—')}</td>
-                        <td data-th="Peran">{ROLE_LABELS[String(teacher.role ?? 'teacher')] ?? String(teacher.role ?? '—')}</td>
-                        <td data-th="Akses kelas">{ids.length === 0 ? 'Semua' : `${ids.length} kelas`}</td>
-                        <td data-th="Aksi">
-                          <div className="flex gap-1.5 flex-wrap">
-                            <button type="button" className="btn-ghost btn-sm"
-                              onClick={() => setEditT({
-                                id: String(teacher.id ?? ''),
-                                name: String(teacher.name ?? ''),
-                                email: String(teacher.email ?? ''),
-                                role: ['owner', 'teacher'].includes(String(teacher.role)) ? String(teacher.role) : 'teacher',
-                                class_ids: ids,
-                              })}>Atur</button>
-                            <button type="button" className="btn-danger btn-sm"
-                              onClick={() => setDeleting({
-                                id: String(teacher.id ?? ''),
-                                name: String(teacher.name ?? ''),
-                                email: String(teacher.email ?? ''),
-                                role: String(teacher.role ?? 'teacher'),
-                                class_ids: ids,
-                              })}>Hapus</button>
-                          </div>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </>
+          <div className="table-scroll">
+            <table className="table-base responsive-table">
+              <thead>
+                <tr>
+                  <th scope="col">Nama</th>
+                  <th scope="col">Email</th>
+                  <th scope="col">Peran</th>
+                  <th scope="col">Akses kelas</th>
+                  <th scope="col" className="num">Aksi</th>
+                </tr>
+              </thead>
+              <tbody>
+                {teacherRows.map((t, i) => {
+                  const teacher = asDict(t)
+                  const ids = asList(teacher.class_ids ?? teacher.restricted_class_ids ?? []).map(String)
+                  const roleLabel = ROLE_LABELS[String(teacher.role ?? 'teacher')] ?? String(teacher.role ?? '—')
+                  return (
+                    <tr key={teacher.id ?? i}>
+                      <td data-th="Nama" className="font-semibold">{String(teacher.name ?? '—')}</td>
+                      <td data-th="Email" className="break-all text-muted">{String(teacher.email ?? '—')}</td>
+                      <td data-th="Peran"><span className="chip">{roleLabel}</span></td>
+                      <td data-th="Akses kelas">
+                        {ids.length === 0 ? 'Semua' : <><span className="mono">{ids.length}</span> kelas</>}
+                      </td>
+                      <td data-th="Aksi" className="num">
+                        <div className="flex flex-wrap justify-end gap-1.5">
+                          <button
+                            type="button"
+                            className="btn-ghost btn-sm"
+                            onClick={() => setEditT({
+                              id: String(teacher.id ?? ''),
+                              name: String(teacher.name ?? ''),
+                              email: String(teacher.email ?? ''),
+                              role: ['owner', 'teacher'].includes(String(teacher.role)) ? String(teacher.role) : 'teacher',
+                              class_ids: ids,
+                            })}
+                          >
+                            Atur
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-quiet btn-sm"
+                            onClick={() => setDeleting({
+                              id: String(teacher.id ?? ''),
+                              name: String(teacher.name ?? ''),
+                              email: String(teacher.email ?? ''),
+                              role: String(teacher.role ?? 'teacher'),
+                              class_ids: ids,
+                            })}
+                          >
+                            Hapus
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
-      </div>
+      </Panel>
 
       {/* modal undang/atur guru */}
       <Modal
@@ -217,39 +319,82 @@ export default function Settings() {
           </>
         }
       >
-        <div className="space-y-3">
+        <div className="space-y-4">
           <div>
-            <label className="label" htmlFor="t-name">Nama guru</label>
-            <input id="t-name" className="input" value={editT?.name ?? ''}
-              onChange={e => setEditT(t => (t ? { ...t, name: e.target.value } : t))} placeholder="Ibu Rina" />
-          </div>
-          <div>
-            <label className="label" htmlFor="t-email">Email {editT?.id ? <span className="font-normal">(tidak bisa diubah)</span> : '(token undangan dikirim)'}</label>
-            <input id="t-email" className="input" type="email" disabled={!!editT?.id} value={editT?.email ?? ''}
-              onChange={e => setEditT(t => (t ? { ...t, email: e.target.value } : t))} placeholder="guru@sekolah.sch.id" />
-          </div>
-          <div>
-            <label className="label" htmlFor="t-role">Peran</label>
-            <select id="t-role" className="input" value={editT?.role ?? 'teacher'}
-              onChange={e => setEditT(t => (t ? { ...t, role: e.target.value } : t))}>
-              <option value="owner">Admin Sekolah</option>
-              <option value="teacher">Guru</option>
-            </select>
-          </div>
-          <div>
-            <span className="label">Batasi akses kelas — kosongkan bila semua kelas</span>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {qRows(classes).map((c, i) => {
-                const cid = String(c.id ?? '')
-                return (
-                  <label key={cid || i} className="flex items-center gap-2 rounded-lg border border-border p-2.5 min-h-[44px] cursor-pointer text-sm">
-                    <input type="checkbox" checked={editT?.class_ids.includes(cid) ?? false} onChange={() => toggleClass(cid)} className="shrink-0" />
-                    <span className="truncate">{String(c.name ?? '—')}</span>
-                  </label>
-                )
-              })}
+            <div className="section-label mb-2">Identitas guru</div>
+            <div className="space-y-3">
+              <div>
+                <label className="label" htmlFor="t-name">Nama guru</label>
+                <input
+                  id="t-name"
+                  className="input"
+                  value={editT?.name ?? ''}
+                  onChange={e => setEditT(t => (t ? { ...t, name: e.target.value } : t))}
+                  placeholder="Ibu Rina"
+                />
+              </div>
+              <div>
+                <label className="label" htmlFor="t-email">
+                  Email {editT?.id ? <span className="font-normal text-muted">(tidak bisa diubah)</span> : '(token undangan dikirim)'}
+                </label>
+                <input
+                  id="t-email"
+                  className="input"
+                  type="email"
+                  disabled={!!editT?.id}
+                  value={editT?.email ?? ''}
+                  onChange={e => setEditT(t => (t ? { ...t, email: e.target.value } : t))}
+                  placeholder="guru@sekolah.sch.id"
+                />
+              </div>
             </div>
-            {classes.isError && <p className="text-xs text-danger mt-1">Gagal memuat daftar kelas — backend mungkin mati.</p>}
+          </div>
+
+          <div className="border-t border-border pt-3">
+            <div className="section-label mb-2">Peran & akses</div>
+            <div>
+              <label className="label" htmlFor="t-role">Peran</label>
+              <select
+                id="t-role"
+                className="input"
+                value={editT?.role ?? 'teacher'}
+                onChange={e => setEditT(t => (t ? { ...t, role: e.target.value } : t))}
+              >
+                <option value="owner">Admin Sekolah</option>
+                <option value="teacher">Guru</option>
+              </select>
+            </div>
+            <div className="mt-3">
+              <div className="label">Batasi akses kelas — kosongkan bila semua kelas</div>
+              <div className="max-h-48 space-y-1 overflow-y-auto rounded-md border border-border bg-canvas p-1.5">
+                {classRows.length === 0 ? (
+                  <p className="px-1.5 py-2 text-xs text-muted">Belum ada kelas untuk dipilih.</p>
+                ) : (
+                  classRows.map((c, i) => {
+                    const cid = String(c.id ?? '')
+                    return (
+                      <label
+                        key={cid || i}
+                        className="flex min-h-11 cursor-pointer items-center gap-2 rounded px-1.5 text-sm hover:bg-surface"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={editT?.class_ids.includes(cid) ?? false}
+                          onChange={() => toggleClass(cid)}
+                          className="shrink-0"
+                        />
+                        <span className="truncate">{String(c.name ?? '—')}</span>
+                      </label>
+                    )
+                  })
+                )}
+              </div>
+              {classes.isError && (
+                <div className="mt-2">
+                  <Callout tone="danger">Gagal memuat daftar kelas — backend mungkin mati.</Callout>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </Modal>
@@ -262,24 +407,28 @@ export default function Settings() {
         footer={<button type="button" className="btn-primary" onClick={() => setTempPass(null)}>Tutup</button>}
       >
         <p className="text-sm text-muted">Password awal guru (belum bisa direset ulang sebelum pertama login):</p>
-        <div className="rounded-lg border border-border p-3 flex items-center gap-2">
+        <div className="flex items-center gap-2 rounded-md border border-border bg-canvas p-3">
           <div className="min-w-0 flex-1 text-sm">
             <div className="truncate">{tempPass?.email}</div>
-            <div className="font-mono font-bold break-all">{tempPass?.temp_password}</div>
+            <div className="mono break-all font-bold">{tempPass?.temp_password}</div>
           </div>
-          <button type="button" className="btn-ghost btn-sm shrink-0"
-            onClick={() => void copyText(`${tempPass?.email} / ${tempPass?.temp_password}`, 'Login guru disalin')}>
+          <button
+            type="button"
+            className="btn-ghost btn-sm shrink-0"
+            onClick={() => void copyText(`${tempPass?.email} / ${tempPass?.temp_password}`, 'Login guru disalin')}
+          >
             Salin
           </button>
         </div>
-        <p className="text-xs text-muted">Bagikan lewat kanal aman — guru diminta ganti password di login pertama.</p>
+        <p className="hint">Bagikan lewat kanal aman — guru diminta ganti password di login pertama.</p>
       </Modal>
 
       <ConfirmDialog
         open={!!deleting}
         title="Hapus guru?"
         message={`Hapus akses ${deleting?.name ?? ''} (${deleting?.email ?? ''})? Soal & ujian miliknya tetap tersimpan.`}
-        danger busy={busy}
+        danger
+        busy={busy}
         onConfirm={delTeacher}
         onClose={() => setDeleting(null)}
       />

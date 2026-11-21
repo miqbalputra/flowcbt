@@ -1,33 +1,169 @@
-// Komponen UI kecil bersama area guru: page header, state kosong, skeleton, error, badge,
-// toolbar tabel & sort kolom (directive §3A — data tables enterprise). TANPA emoji: ikon SVG.
+// Komponen UI bersama area guru/admin — Design System v3 "Portal Ujian".
+// Tambahan v3: Panel, SectionHeading, StatCard, Callout, Tabs, ProgressBar.
+// API lama (PageHeader, EmptyState, ErrorBox, SkeletonRows, StatusBadge,
+// sortRowsBy, SortHeader, TableToolbar, SearchBox, BarRow, Donut) tetap.
 import type { ReactNode } from 'react'
-import { IconEmpty, IconRefresh, IconSearch, IconWarn } from '@/components/icons'
+import { IconEmpty, IconInfo, IconRefresh, IconSearch, IconWarn } from '@/components/icons'
 import { statusBadge } from './types'
 
-export function PageHeader({ title, desc, action, icon }: { title: string; desc?: string; action?: ReactNode; icon?: ReactNode }) {
+/* ------------------------------- header ------------------------------- */
+
+export function PageHeader({
+  title,
+  desc,
+  action,
+  icon,
+  eyebrow,
+}: {
+  title: string
+  desc?: string
+  action?: ReactNode
+  icon?: ReactNode
+  eyebrow?: string
+}) {
   return (
-    <div className="flex items-start justify-between gap-3 mb-4">
-      <div className="min-w-0 flex items-start gap-2.5">
-        {icon && <span className="text-muted shrink-0 mt-1" aria-hidden>{icon}</span>}
+    <div className="mb-5 flex flex-col gap-3 border-b border-border pb-4 sm:flex-row sm:items-start sm:justify-between">
+      <div className="min-w-0 flex items-start gap-3">
+        {icon && (
+          <span
+            aria-hidden
+            className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border bg-surface text-primary"
+          >
+            {icon}
+          </span>
+        )}
         <div className="min-w-0">
-          <h2 className="text-lg sm:text-xl font-bold tracking-tight">{title}</h2>
-          {desc && <p className="text-sm text-muted mt-0.5">{desc}</p>}
+          {eyebrow && <div className="section-label mb-0.5">{eyebrow}</div>}
+          <h1 className="truncate text-lg font-bold leading-tight tracking-tight sm:text-xl">{title}</h1>
+          {desc && <p className="mt-1 text-sm text-muted">{desc}</p>}
         </div>
+      </div>
+      {action && (
+        <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">{action}</div>
+      )}
+    </div>
+  )
+}
+
+/** Judul bagian di dalam halaman (di atas grid/daftar). */
+export function SectionHeading({
+  title,
+  desc,
+  action,
+  icon,
+}: {
+  title: string
+  desc?: string
+  action?: ReactNode
+  icon?: ReactNode
+}) {
+  return (
+    <div className="mb-2.5 flex items-end justify-between gap-3">
+      <div className="min-w-0">
+        <h2 className="flex items-center gap-2 text-sm font-bold tracking-tight">
+          {icon && <span className="text-muted" aria-hidden>{icon}</span>}
+          {title}
+        </h2>
+        {desc && <p className="mt-0.5 text-xs text-muted">{desc}</p>}
       </div>
       {action && <div className="shrink-0">{action}</div>}
     </div>
   )
 }
 
-/** state kosong — icon kini ReactNode (komponen ikon), bukan emoji */
+/* -------------------------------- panel -------------------------------- */
+
+export function Panel({
+  title,
+  action,
+  children,
+  flush = false,
+  footer,
+  icon,
+  className = '',
+  bodyClassName = '',
+}: {
+  title?: ReactNode
+  action?: ReactNode
+  children: ReactNode
+  flush?: boolean
+  footer?: ReactNode
+  icon?: ReactNode
+  className?: string
+  bodyClassName?: string
+}) {
+  return (
+    <section className={`panel ${className}`}>
+      {(title || action) && (
+        <header className="panel-hd">
+          <h2 className="panel-title min-w-0">
+            {icon && <span aria-hidden>{icon}</span>}
+            <span className="truncate">{title}</span>
+          </h2>
+          {action && <div className="flex shrink-0 items-center gap-1.5">{action}</div>}
+        </header>
+      )}
+      <div className={flush ? 'panel-bd-flush' : `panel-bd ${bodyClassName}`}>{children}</div>
+      {footer && <footer className="panel-ft">{footer}</footer>}
+    </section>
+  )
+}
+
+/* -------------------------------- stats -------------------------------- */
+
+export function StatCard({
+  label,
+  value,
+  hint,
+  icon,
+  tone = 'default',
+  action,
+}: {
+  label: string
+  value: ReactNode
+  hint?: ReactNode
+  icon?: ReactNode
+  tone?: 'default' | 'primary' | 'success' | 'warn' | 'danger'
+  action?: ReactNode
+}) {
+  const tile: Record<string, string> = {
+    default: 'bg-canvas text-muted border-border',
+    primary: 'bg-primary-soft text-primary border-primary-line',
+    success: 'bg-success-soft text-success border-success-line',
+    warn: 'bg-warn-soft text-warn border-warn-line',
+    danger: 'bg-danger-soft text-danger border-danger-line',
+  }
+  return (
+    <div className="card !p-0 overflow-hidden">
+      <div className="flex items-start justify-between gap-2 px-3.5 pt-3">
+        <div className="section-label leading-tight">{label}</div>
+        <div className="flex items-center gap-1.5">
+          {action}
+          {icon && (
+            <span aria-hidden className={`flex h-7 w-7 items-center justify-center rounded-md border ${tile[tone]}`}>
+              {icon}
+            </span>
+          )}
+        </div>
+      </div>
+      <div className="px-3.5 pb-3 pt-1.5">
+        <div className="mono truncate text-2xl font-bold leading-none tracking-tight">{value}</div>
+        {hint && <div className="mt-1.5 truncate text-xs text-muted">{hint}</div>}
+      </div>
+    </div>
+  )
+}
+
+/* ------------------------------ feedback ------------------------------ */
+
 export function EmptyState({ icon, title, children }: { icon?: ReactNode; title: string; children?: ReactNode }) {
   return (
-    <div className="card text-center py-8">
-      <div className="w-10 h-10 mx-auto mb-2.5 rounded-lg bg-canvas border border-border text-muted flex items-center justify-center">
-        {icon ?? <IconEmpty size={18} />}
+    <div className="flex flex-col items-center gap-2 px-4 py-9 text-center">
+      <div className="mb-0.5 flex h-11 w-11 items-center justify-center rounded-lg border border-border bg-canvas text-muted">
+        {icon ?? <IconEmpty size={20} />}
       </div>
-      <div className="font-medium">{title}</div>
-      {children && <div className="text-sm text-muted mt-1">{children}</div>}
+      <div className="text-sm font-semibold">{title}</div>
+      {children && <div className="max-w-sm text-sm text-muted">{children}</div>}
     </div>
   )
 }
@@ -35,13 +171,17 @@ export function EmptyState({ icon, title, children }: { icon?: ReactNode; title:
 export function ErrorBox({ error, onRetry }: { error: unknown; onRetry?: () => void }) {
   const e = error as { message?: string }
   return (
-    <div className="card text-sm flex items-start gap-3" role="alert">
-      <span className="text-danger shrink-0 mt-0.5" aria-hidden><IconWarn size={18} /></span>
+    <div
+      className="flex items-start gap-3 rounded-lg border p-3 text-sm"
+      style={{ borderColor: 'var(--c-danger-line)', background: 'var(--c-danger-soft)' }}
+      role="alert"
+    >
+      <span className="mt-0.5 shrink-0 text-danger" aria-hidden><IconWarn size={18} /></span>
       <div className="min-w-0">
-        <div className="font-medium text-danger mb-1">Gagal memuat — backend mungkin sedang tidak tersedia</div>
-        <div className="text-muted mb-2">{e?.message || 'Coba muat ulang halaman.'}</div>
+        <div className="mb-0.5 font-semibold text-danger">Gagal memuat data</div>
+        <div className="mb-2 text-muted">{e?.message || 'Backend mungkin sedang tidak tersedia. Coba muat ulang halaman.'}</div>
         {onRetry && (
-          <button type="button" className="btn-ghost text-sm" onClick={onRetry}>
+          <button type="button" className="btn-ghost btn-sm" onClick={onRetry}>
             <IconRefresh size={14} /> Coba lagi
           </button>
         )}
@@ -50,11 +190,41 @@ export function ErrorBox({ error, onRetry }: { error: unknown; onRetry?: () => v
   )
 }
 
+export function Callout({
+  tone = 'info',
+  title,
+  children,
+  icon,
+}: {
+  tone?: 'info' | 'success' | 'warn' | 'danger'
+  title?: string
+  children?: ReactNode
+  icon?: ReactNode
+}) {
+  const map = {
+    info: { border: 'var(--c-primary-line)', bg: 'var(--c-primary-soft)', fg: 'var(--c-primary)' },
+    success: { border: 'var(--c-success-line)', bg: 'var(--c-success-soft)', fg: 'var(--c-success)' },
+    warn: { border: 'var(--c-warn-line)', bg: 'var(--c-warn-soft)', fg: 'var(--c-warn)' },
+    danger: { border: 'var(--c-danger-line)', bg: 'var(--c-danger-soft)', fg: 'var(--c-danger)' },
+  }[tone]
+  return (
+    <div className="flex items-start gap-2.5 rounded-md border p-2.5 text-sm" style={{ borderColor: map.border, background: map.bg }}>
+      <span className="mt-0.5 shrink-0" style={{ color: map.fg }} aria-hidden>
+        {icon ?? <IconInfo size={16} />}
+      </span>
+      <div className="min-w-0">
+        {title && <div className="font-semibold" style={{ color: map.fg }}>{title}</div>}
+        <div className="text-text">{children}</div>
+      </div>
+    </div>
+  )
+}
+
 export function SkeletonRows({ rows = 4, cols = 4 }: { rows?: number; cols?: number }) {
   return (
-    <div className="space-y-2">
+    <div className="space-y-2" aria-hidden>
       {Array.from({ length: rows }).map((_, r) => (
-        <div key={r} className="card !p-3 flex gap-3">
+        <div key={r} className="card flex gap-3 !p-3">
           {Array.from({ length: cols }).map((_, c) => (
             <div key={c} className="skeleton h-4 flex-1" />
           ))}
@@ -67,8 +237,72 @@ export function SkeletonRows({ rows = 4, cols = 4 }: { rows?: number; cols?: num
 /** status badge kecil (draft/published/paid/…) — gaya soft dari statusBadge() */
 export function StatusBadge({ status }: { status: unknown }) {
   const s = statusBadge(status)
+  return <span className={`badge ${s.cls}`}>{s.label}</span>
+}
+
+/* -------------------------------- tabs -------------------------------- */
+
+export type TabItem = { key: string; label: string; count?: number; icon?: ReactNode }
+
+/** Tab garis bawah (gaya portal): aktif = border-b-2 primary + teks tebal. */
+export function Tabs({
+  items,
+  value,
+  onChange,
+  ariaLabel = 'Tab',
+}: {
+  items: TabItem[]
+  value: string
+  onChange: (key: string) => void
+  ariaLabel?: string
+}) {
   return (
-    <span className={`badge ${s.cls}`}>{s.label}</span>
+    <div role="tablist" aria-label={ariaLabel} className="flex gap-0.5 overflow-x-auto border-b border-border">
+      {items.map(it => {
+        const active = it.key === value
+        return (
+          <button
+            key={it.key}
+            role="tab"
+            type="button"
+            aria-selected={active}
+            onClick={() => onChange(it.key)}
+            className={`-mb-px inline-flex min-h-11 shrink-0 items-center gap-1 border-b-2 px-2 text-[12.5px] transition-colors sm:gap-1.5 sm:px-3 sm:text-sm ${
+              active
+                ? 'border-primary font-semibold text-primary'
+                : 'border-transparent text-muted hover:border-border-strong hover:text-text'
+            }`}
+          >
+            {it.icon && <span aria-hidden>{it.icon}</span>}
+            {it.label}
+            {typeof it.count === 'number' && (
+              <span className={`mono rounded px-0.5 text-[10.5px] font-bold sm:px-1 sm:text-[11px] ${active ? 'bg-primary-soft text-primary' : 'bg-canvas text-muted'}`}>
+                {it.count}
+              </span>
+            )}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+/* ------------------------------ progress ------------------------------ */
+
+export function ProgressBar({ value, max = 100, tone = 'primary', label }: { value: number; max?: number; tone?: 'primary' | 'success' | 'warn' | 'danger'; label?: string }) {
+  const pct = max > 0 ? Math.min(100, Math.max(0, Math.round((value / max) * 100))) : 0
+  const color = { primary: 'var(--c-primary)', success: 'var(--c-success-bg)', warn: 'var(--c-warn-bg)', danger: 'var(--c-danger-bg)' }[tone]
+  return (
+    <div
+      className="progress"
+      role="progressbar"
+      aria-valuenow={pct}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-label={label}
+    >
+      <span style={{ width: `${pct}%`, background: color }} />
+    </div>
   )
 }
 
@@ -119,23 +353,23 @@ export function SortHeader({ label, active, dir, onClick }: {
       className={`inline-flex items-center gap-1 font-semibold uppercase tracking-wider text-xs ${active ? 'text-primary' : 'text-muted hover:text-text'}`}
     >
       {label}
-      <span aria-hidden className={`text-[11px] leading-none w-3 text-center ${active ? '' : 'opacity-50'}`}>
+      <span aria-hidden className={`w-3 text-center text-[11px] leading-none ${active ? '' : 'opacity-50'}`}>
         {active ? (dir === 'asc' ? '↑' : '↓') : '↕'}
       </span>
     </button>
   )
 }
 
-/** Toolbar di atas tabel: kiri hitungan "X item", kanan search/filter (directive §3A). */
+/** Toolbar di atas tabel: kiri hitungan "X item", kanan search/filter. */
 export function TableToolbar({ count, label = 'item', children }: { count?: number; label?: string; children?: ReactNode }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
       {count !== undefined && (
-        <span className="text-xs font-medium uppercase tracking-wider text-muted whitespace-nowrap mr-auto">
-          <span className="font-mono">{count}</span> {label}
+        <span className="mr-auto whitespace-nowrap text-xs text-muted">
+          <span className="mono font-semibold text-text">{count}</span> {label}
         </span>
       )}
-      {children && <div className="flex flex-wrap items-center gap-2 ml-auto">{children}</div>}
+      {children && <div className="ml-auto flex flex-wrap items-center gap-2">{children}</div>}
     </div>
   )
 }
@@ -150,7 +384,7 @@ export function SearchBox({ value, onChange, placeholder, label, className = '' 
 }) {
   return (
     <div className={`relative ${className}`}>
-      <IconSearch size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted pointer-events-none" aria-hidden />
+      <IconSearch size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" aria-hidden />
       <input
         type="search"
         className="input pl-9"
@@ -169,11 +403,11 @@ export function BarRow({ label, value, max, hint }: { label: string; value: numb
   return (
     <div className="space-y-1">
       <div className="flex justify-between text-sm">
-        <span className="truncate mr-2">{label}</span>
-        <span className="text-muted shrink-0">{hint ?? value}</span>
+        <span className="mr-2 truncate">{label}</span>
+        <span className="mono shrink-0 text-muted">{hint ?? value}</span>
       </div>
-      <div className="h-2.5 rounded-full bg-border/40 overflow-hidden">
-        <div className="h-full rounded-full bg-primary" style={{ width: `${w}%` }} />
+      <div className="h-2 overflow-hidden rounded-sm bg-canvas">
+        <div className="h-full rounded-sm bg-primary" style={{ width: `${w}%` }} />
       </div>
     </div>
   )
@@ -190,9 +424,9 @@ export function Donut({ parts, size = 132 }: { parts: { value: number; color: st
     return `${p.color} ${from}% ${to}%`
   })
   return (
-    <div className="flex items-center gap-4 flex-wrap">
+    <div className="flex flex-wrap items-center gap-4">
       <div
-        className="rounded-full shrink-0"
+        className="shrink-0 rounded-full"
         style={{
           width: size, height: size,
           background: `conic-gradient(${stops.join(', ')})`,
@@ -205,9 +439,9 @@ export function Donut({ parts, size = 132 }: { parts: { value: number; color: st
       <div className="space-y-1 text-sm">
         {parts.map(p => (
           <div key={p.label} className="flex items-center gap-2">
-            <span className="w-3 h-3 rounded-full shrink-0" style={{ background: p.color }} />
+            <span className="h-3 w-3 shrink-0 rounded-sm" style={{ background: p.color }} />
             <span>{p.label}</span>
-            <span className="text-muted">{p.value}</span>
+            <span className="mono text-muted">{p.value}</span>
           </div>
         ))}
       </div>

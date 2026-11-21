@@ -1,20 +1,64 @@
-// Daftar siswa (FR-3.2..3.4): CRUD, filter kelas, pencarian, import wizard, export, kuota
+// Daftar siswa (FR-3.2..3.4): CRUD, filter kelas, pencarian, import wizard, export, kuota.
+// Tampilan Design System v3 "Portal Ujian": PageHeader + Panel, toolbar tabel, aksi massal.
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { api } from '@/lib/api'
 import { send } from './rpc'
 import { toast } from '@/components/toast'
 import { ConfirmDialog, Modal } from '@/components/modal'
-import { EmptyState, ErrorBox, PageHeader, SearchBox, SkeletonRows, SortHeader, TableToolbar, sortRowsBy, type SortDir } from './ui'
+import {
+  Callout, EmptyState, ErrorBox, PageHeader, Panel, ProgressBar, SearchBox,
+  SkeletonRows, SortHeader, TableToolbar, sortRowsBy, type SortDir,
+} from './ui'
 import { IconCheck, IconCopy, IconDownload, IconPlus, IconStudents, IconUpload, IconWarn } from '@/components/icons'
-import {  asDict, asList, asDict as d, errCode, errMessage, fmtDate, GENDERS, qs, unwrap, unwrapList, qRows, qNext } from './types'
+import { asDict, asList, asDict as d, errCode, errMessage, GENDERS, qNext, qRows, qs, unwrap, unwrapList } from './types'
 import { apiUrl, uploadFile } from './files'
 import { getAccessToken } from '@/lib/api'
 
 const PAGE = 25
 const EMPTY = { full_name: '', gender: 'L', class_id: '', nis: '' }
+
+/* ------------------------- import wizard: stepper ------------------------- */
+
+const IMPORT_STEPS: { key: 'upload' | 'preview' | 'done'; label: string }[] = [
+  { key: 'upload', label: 'Berkas' },
+  { key: 'preview', label: 'Pratinjau' },
+  { key: 'done', label: 'Kartu login' },
+]
+
+function ImportSteps({ current }: { current: 'upload' | 'preview' | 'done' }) {
+  const idx = IMPORT_STEPS.findIndex(s => s.key === current)
+  return (
+    <ol className="flex flex-wrap items-center gap-1.5 border-b border-border pb-3" aria-label="Langkah import">
+      {IMPORT_STEPS.map((s, i) => {
+        const done = i < idx
+        const active = i === idx
+        return (
+          <li key={s.key} className="flex items-center gap-1.5">
+            <span
+              aria-hidden
+              className={`mono flex h-6 w-6 shrink-0 items-center justify-center rounded border text-[11px] font-bold ${
+                active
+                  ? 'border-primary bg-primary text-white'
+                  : done
+                    ? 'border-success-line bg-success-soft text-success'
+                    : 'border-border bg-canvas text-muted'
+              }`}
+            >
+              {done ? <IconCheck size={12} /> : i + 1}
+            </span>
+            <span className={`text-xs ${active ? 'font-semibold text-text' : 'text-muted'}`}>{s.label}</span>
+            {i < IMPORT_STEPS.length - 1 && <span aria-hidden className="mx-0.5 h-px w-5 bg-border-strong" />}
+          </li>
+        )
+      })}
+    </ol>
+  )
+}
+
+/* --------------------------------- halaman -------------------------------- */
 
 export default function Students() {
   const qc = useQueryClient()
@@ -38,10 +82,10 @@ export default function Students() {
   }, [search])
   useEffect(() => { setCursor(null) }, [classId, debounced])
 
-  const classes = useQuery({ queryKey: ['classes'], queryFn: () => unwrapList(api('/classes')) })
+  const classes = useQuery({ queryKey: ['classes'], queryFn: async () => unwrapList(await api('/classes')) })
   const list = useQuery({
     queryKey: ['students', classId, debounced, cursor],
-    queryFn: () => unwrapList(api(`/students${qs({ class_id: classId || undefined, q: debounced || undefined, limit: PAGE, cursor: cursor || undefined })}`)),
+    queryFn: async () => unwrapList(await api(`/students${qs({ class_id: classId || undefined, q: debounced || undefined, limit: PAGE, cursor: cursor || undefined })}`)),
     placeholderData: prev => prev,
   })
 
@@ -272,126 +316,204 @@ export default function Students() {
   }
 
   const classOptions = classes.isError ? [] : classes.data ? classes.data.rows : []
+  const validCount = preview ? preview.rows.filter(r => !rowProblem(d(r))).length : 0
+  const problemCount = preview ? preview.rows.filter(r => !!rowProblem(d(r))).length : 0
+
+  const shown = sort
+    ? sortRowsBy(rows, r => (sort.key === 'name' ? (r.full_name ?? r.name) : r.class_name), sort.dir)
+    : rows
 
   return (
     <div className="space-y-4">
       <PageHeader
+        eyebrow="Data Akademik"
         title="Siswa"
         desc="Kelola data siswa, import massal, dan bagikan kartu login."
         icon={<IconStudents size={18} />}
         action={
-          <div className="flex flex-wrap gap-2 justify-end">
-            <a className="btn-ghost" href={apiUrl(`/students/export${qs({ class_id: classId || undefined, format: 'xlsx' })}`)}
+          <>
+            <a
+              className="btn-ghost btn-sm"
+              href={apiUrl(`/students/export${qs({ class_id: classId || undefined, format: 'xlsx' })}`)}
               onClick={e => { if (!getAccessToken()) { e.preventDefault(); toast('Harus masuk dulu untuk export', 'error') } }}
-              target="_blank" rel="noopener" title="Unduh .xlsx">
-              <IconDownload size={16} /> XLSX
+              target="_blank"
+              rel="noopener"
+              title="Unduh .xlsx"
+            >
+              <IconDownload size={14} /> XLSX
             </a>
-            <button type="button" className="btn-ghost" onClick={() => setImportOpen(true)}><IconUpload size={16} /> Import</button>
-            <button type="button" className="btn-primary" onClick={() => setEditing({ ...EMPTY })}><IconPlus size={16} /> Siswa</button>
-          </div>
+            <button type="button" className="btn-ghost btn-sm" onClick={() => setImportOpen(true)}>
+              <IconUpload size={14} /> Import
+            </button>
+            <button type="button" className="btn-primary btn-sm" onClick={() => setEditing({ ...EMPTY })}>
+              <IconPlus size={14} /> Siswa
+            </button>
+          </>
         }
       />
 
       {quotaExceeded && (
-        <div className="card border-warn flex flex-wrap items-center gap-2 text-sm">
-          <span className="text-warn shrink-0" aria-hidden><IconWarn size={18} /></span>
-          <span><b>Kuota siswa habis</b> — naikkan paket untuk menambah siswa.</span>
-          <button type="button" className="btn-primary ml-auto text-sm" onClick={() => nav('/billing')}>Upgrade paket →</button>
-        </div>
+        <Callout tone="warn" title="Kuota siswa habis" icon={<IconWarn size={16} />}>
+          <p>Jumlah siswa sudah mencapai batas paket Anda. Tingkatkan paket untuk menambah siswa.</p>
+          <button type="button" className="btn-primary btn-sm mt-2" onClick={() => nav('/billing')}>
+            Tingkatkan paket
+          </button>
+        </Callout>
       )}
 
-      <TableToolbar count={rows.length} label="siswa">
-        <select className="input sm:!w-auto sm:max-w-52" value={classId} onChange={e => setClassId(e.target.value)} aria-label="Filter kelas">
-          <option value="">Semua kelas</option>
-          {classOptions.map((c, i) => (
-            <option key={c.id ?? i} value={String(c.id ?? '')}>{String(c.name ?? '')}</option>
-          ))}
-        </select>
-        <SearchBox
-          className="w-full sm:w-64"
-          label="Cari nama, NIS, atau username"
-          placeholder="Cari nama / NIS…"
-          value={search}
-          onChange={v => { setSearch(v); setParams(p => { const n = new URLSearchParams(p); if (v) n.set('q', v); else n.delete('q'); return n }) }}
-        />
-      </TableToolbar>
-
-      {list.isLoading ? (
-        <SkeletonRows rows={4} cols={5} />
-      ) : list.isError ? (
-        <ErrorBox error={list.error} />
-      ) : rows.length === 0 ? (
-        <EmptyState icon={<IconStudents />} title="Belum ada siswa" children="Tambahkan manual atau import dari file Excel." />
-      ) : (
-        <>
-          {/* toolbar batch — muncul saat ada baris dipilih (directive §3A) */}
-          {selected.size > 0 && (
-            <div className="card !py-2.5 border-l-4 border-l-primary flex flex-wrap items-center gap-2">
-              <span className="text-sm font-medium"><span className="font-mono">{selected.size}</span> dipilih</span>
-              <div className="flex flex-wrap gap-2 ml-auto">
-                <button type="button" className="btn-ghost btn-sm" onClick={() => { setMoveTarget(''); setMoveOpen(true) }}>Pindah kelas ▾</button>
-                <button type="button" className="btn-danger btn-sm" onClick={() => setDelBatchOpen(true)}>Hapus</button>
-                <button type="button" className="btn-ghost btn-sm" onClick={() => setSelected(new Set())}>Batal</button>
-              </div>
+      <Panel
+        title="Daftar siswa"
+        icon={<IconStudents size={15} />}
+        flush
+        footer={
+          qNext(list) ? (
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-xs text-muted">
+                Menampilkan <span className="mono font-semibold text-text">{rows.length}</span> siswa pada halaman ini
+              </span>
+              <button type="button" className="btn-ghost" onClick={() => setCursor(qNext(list))}>
+                Muat lebih banyak
+              </button>
             </div>
-          )}
+          ) : undefined
+        }
+      >
+        <div className="border-b border-border p-3">
+          <TableToolbar count={rows.length} label="siswa">
+            <select
+              className="input sm:!w-auto sm:max-w-52"
+              value={classId}
+              onChange={e => setClassId(e.target.value)}
+              aria-label="Filter kelas"
+            >
+              <option value="">Semua kelas</option>
+              {classOptions.map((c, i) => (
+                <option key={c.id ?? i} value={String(c.id ?? '')}>{String(c.name ?? '')}</option>
+              ))}
+            </select>
+            <SearchBox
+              className="w-full sm:w-64"
+              label="Cari nama, NIS, atau username"
+              placeholder="Cari nama / NIS…"
+              value={search}
+              onChange={v => { setSearch(v); setParams(p => { const n = new URLSearchParams(p); if (v) n.set('q', v); else n.delete('q'); return n }) }}
+            />
+          </TableToolbar>
+        </div>
 
-          <div className="overflow-x-auto lg:overflow-visible">
+        {/* toolbar batch — muncul saat ada baris dipilih (directive §3A) */}
+        {selected.size > 0 && (
+          <div className="flex flex-wrap items-center gap-2 border-b border-primary-line bg-primary-soft px-3 py-2">
+            <span className="text-xs font-semibold text-primary">
+              <span className="mono">{selected.size}</span> siswa dipilih
+            </span>
+            <div className="ml-auto flex flex-wrap items-center gap-1.5">
+              <button type="button" className="btn-ghost btn-sm" onClick={() => { setMoveTarget(''); setMoveOpen(true) }}>
+                Pindah kelas
+              </button>
+              <button type="button" className="btn-quiet btn-sm" onClick={() => setDelBatchOpen(true)}>
+                Hapus
+              </button>
+              <button type="button" className="btn-quiet btn-sm" onClick={() => setSelected(new Set())}>
+                Batal
+              </button>
+            </div>
+          </div>
+        )}
+
+        {list.isLoading ? (
+          <div className="p-3">
+            <SkeletonRows rows={4} cols={5} />
+          </div>
+        ) : list.isError ? (
+          <div className="p-3">
+            <ErrorBox error={list.error} onRetry={() => void list.refetch()} />
+          </div>
+        ) : rows.length === 0 ? (
+          <EmptyState icon={<IconStudents size={20} />} title="Belum ada siswa">
+            Tambahkan manual atau import dari file Excel.
+          </EmptyState>
+        ) : (
+          <div className="table-scroll">
             <table className="table-base responsive-table">
               <thead>
                 <tr>
-                  <th className="w-10">
-                    <input ref={headCheckRef} type="checkbox" aria-label="Pilih semua siswa di halaman ini"
-                      checked={allSelected} onChange={toggleAllRows} />
+                  <th scope="col" className="w-10">
+                    <input
+                      ref={headCheckRef}
+                      type="checkbox"
+                      aria-label="Pilih semua siswa di halaman ini"
+                      checked={allSelected}
+                      onChange={toggleAllRows}
+                    />
                   </th>
-                  <th aria-sort={sort?.key === 'name' ? (sort.dir === 'asc' ? 'ascending' : 'descending') : undefined}>
+                  <th scope="col" aria-sort={sort?.key === 'name' ? (sort.dir === 'asc' ? 'ascending' : 'descending') : undefined}>
                     <SortHeader label="Nama" active={sort?.key === 'name'} dir={sort?.dir ?? 'asc'} onClick={() => toggleSort('name')} />
                   </th>
-                  <th>L/P</th>
-                  <th aria-sort={sort?.key === 'kelas' ? (sort.dir === 'asc' ? 'ascending' : 'descending') : undefined}>
+                  <th scope="col" className="w-16">L/P</th>
+                  <th scope="col" aria-sort={sort?.key === 'kelas' ? (sort.dir === 'asc' ? 'ascending' : 'descending') : undefined}>
                     <SortHeader label="Kelas" active={sort?.key === 'kelas'} dir={sort?.dir ?? 'asc'} onClick={() => toggleSort('kelas')} />
                   </th>
-                  <th>NIS</th>
-                  <th>Aksi</th>
+                  <th scope="col">NIS</th>
+                  <th scope="col" className="num">Aksi</th>
                 </tr>
               </thead>
               <tbody>
-                {(sort
-                  ? sortRowsBy(rows, r => (sort.key === 'name' ? (r.full_name ?? r.name) : r.class_name), sort.dir)
-                  : rows
-                ).map((r, i) => {
+                {shown.map((r, i) => {
                   const id = String(r.id ?? '')
+                  const name = String(r.full_name ?? r.name ?? '—')
                   return (
                     <tr key={r.id ?? i}>
                       <td data-th="Pilih" className="w-10">
-                        <input type="checkbox" aria-label={`Pilih ${String(r.full_name ?? r.name ?? 'siswa')}`}
-                          checked={selected.has(id)} onChange={() => toggleRow(id)} />
+                        <input
+                          type="checkbox"
+                          aria-label={`Pilih ${name}`}
+                          checked={selected.has(id)}
+                          onChange={() => toggleRow(id)}
+                        />
                       </td>
-                      <td data-th="Nama" className="font-medium">
-                        <button type="button" className="text-primary hover:underline" onClick={() => nav(`/students/${r.id}`)}>
-                          {String(r.full_name ?? r.name ?? '—')}
+                      <td data-th="Nama">
+                        <button
+                          type="button"
+                          className="text-left font-semibold text-primary hover:underline"
+                          onClick={() => nav(`/students/${r.id}`)}
+                        >
+                          {name}
                         </button>
-                        {r.username ? <div className="text-xs text-muted">@{String(r.username)}</div> : null}
+                        {r.username ? <div className="mono text-xs text-muted">@{String(r.username)}</div> : null}
                       </td>
-                      <td data-th="L/P">{String(r.gender ?? '—')}</td>
+                      <td data-th="L/P"><span className="mono">{String(r.gender ?? '—')}</span></td>
                       <td data-th="Kelas">{String(r.class_name ?? '—')}</td>
-                      <td data-th="NIS" className="font-mono text-xs">{String(r.nis ?? '—')}</td>
-                      <td data-th="Aksi">
-                        <div className="flex gap-1.5 flex-wrap">
-                          <button type="button" className="btn-ghost btn-sm"
+                      <td data-th="NIS"><span className="mono text-xs">{String(r.nis ?? '—')}</span></td>
+                      <td data-th="Aksi" className="num">
+                        <div className="flex flex-wrap justify-end gap-1.5">
+                          <button
+                            type="button"
+                            className="btn-ghost btn-sm"
                             onClick={() => setEditing({
                               id: String(r.id ?? ''),
                               full_name: String(r.full_name ?? r.name ?? ''),
                               gender: String(r.gender ?? 'L').toUpperCase() === 'P' ? 'P' : 'L',
                               class_id: String(r.class_id ?? ''),
                               nis: String(r.nis ?? ''),
-                            })}>Edit</button>
-                          <button type="button" className="btn-ghost btn-sm"
-                            onClick={() => { setNewPass(null); setResetting({ id: String(r.id ?? ''), name: String(r.full_name ?? r.name ?? '') }) }}>
+                            })}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-quiet btn-sm"
+                            onClick={() => { setNewPass(null); setResetting({ id: String(r.id ?? ''), name: String(r.full_name ?? r.name ?? '') }) }}
+                          >
                             Reset sandi
                           </button>
-                          <button type="button" className="btn-danger btn-sm"
-                            onClick={() => setDeleting({ id: String(r.id ?? ''), name: String(r.full_name ?? r.name ?? '') })}>Hapus</button>
+                          <button
+                            type="button"
+                            className="btn-quiet btn-sm text-danger"
+                            onClick={() => setDeleting({ id: String(r.id ?? ''), name: String(r.full_name ?? r.name ?? '') })}
+                          >
+                            Hapus
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -400,13 +522,8 @@ export default function Students() {
               </tbody>
             </table>
           </div>
-          {qNext(list) && (
-            <button type="button" className="btn-ghost w-full sm:w-auto" onClick={() => setCursor(qNext(list))}>
-              Muat lebih banyak ↓
-            </button>
-          )}
-        </>
-      )}
+        )}
+      </Panel>
 
       {/* modal tambah/edit siswa */}
       <Modal
@@ -423,30 +540,53 @@ export default function Students() {
         <form onSubmit={save} className="space-y-3">
           <div>
             <label className="label" htmlFor="st-name">Nama lengkap</label>
-            <input id="st-name" className="input" required value={editing?.full_name ?? ''}
-              onChange={e => setEditing(f => (f ? { ...f, full_name: e.target.value } : f))} placeholder="Nama siswa" />
+            <input
+              id="st-name"
+              className="input"
+              required
+              value={editing?.full_name ?? ''}
+              onChange={e => setEditing(f => (f ? { ...f, full_name: e.target.value } : f))}
+              placeholder="Nama siswa"
+            />
+            <p className="hint mt-1">Nama tampil di kartu login dan laporan nilai.</p>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className="label" htmlFor="st-g">Jenis kelamin</label>
-              <select id="st-g" className="input" value={editing?.gender ?? 'L'}
-                onChange={e => setEditing(f => (f ? { ...f, gender: e.target.value } : f))}>
+              <select
+                id="st-g"
+                className="input"
+                value={editing?.gender ?? 'L'}
+                onChange={e => setEditing(f => (f ? { ...f, gender: e.target.value } : f))}
+              >
                 {GENDERS.map(g => <option key={g} value={g}>{g === 'L' ? 'Laki-laki (L)' : 'Perempuan (P)'}</option>)}
               </select>
             </div>
             <div>
               <label className="label" htmlFor="st-cls">Kelas</label>
-              <select id="st-cls" className="input" value={editing?.class_id ?? ''}
-                onChange={e => setEditing(f => (f ? { ...f, class_id: e.target.value } : f))}>
+              <select
+                id="st-cls"
+                className="input"
+                value={editing?.class_id ?? ''}
+                onChange={e => setEditing(f => (f ? { ...f, class_id: e.target.value } : f))}
+              >
                 <option value="">— pilih —</option>
                 {classOptions.map((c, i) => <option key={c.id ?? i} value={String(c.id ?? '')}>{String(c.name ?? '')}</option>)}
               </select>
             </div>
           </div>
           <div>
-            <label className="label" htmlFor="st-nis">NIS/NISN <span className="font-normal">(opsional)</span></label>
-            <input id="st-nis" className="input" value={editing?.nis ?? ''}
-              onChange={e => setEditing(f => (f ? { ...f, nis: e.target.value } : f))} placeholder="NIS" />
+            <label className="label" htmlFor="st-nis">
+              NIS/NISN <span className="font-normal text-muted">(opsional)</span>
+            </label>
+            <input
+              id="st-nis"
+              className="input mono"
+              value={editing?.nis ?? ''}
+              onChange={e => setEditing(f => (f ? { ...f, nis: e.target.value } : f))}
+              placeholder="NIS"
+            />
+            <p className="hint mt-1">Dipakai saat import massal; boleh dikosongkan.</p>
           </div>
         </form>
       </Modal>
@@ -461,18 +601,26 @@ export default function Students() {
             <>
               <button type="button" className="btn-ghost" onClick={() => { setStep('upload'); setPreview(null) }} disabled={busy}>Kembali</button>
               <button type="button" className="btn-primary" onClick={commitImport} disabled={busy || !preview}>
-                {busy ? 'Mengimport…' : `Import ${preview?.rows.filter(r => !rowProblem(d(r))).length ?? 0} siswa`}
+                {busy ? 'Mengimport…' : `Import ${validCount} siswa`}
               </button>
             </>
           )
           : step === 'done' ? <button type="button" className="btn-primary" onClick={closeImport}>Selesai</button> : undefined}
       >
+        <ImportSteps current={step} />
+
         {step === 'upload' && (
           <div className="space-y-3">
             <p className="text-sm text-muted">
-              Unduh template (.xlsx), isi kolom <b>Nama, Jenis Kelamin, Kelas</b> (+ NIS opsional), lalu unggah di sini.
+              Unduh template (.xlsx), isi kolom <b className="text-text">Nama, Jenis Kelamin, Kelas</b> (+ NIS opsional), lalu unggah di sini.
             </p>
-            <a className="btn-ghost w-full" href={apiUrl('/students/export?format=xlsx')} onClick={e => { if (!getAccessToken()) { e.preventDefault(); toast('Harus masuk dulu untuk mengunduh', 'error') } }} target="_blank" rel="noopener">
+            <a
+              className="btn-ghost btn-block"
+              href={apiUrl('/students/export?format=xlsx')}
+              onClick={e => { if (!getAccessToken()) { e.preventDefault(); toast('Harus masuk dulu untuk mengunduh', 'error') } }}
+              target="_blank"
+              rel="noopener"
+            >
               <IconDownload size={16} /> Unduh template (.xlsx)
             </a>
             <div>
@@ -486,60 +634,80 @@ export default function Students() {
                 disabled={busy}
                 onChange={e => void onUploadFile(e.target.files?.[0] ?? null)}
               />
+              <p className="hint mt-1">Format .xlsx atau .csv, maksimal sesuai kuota paket.</p>
             </div>
             {busy && <div className="skeleton h-4 w-full" />}
           </div>
         )}
+
         {step === 'preview' && preview && (
           <div className="space-y-3">
-            <div className="flex gap-3 text-sm flex-wrap">
-              <span>Total: <b>{preview.rows.length}</b></span>
-              <span className="text-success">Siap: <b>{preview.rows.filter(r => !rowProblem(d(r))).length}</b></span>
-              <span className="text-danger">Error: <b>{preview.rows.filter(r => !!rowProblem(d(r))).length}</b></span>
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <span className="badge border border-border bg-canvas text-muted">Total <span className="mono font-bold text-text">{preview.rows.length}</span></span>
+              <span className="badge border border-success-line bg-success-soft text-success">Siap <span className="mono font-bold">{validCount}</span></span>
+              <span className="badge border border-danger-line bg-danger-soft text-danger">Error <span className="mono font-bold">{problemCount}</span></span>
             </div>
-            <div className="max-h-64 overflow-y-auto">
-              <div className="overflow-x-auto">
+            <div className="max-h-64 overflow-y-auto rounded-md border border-border">
+              <div className="table-scroll">
                 <table className="table-base responsive-table">
-                <thead>
-                  <tr><th>Nama</th><th>L/P</th><th>Kelas</th><th>Catatan</th></tr>
-                </thead>
-                <tbody>
-                  {preview.rows.map((r, i) => {
-                    const problem = rowProblem(d(r))
-                    return (
-                      <tr key={i} className={problem ? 'bg-danger-soft' : ''} style={problem ? { borderLeft: '3px solid var(--c-danger)' } : undefined}>
-                        <td data-th="Nama" className={problem ? 'text-danger' : 'font-medium'}>{String(r.full_name ?? r.name ?? '—')}</td>
-                        <td data-th="L/P">{String(r.gender ?? '—')}</td>
-                        <td data-th="Kelas">{String(r.class_name ?? r.class ?? '—')}</td>
-                        <td data-th="Catatan" className={problem ? 'text-danger text-xs' : 'text-xs text-muted'}>{problem || <IconCheck size={12} className="text-success" aria-label="Baris valid" />}</td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
+                  <thead>
+                    <tr>
+                      <th scope="col">Nama</th>
+                      <th scope="col" className="w-16">L/P</th>
+                      <th scope="col">Kelas</th>
+                      <th scope="col">Catatan</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {preview.rows.map((r, i) => {
+                      const problem = rowProblem(d(r))
+                      return (
+                        <tr key={i} className={problem ? 'bg-danger-soft' : ''}>
+                          <td data-th="Nama" className={problem ? 'text-danger' : 'font-medium'}>{String(r.full_name ?? r.name ?? '—')}</td>
+                          <td data-th="L/P"><span className="mono">{String(r.gender ?? '—')}</span></td>
+                          <td data-th="Kelas">{String(r.class_name ?? r.class ?? '—')}</td>
+                          <td data-th="Catatan" className={problem ? 'text-xs text-danger' : 'text-xs text-muted'}>
+                            {problem || (
+                              <span className="badge border border-success-line bg-success-soft text-success">Valid</span>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
                 </table>
               </div>
             </div>
-            <p className="text-xs text-muted">Kelas yang belum ada akan dibuat otomatis. Baris error merah tidak diimport.</p>
+            <p className="hint">Kelas yang belum ada akan dibuat otomatis. Baris error merah tidak diimport.</p>
           </div>
         )}
+
         {step === 'done' && (
           <div className="space-y-3">
-            <p className="text-sm">Username & password awal dibuat otomatis — salin & bagikan ke siswa:</p>
-            {createdLogins.map((l, i) => (
-              <div key={i} className="rounded-lg border border-border p-2.5 flex items-center gap-2 text-sm">
-                <div className="min-w-0 flex-1">
-                  <div className="font-medium truncate">@{l.username}</div>
-                  <div className="text-xs text-muted">sandi awal: {l.temp_pass}</div>
+            <p className="text-sm">Username &amp; password awal dibuat otomatis — salin &amp; bagikan ke siswa:</p>
+            <div className="space-y-1.5">
+              {createdLogins.map((l, i) => (
+                <div key={i} className="flex items-center gap-2 rounded-md border border-border bg-canvas px-2.5 py-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="mono truncate text-[13px] font-semibold">@{l.username}</div>
+                    <div className="text-xs text-muted">sandi awal: <span className="mono">{l.temp_pass}</span></div>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn-ghost btn-sm shrink-0"
+                    onClick={() => void copyLogin(`${l.username} / ${l.temp_pass}`, 'Kartu login disalin')}
+                  >
+                    Salin
+                  </button>
                 </div>
-                <button type="button" className="btn-ghost btn-sm"
-                  onClick={() => void copyLogin(`${l.username} / ${l.temp_pass}`, 'Kartu login disalin')}>
-                  Salin
-                </button>
-              </div>
-            ))}
+              ))}
+            </div>
             {createdLogins.length > 1 && (
-              <button type="button" className="btn-ghost w-full text-sm"
-                onClick={() => void copyLogin(createdLogins.map(l => `${l.username} / ${l.temp_pass}`).join('\n'), 'Semua kartu login disalin')}>
+              <button
+                type="button"
+                className="btn-ghost btn-block"
+                onClick={() => void copyLogin(createdLogins.map(l => `${l.username} / ${l.temp_pass}`).join('\n'), 'Semua kartu login disalin')}
+              >
                 <IconCopy size={14} /> Salin semua
               </button>
             )}
@@ -563,17 +731,20 @@ export default function Students() {
         footer={<button type="button" className="btn-primary" onClick={() => setNewPass(null)}>Tutup</button>}
       >
         <p className="text-sm">Password baru untuk {resetting?.name ?? 'siswa'}:</p>
-        <div className="rounded-lg border border-border p-3 font-mono text-sm flex items-center gap-2 break-all">
-          <span className="min-w-0 flex-1">{newPass}</span>
-          <button type="button" className="btn-ghost btn-sm shrink-0"
-            onClick={() => void copyLogin(newPass ?? '')}>Salin</button>
+        <div className="flex items-center gap-2 rounded-md border border-border bg-canvas p-3">
+          <span className="mono min-w-0 flex-1 break-all text-sm font-semibold">{newPass}</span>
+          <button type="button" className="btn-ghost btn-sm shrink-0" onClick={() => void copyLogin(newPass ?? '')}>
+            Salin
+          </button>
         </div>
+        <p className="hint">Bagikan lewat kanal aman dan minta siswa mengganti sandi setelah masuk.</p>
       </Modal>
 
       <ConfirmDialog
         open={!!deleting}
         message={`Hapus siswa "${deleting?.name}"? Riwayat nilai ujiannya tetap tersimpan.`}
-        danger busy={busy}
+        danger
+        busy={busy}
         onConfirm={del}
         onClose={() => setDeleting(null)}
       />
@@ -594,23 +765,26 @@ export default function Students() {
       >
         <div>
           <label className="label" htmlFor="mv-class">Kelas tujuan</label>
-          <select id="mv-class" className="input" value={moveTarget} disabled={moveBusy}
-            onChange={e => setMoveTarget(e.target.value)}>
+          <select
+            id="mv-class"
+            className="input"
+            value={moveTarget}
+            disabled={moveBusy}
+            onChange={e => setMoveTarget(e.target.value)}
+          >
             <option value="">— pilih kelas —</option>
             {classOptions.map((c, i) => <option key={c.id ?? i} value={String(c.id ?? '')}>{String(c.name ?? '')}</option>)}
           </select>
         </div>
         {moveBusy && (
-          <div className="space-y-1">
-            <div className="h-2 rounded-full bg-border/40 overflow-hidden">
-              <div className="h-full bg-primary transition-[width]" style={{ width: `${moveProg.total ? Math.round((moveProg.done / moveProg.total) * 100) : 0}%` }} />
-            </div>
-            <p className="text-xs text-muted font-mono">
+          <div className="space-y-1.5">
+            <ProgressBar value={moveProg.done} max={moveProg.total || 1} label="Progres pindah kelas" />
+            <p className="mono text-xs text-muted">
               {moveProg.done}/{moveProg.total}{moveProg.fail > 0 ? ` · ${moveProg.fail} gagal` : ''}
             </p>
           </div>
         )}
-        <p className="text-xs text-muted">Diproses satu per satu; bila sebagian gagal, sisanya tetap dilanjutkan.</p>
+        <p className="hint">Diproses satu per satu; bila sebagian gagal, sisanya tetap dilanjutkan.</p>
       </Modal>
 
       {/* konfirmasi batch: hapus */}
@@ -620,7 +794,9 @@ export default function Students() {
         message={busy && delProg.total > 0
           ? `Menghapus… ${delProg.done}/${delProg.total}${delProg.fail > 0 ? ` · ${delProg.fail} gagal` : ''}`
           : `Hapus ${selected.size} siswa yang dipilih pada halaman ini? Riwayat nilai mereka tetap tersimpan.`}
-        danger busy={busy} confirmLabel="Ya, hapus terpilih"
+        danger
+        busy={busy}
+        confirmLabel="Ya, hapus terpilih"
         onConfirm={() => void doBatchDelete()}
         onClose={() => { if (!busy) setDelBatchOpen(false) }}
       />
