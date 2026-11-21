@@ -1,16 +1,41 @@
 // Koreksi uraian (FR-8.3/8.4): daftar attempt yang menunggu penilaian manual,
 // detail per siswa, beri skor + catatan (audit log); re-grade.
+// Tampilan Design System v3: KPI ringkas + tabel attempt + form skor per soal.
 import { useEffect, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { send } from '../rpc'
-import { PageHeader, ErrorBox, EmptyState } from '../ui'
+import {
+  Callout,
+  EmptyState,
+  ErrorBox,
+  PageHeader,
+  Panel,
+  SearchBox,
+  SkeletonRows,
+  StatCard,
+  TableToolbar,
+} from '../ui'
 import { renderSimpleHtml } from '@/lib/sanitize'
 import { toast } from '@/components/toast'
 import { Modal } from '@/components/modal'
-import { asList, asDict, errMessage, fmtDateTime } from '../types'
-import { IconCheck } from '@/components/icons'
+import { asList, asDict, attemptStatus, errMessage, fmtDateTime } from '../types'
+import { IconCheck, IconEdit, IconExam, IconInfo } from '@/components/icons'
+
+/** badge status attempt — border *-line + bg *-soft */
+const ATTEMPT_TONE: Record<string, string> = {
+  in_progress: '!border-primary-line bg-primary-soft text-primary',
+  working: '!border-primary-line bg-primary-soft text-primary',
+  submitted: '!border-success-line bg-success-soft text-success',
+  done: '!border-success-line bg-success-soft text-success',
+  graded: '!border-success-line bg-success-soft text-success',
+  expired: '!border-warn-line bg-warn-soft text-warn',
+  forced_submit: '!border-warn-line bg-warn-soft text-warn',
+  needs_grading: '!border-warn-line bg-warn-soft text-warn',
+  disqualified: '!border-danger-line bg-danger-soft text-danger',
+}
+const attemptTone = (s: unknown) => ATTEMPT_TONE[String(s ?? '')] ?? '!border-border bg-canvas text-muted'
 
 export default function GradingPage() {
   const { id = '' } = useParams() // exam id
@@ -18,12 +43,15 @@ export default function GradingPage() {
   const [exam, setExam] = useState<Record<string, unknown> | null>(null)
   const [attempts, setAttempts] = useState<Record<string, unknown>[]>([])
   const [err, setErr] = useState<Error | null>(null)
+  const [loading, setLoading] = useState(true)
   const [open, setOpen] = useState<Record<string, unknown> | null>(null)
   const [scores, setScores] = useState<Record<string, number>>({})
   const [reason, setReason] = useState('')
   const [busy, setBusy] = useState(false)
+  const [search, setSearch] = useState('')
 
   async function load() {
+    setLoading(true)
     try {
       const e = await send(`/exams/${id}`)
       setExam((e as { data?: Record<string, unknown> }).data ?? asDict(e))
@@ -33,6 +61,8 @@ export default function GradingPage() {
       setErr(null)
     } catch (e2) {
       setErr(new Error(errMessage(e2)))
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -86,61 +116,199 @@ export default function GradingPage() {
     }
   }
 
+  const keyword = search.trim().toLowerCase()
+  const shown = keyword
+    ? needs.filter(a => [a.student_name, a.student_class].some(v => String(v ?? '').toLowerCase().includes(keyword)))
+    : needs
+
+  const submitted = attempts.filter(a => a?.status === 'submitted').length
+  const essayQs = asList(open?.questions).filter(q => q.type === 'essay')
+
   return (
     <div className="space-y-4">
-      <PageHeader title="Koreksi Uraian" desc={String(exam?.name ?? 'Ujian')} />
-      {err && <ErrorBox error={err} onRetry={() => void load()} />}
-      {needs.length === 0 ? (
-        <EmptyState icon={<IconCheck size={18} className="text-success" />} title="Tidak ada uraian menunggu penilaian">
-          Semua nilai sudah final untuk ujian ini.
-        </EmptyState>
-      ) : (
-        <div className="overflow-x-auto lg:overflow-visible">
-        <table className="table-base responsive-table">
-          <thead>
-            <tr><th>Siswa</th><th>Kelas</th><th>Status</th><th>Nilai Sementara</th><th>Aksi</th></tr>
-          </thead>
-          <tbody>
-            {needs.map(a => (
-              <tr key={String(a.id)}>
-                <td data-th="Siswa">{String(a.student_name ?? '-')}</td>
-                <td data-th="Kelas">{String(a.student_class || '-')}</td>
-                <td data-th="Status">{String(a.status)}</td>
-                <td data-th="Nilai sementara">{String(a.final_score ?? a.score ?? '—')}</td>
-                <td data-th="Aksi">
-                  <button className="btn-primary btn-sm" onClick={() => void openGrading(a)}>Nilaii</button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <PageHeader
+        eyebrow="Ujian · Penilaian"
+        title="Koreksi Uraian"
+        desc={String(exam?.name ?? 'Ujian')}
+        icon={<IconEdit size={18} />}
+        action={
+          <Link to={`/exams/${id}`} className="btn-ghost btn-sm !min-h-11">
+            <IconExam size={14} /> Info ujian
+          </Link>
+        }
+      />
+
+      {!err && (
+        <div className="grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-3">
+          <StatCard
+            label="Perlu dinilai"
+            value={String(needs.length)}
+            hint="attempt menunggu skor uraian"
+            tone={needs.length > 0 ? 'warn' : 'success'}
+            icon={<IconEdit size={14} />}
+          />
+          <StatCard
+            label="Total attempt"
+            value={String(attempts.length)}
+            hint="tercatat pada ujian ini"
+            icon={<IconExam size={14} />}
+          />
+          <StatCard
+            label="Terkirim"
+            value={String(submitted)}
+            hint="status submitted"
+            tone="primary"
+            icon={<IconCheck size={14} />}
+          />
         </div>
       )}
 
-      <Modal open={Boolean(open)} onClose={() => setOpen(null)} title={`Nilai uraian — ${String(asDict(open?.attempt)?.student_name ?? '')}`}>
-        <div className="space-y-3 max-h-[65vh] overflow-y-auto">
-          {asList(open?.questions).filter((q: Record<string, unknown>) => q.type === 'essay').map((q: Record<string, unknown>) => (
-            <div key={String(q.question_id)} className="rounded-lg border border-border p-3 space-y-2">
-              <div className="text-xs text-muted">Soal #{String(q.order_no)} · maks {String(q.max_points)} poin</div>
-              <div className="whitespace-pre-wrap text-sm" dangerouslySetInnerHTML={{ __html: renderSimpleHtml(String(q.body ?? '')) }} />
-              <div className="rounded bg-bg p-2 text-sm whitespace-pre-wrap">
-                {q.student_answer ? studentText(q.student_answer) : 'tidak dijawab'}
-              </div>
-              <div className="flex items-center gap-2">
-                <input
-                  type="number" min={0} max={Number(q.max_points)} className="input !w-28"
-                  value={scores[String(q.question_id)] ?? 0}
-                  onChange={e => setScores(p => ({ ...p, [String(q.question_id)]: Number(e.target.value) }))}
-                />
-                <span className="text-sm text-muted">/ {String(q.max_points)} poin</span>
-              </div>
+      <Callout tone="info" title="Penilaian manual tercatat" icon={<IconInfo size={16} />}>
+        Skor dan catatan disimpan per soal di audit log; menyimpan akan menjalankan regrade otomatis.
+      </Callout>
+
+      {err ? (
+        <Panel><ErrorBox error={err} onRetry={() => void load()} /></Panel>
+      ) : (
+        <Panel
+          title="Attempt Menunggu Penilaian"
+          icon={<IconEdit size={15} />}
+          action={<span className="chip mono">{needs.length}</span>}
+          flush
+        >
+          <div className="border-b border-border p-3">
+            <TableToolbar count={shown.length} label="attempt">
+              <SearchBox
+                className="w-full sm:w-64"
+                label="Cari peserta yang perlu dinilai"
+                placeholder="Cari nama / kelas…"
+                value={search}
+                onChange={setSearch}
+              />
+            </TableToolbar>
+          </div>
+
+          {loading ? (
+            <div className="p-3"><SkeletonRows rows={4} cols={4} /></div>
+          ) : needs.length === 0 ? (
+            <EmptyState icon={<IconCheck size={18} className="text-success" />} title="Tidak ada uraian menunggu penilaian">
+              Semua nilai sudah final untuk ujian ini.
+            </EmptyState>
+          ) : shown.length === 0 ? (
+            <EmptyState icon={<IconEdit size={18} />} title="Tidak ada attempt yang cocok">
+              Ubah kata kunci pencarian nama atau kelas.
+            </EmptyState>
+          ) : (
+            <div className="table-scroll">
+              <table className="table-base responsive-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Siswa</th>
+                    <th scope="col">Kelas</th>
+                    <th scope="col">Status</th>
+                    <th scope="col" className="num">Nilai Sementara</th>
+                    <th scope="col" className="num">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {shown.map(a => (
+                    <tr key={String(a.id)}>
+                      <td data-th="Siswa" className="font-medium">
+                        <span className="block max-w-[16rem] truncate">{String(a.student_name ?? '-')}</span>
+                      </td>
+                      <td data-th="Kelas">{String(a.student_class || '-')}</td>
+                      <td data-th="Status">
+                        <span className={`badge ${attemptTone(a.status)}`}>{attemptStatus(a.status).label}</span>
+                      </td>
+                      <td data-th="Nilai sementara" className="num mono">
+                        {String(a.final_score ?? a.score ?? '—')}
+                      </td>
+                      <td data-th="Aksi">
+                        <div className="flex justify-end">
+                          <button type="button" className="btn-ghost btn-sm" onClick={() => void openGrading(a)}>
+                            <IconEdit size={13} /> Nilai
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          ))}
-          <input className="input" placeholder="Catatan/alasan (opsional, masuk audit log)"
-            value={reason} onChange={e => setReason(e.target.value)} />
-          <button className="btn-primary w-full" disabled={busy} onClick={() => void saveScores()}>
-            {busy ? 'Menyimpan…' : 'Simpan nilai & skor ulang'}
-          </button>
+          )}
+        </Panel>
+      )}
+
+      <Modal
+        open={Boolean(open)}
+        onClose={() => setOpen(null)}
+        title={`Nilai uraian — ${String(asDict(open?.attempt)?.student_name ?? '')}`}
+        footer={
+          <>
+            <button type="button" className="btn-ghost" onClick={() => setOpen(null)} disabled={busy}>
+              Batal
+            </button>
+            <button type="button" className="btn-primary" onClick={() => void saveScores()} disabled={busy}>
+              {busy ? 'Menyimpan…' : 'Simpan nilai & skor ulang'}
+            </button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          {essayQs.length === 0 ? (
+            <EmptyState icon={<IconEdit size={18} />} title="Tidak ada soal uraian" />
+          ) : (
+            essayQs.map(q => {
+              const qid = String(q.question_id)
+              const maxPoints = Number(q.max_points ?? 0)
+              return (
+                <div key={qid} className="rounded-md border border-border">
+                  <div className="flex items-center justify-between gap-2 border-b border-border bg-canvas px-3 py-2">
+                    <span className="section-label">Soal #{String(q.order_no)}</span>
+                    <span className="mono text-xs text-muted">maks {maxPoints} poin</span>
+                  </div>
+                  <div className="space-y-2.5 p-3">
+                    <div
+                      className="break-words text-sm"
+                      dangerouslySetInnerHTML={{ __html: renderSimpleHtml(String(q.body ?? '')) }}
+                    />
+                    <div>
+                      <div className="section-label mb-1">Jawaban siswa</div>
+                      <div className="whitespace-pre-wrap break-words rounded border border-border bg-canvas p-2 text-sm">
+                        {q.student_answer ? studentText(q.student_answer) : 'tidak dijawab'}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="label" htmlFor={`score-${qid}`}>Skor</label>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <input
+                          id={`score-${qid}`}
+                          type="number"
+                          min={0}
+                          max={maxPoints}
+                          className="input !w-28"
+                          value={scores[qid] ?? 0}
+                          onChange={e => setScores(p => ({ ...p, [qid]: Number(e.target.value) }))}
+                        />
+                        <span className="mono text-xs text-muted">/ {maxPoints} poin</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )
+            })
+          )}
+          <div>
+            <label className="label" htmlFor="grade-reason">Catatan / alasan</label>
+            <input
+              id="grade-reason"
+              className="input"
+              placeholder="Catatan/alasan (opsional, masuk audit log)"
+              value={reason}
+              onChange={e => setReason(e.target.value)}
+            />
+            <p className="hint mt-1">Catatan disimpan bersama perubahan skor di audit log.</p>
+          </div>
         </div>
       </Modal>
     </div>
