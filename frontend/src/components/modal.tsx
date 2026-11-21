@@ -1,5 +1,6 @@
 // Modal overlay — di mobile (≤640) menjadi bottom sheet (PRD FR-11.2)
 import { useEffect, useRef, type ReactNode } from 'react'
+import { IconX } from '@/components/icons'
 
 export function Modal({
   open, onClose, title, children, footer,
@@ -52,7 +53,7 @@ export function Modal({
             aria-label="Tutup"
             className="btn-ghost touch-target w-11 h-11 !p-0 shrink-0"
           >
-            ✕
+            <IconX size={16} />
           </button>
         </div>
         <div className="px-4 py-4 space-y-3">{children}</div>

@@ -33,7 +33,7 @@ export default function Forgot() {
   }
 
   return (
-    <AuthShell title="Lupa Password" subtitle="Masukkan email Anda — kami kirim tautan untuk mengatur ulang password.">
+    <AuthShell title="Lupa password" subtitle="Masukkan email Anda — kami kirim tautan untuk mengatur ulang password.">
       <form onSubmit={submit} className="space-y-3">
         <div>
           <label className="label" htmlFor="email">Email</label>

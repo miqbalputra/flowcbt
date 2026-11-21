@@ -40,7 +40,7 @@ export default function Register() {
         setVerifyToken(devToken)
         toast('Registrasi berhasil — verifikasi email Anda (token dev tersedia)', 'success')
       } else {
-        toast('Registrasi berhasil! Cek email Anda untuk verifikasi.', 'success')
+        toast('Registrasi berhasil — cek email Anda untuk verifikasi.', 'success')
         nav('/login')
       }
     } catch (err) {
@@ -88,7 +88,7 @@ export default function Register() {
   }
 
   return (
-    <AuthShell title="Daftar Sekolah" subtitle="Anda akan menjadi Admin Sekolah untuk lembaga Anda.">
+    <AuthShell title="Buat akun sekolah Anda" subtitle="Anda akan menjadi Admin Sekolah untuk lembaga Anda.">
       <form onSubmit={submit} className="space-y-3">
         <div>
           <label className="label" htmlFor="fn">Nama lengkap</label>

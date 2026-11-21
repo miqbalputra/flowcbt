@@ -32,7 +32,7 @@ export default function Reset() {
   }
 
   return (
-    <AuthShell title="Atur Ulang Password" subtitle="Buat password baru memakai token reset dari email.">
+    <AuthShell title="Atur ulang password" subtitle="Buat password baru memakai token reset dari email.">
       <form onSubmit={submit} className="space-y-3">
         <div>
           <label className="label" htmlFor="tk">Token reset</label>

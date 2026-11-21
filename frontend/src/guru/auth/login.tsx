@@ -39,7 +39,7 @@ export default function Login() {
         tenantId: String(u.tenant_id ?? ''),
         name: String(u.full_name ?? u.name ?? email),
       })
-      toast('Selamat datang kembali! 👋', 'success')
+      toast('Selamat datang kembali', 'success')
       nav((loc.state as { from?: string } | null)?.from || '/dashboard', { replace: true })
     } catch (err) {
       setError(errMessage(err))
@@ -50,7 +50,7 @@ export default function Login() {
   }
 
   return (
-    <AuthShell title="Masuk" subtitle="Masuk ke akun guru/admin Anda.">
+    <AuthShell title="Masuk ke akun guru" subtitle="Kelola ujian, nilai, dan laporan sekolah Anda dalam satu tempat.">
       <form onSubmit={submit} className="space-y-3">
         <div>
           <label className="label" htmlFor="email">Email</label>

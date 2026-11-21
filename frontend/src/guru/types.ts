@@ -1,10 +1,14 @@
 // Helper data bersama area guru: parsing defensively (backend bisa mati → FE tetap render),
 // format Rupiah/tanggal, konstanta PRD.
+import type { ComponentType } from 'react'
+import { IconGrid, IconCheck, IconSwap, IconKey, IconEdit } from '@/components/icons'
 import type { ApiError } from '@/lib/api'
 import { toast } from '@/components/toast'
 
 /** Bentuk longgar — bentuk respons backend tidak selalu diketahui pasti di FE */
 export type Dict = Record<string, any>
+
+export type Ico = ComponentType<{ size?: number; className?: string }>
 
 export const asDict = (v: unknown): Dict => (v && typeof v === 'object' ? (v as Dict) : {})
 export const asList = (v: unknown): Dict[] => {
@@ -81,15 +85,16 @@ export function qs(params: Record<string, unknown>): string {
 
 export type QType = 'pg' | 'pg_kompleks' | 'menjodohkan' | 'isian' | 'uraian'
 
-export const QTYPES: { value: QType; label: string; icon: string }[] = [
-  { value: 'pg', label: 'Pilihan Ganda', icon: '🔘' },
-  { value: 'pg_kompleks', label: 'PG Kompleks', icon: '☑️' },
-  { value: 'menjodohkan', label: 'Menjodohkan', icon: '🔗' },
-  { value: 'isian', label: 'Isian Singkat', icon: '⌨️' },
-  { value: 'uraian', label: 'Uraian', icon: '✍️' },
+export const QTYPES: { value: QType; label: string; ico: Ico }[] = [
+  { value: 'pg', label: 'Pilihan Ganda', ico: IconGrid },
+  { value: 'pg_kompleks', label: 'PG Kompleks', ico: IconCheck },
+  { value: 'menjodohkan', label: 'Menjodohkan', ico: IconSwap },
+  { value: 'isian', label: 'Isian Singkat', ico: IconKey },
+  { value: 'uraian', label: 'Uraian', ico: IconEdit },
 ]
 export const qtypeLabel = (t: unknown) => QTYPES.find(q => q.value === t)?.label ?? String(t ?? '—')
-export const qtypeIcon = (t: unknown) => QTYPES.find(q => q.value === t)?.icon ?? '❓'
+/** komponen ikon tipe soal (tanpa emoji) */
+export const qtypeIco = (t: unknown): Ico => QTYPES.find(q => q.value === t)?.ico ?? IconEdit
 
 export const SCHOOL_LEVELS = ['PAUD/TK', 'SD/MI', 'SMP/MTs', 'SMA/SMK/MA', 'Perguruan Tinggi', 'Kursus/Bimbel', 'Lainnya']
 export const GENDERS = ['L', 'P']

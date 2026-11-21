@@ -1,24 +1,31 @@
 // Komponen UI kecil bersama area guru: page header, state kosong, skeleton, error, badge,
-// toolbar tabel & sort kolom (directive §3A — data tables enterprise).
+// toolbar tabel & sort kolom (directive §3A — data tables enterprise). TANPA emoji: ikon SVG.
 import type { ReactNode } from 'react'
+import { IconEmpty, IconRefresh, IconSearch, IconWarn } from '@/components/icons'
 import { statusBadge } from './types'
 
-export function PageHeader({ title, desc, action }: { title: string; desc?: string; action?: ReactNode }) {
+export function PageHeader({ title, desc, action, icon }: { title: string; desc?: string; action?: ReactNode; icon?: ReactNode }) {
   return (
     <div className="flex items-start justify-between gap-3 mb-4">
-      <div className="min-w-0">
-        <h2 className="text-lg sm:text-xl font-bold">{title}</h2>
-        {desc && <p className="text-sm text-muted mt-0.5">{desc}</p>}
+      <div className="min-w-0 flex items-start gap-2.5">
+        {icon && <span className="text-muted shrink-0 mt-1" aria-hidden>{icon}</span>}
+        <div className="min-w-0">
+          <h2 className="text-lg sm:text-xl font-bold tracking-tight">{title}</h2>
+          {desc && <p className="text-sm text-muted mt-0.5">{desc}</p>}
+        </div>
       </div>
       {action && <div className="shrink-0">{action}</div>}
     </div>
   )
 }
 
-export function EmptyState({ icon = '📭', title, children }: { icon?: string; title: string; children?: ReactNode }) {
+/** state kosong — icon kini ReactNode (komponen ikon), bukan emoji */
+export function EmptyState({ icon, title, children }: { icon?: ReactNode; title: string; children?: ReactNode }) {
   return (
     <div className="card text-center py-8">
-      <div className="text-3xl mb-2">{icon}</div>
+      <div className="w-10 h-10 mx-auto mb-2.5 rounded-lg bg-canvas border border-border text-muted flex items-center justify-center">
+        {icon ?? <IconEmpty size={18} />}
+      </div>
       <div className="font-medium">{title}</div>
       {children && <div className="text-sm text-muted mt-1">{children}</div>}
     </div>
@@ -28,12 +35,17 @@ export function EmptyState({ icon = '📭', title, children }: { icon?: string; 
 export function ErrorBox({ error, onRetry }: { error: unknown; onRetry?: () => void }) {
   const e = error as { message?: string }
   return (
-    <div className="card text-sm" role="alert">
-      <div className="font-medium text-danger mb-1">⚠ Gagal memuat — backend mungkin sedang tidak tersedia</div>
-      <div className="text-muted mb-2">{e?.message || 'Coba muat ulang halaman.'}</div>
-      {onRetry && (
-        <button type="button" className="btn-ghost text-sm" onClick={onRetry}>↻ Coba lagi</button>
-      )}
+    <div className="card text-sm flex items-start gap-3" role="alert">
+      <span className="text-danger shrink-0 mt-0.5" aria-hidden><IconWarn size={18} /></span>
+      <div className="min-w-0">
+        <div className="font-medium text-danger mb-1">Gagal memuat — backend mungkin sedang tidak tersedia</div>
+        <div className="text-muted mb-2">{e?.message || 'Coba muat ulang halaman.'}</div>
+        {onRetry && (
+          <button type="button" className="btn-ghost text-sm" onClick={onRetry}>
+            <IconRefresh size={14} /> Coba lagi
+          </button>
+        )}
+      </div>
     </div>
   )
 }
@@ -124,6 +136,29 @@ export function TableToolbar({ count, label = 'item', children }: { count?: numb
         </span>
       )}
       {children && <div className="flex flex-wrap items-center gap-2 ml-auto">{children}</div>}
+    </div>
+  )
+}
+
+/** Input pencarian dengan ikon kiri (IconSearch absolut, input pl-9). */
+export function SearchBox({ value, onChange, placeholder, label, className = '' }: {
+  value: string
+  onChange: (v: string) => void
+  placeholder?: string
+  label: string
+  className?: string
+}) {
+  return (
+    <div className={`relative ${className}`}>
+      <IconSearch size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted pointer-events-none" aria-hidden />
+      <input
+        type="search"
+        className="input pl-9"
+        aria-label={label}
+        placeholder={placeholder}
+        value={value}
+        onChange={e => onChange(e.target.value)}
+      />
     </div>
   )
 }
