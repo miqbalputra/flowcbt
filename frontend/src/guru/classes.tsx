@@ -6,6 +6,7 @@ import { send } from './rpc'
 import { toast } from '@/components/toast'
 import { ConfirmDialog, Modal } from '@/components/modal'
 import { EmptyState, ErrorBox, PageHeader, SkeletonRows, StatusBadge, TableToolbar } from './ui'
+import { IconClass, IconPlus } from '@/components/icons'
 import {  asDict, asList, errMessage, fmtDate, qs, unwrap, unwrapList, qRows } from './types'
 
 const EMPTY = { name: '', year: '', teacher_name: '' }
@@ -37,10 +38,10 @@ export default function Classes() {
     try {
       if (editing.id) {
         await send(`/classes/${editing.id}`, body, 'PUT')
-        toast('Kelas diperbarui ✅', 'success')
+        toast('Kelas diperbarui', 'success')
       } else {
         await send('/classes', body, 'POST')
-        toast('Kelas ditambahkan 🎉', 'success')
+        toast('Kelas ditambahkan', 'success')
       }
       setEditing(null)
       refresh()
@@ -56,7 +57,7 @@ export default function Classes() {
     setBusy(true)
     try {
       await send(`/classes/${row.id}`, { archived: !archived }, 'PUT')
-      toast(archived ? 'Kelas dikeluarkan dari arsip' : 'Kelas diarsipkan 📦', 'success')
+      toast(archived ? 'Kelas dikeluarkan dari arsip' : 'Kelas diarsipkan', 'success')
       setDeleting(null)
       refresh()
     } catch (err) {
@@ -88,7 +89,8 @@ export default function Classes() {
       <PageHeader
         title="Kelas"
         desc="Kelola daftar kelas & wali kelas."
-        action={<button type="button" className="btn-primary" onClick={() => setEditing({ ...EMPTY })}>＋ Kelas</button>}
+        icon={<IconClass size={18} />}
+        action={<button type="button" className="btn-primary" onClick={() => setEditing({ ...EMPTY })}><IconPlus size={16} /> Kelas</button>}
       />
 
       <TableToolbar count={rows.length} label="kelas">
@@ -103,7 +105,7 @@ export default function Classes() {
       ) : list.isError ? (
         <ErrorBox error={list.error} />
       ) : rows.length === 0 ? (
-        <EmptyState icon="🏫" title="Belum ada kelas" children="Klik ＋ Kelas untuk membuat kelas pertama." />
+        <EmptyState icon={<IconClass />} title="Belum ada kelas">{'Klik tombol "Kelas" di kanan atas untuk membuat kelas pertama.'}</EmptyState>
       ) : (
         <div className="overflow-x-auto lg:overflow-visible">
           <table className="table-base responsive-table">

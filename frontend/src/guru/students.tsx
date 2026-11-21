@@ -7,7 +7,8 @@ import { api } from '@/lib/api'
 import { send } from './rpc'
 import { toast } from '@/components/toast'
 import { ConfirmDialog, Modal } from '@/components/modal'
-import { EmptyState, ErrorBox, PageHeader, SkeletonRows, SortHeader, TableToolbar, sortRowsBy, type SortDir } from './ui'
+import { EmptyState, ErrorBox, PageHeader, SearchBox, SkeletonRows, SortHeader, TableToolbar, sortRowsBy, type SortDir } from './ui'
+import { IconCheck, IconCopy, IconDownload, IconPlus, IconStudents, IconUpload, IconWarn } from '@/components/icons'
 import {  asDict, asList, asDict as d, errCode, errMessage, fmtDate, GENDERS, qs, unwrap, unwrapList, qRows, qNext } from './types'
 import { apiUrl, uploadFile } from './files'
 import { getAccessToken } from '@/lib/api'
@@ -185,7 +186,7 @@ export default function Students() {
         }))
       setCreatedLogins(logins)
       setStep('done')
-      toast(`${dd.created_count ?? preview.rows.length} siswa diimport 🎉`, 'success')
+      toast(`${dd.created_count ?? preview.rows.length} siswa diimport`, 'success')
       refresh()
     } catch (err) {
       if (errCode(err) === 'QUOTA_EXCEEDED') setQuotaExceeded(true)
@@ -215,10 +216,10 @@ export default function Students() {
     try {
       if (editing.id) {
         await send(`/students/${editing.id}`, body, 'PUT')
-        toast('Data siswa diperbarui ✅', 'success')
+        toast('Data siswa diperbarui', 'success')
       } else {
         await send('/students', body, 'POST')
-        toast('Siswa ditambahkan 🎉', 'success')
+        toast('Siswa ditambahkan', 'success')
       }
       setEditing(null)
       refresh()
@@ -261,7 +262,7 @@ export default function Students() {
     }
   }
 
-  async function copyLogin(text: string, msg = 'Kartu login disalin 📋') {
+  async function copyLogin(text: string, msg = 'Kartu login disalin') {
     try {
       await navigator.clipboard.writeText(text)
       toast(msg, 'success')
@@ -277,22 +278,24 @@ export default function Students() {
       <PageHeader
         title="Siswa"
         desc="Kelola data siswa, import massal, dan bagikan kartu login."
+        icon={<IconStudents size={18} />}
         action={
           <div className="flex flex-wrap gap-2 justify-end">
             <a className="btn-ghost" href={apiUrl(`/students/export${qs({ class_id: classId || undefined, format: 'xlsx' })}`)}
               onClick={e => { if (!getAccessToken()) { e.preventDefault(); toast('Harus masuk dulu untuk export', 'error') } }}
               target="_blank" rel="noopener" title="Unduh .xlsx">
-              ⬇ XLSX
+              <IconDownload size={16} /> XLSX
             </a>
-            <button type="button" className="btn-ghost" onClick={() => setImportOpen(true)}>Import</button>
-            <button type="button" className="btn-primary" onClick={() => setEditing({ ...EMPTY })}>＋ Siswa</button>
+            <button type="button" className="btn-ghost" onClick={() => setImportOpen(true)}><IconUpload size={16} /> Import</button>
+            <button type="button" className="btn-primary" onClick={() => setEditing({ ...EMPTY })}><IconPlus size={16} /> Siswa</button>
           </div>
         }
       />
 
       {quotaExceeded && (
         <div className="card border-warn flex flex-wrap items-center gap-2 text-sm">
-          <span>⚠️ <b>Kuota siswa habis</b> — naikkan paket untuk menambah siswa.</span>
+          <span className="text-warn shrink-0" aria-hidden><IconWarn size={18} /></span>
+          <span><b>Kuota siswa habis</b> — naikkan paket untuk menambah siswa.</span>
           <button type="button" className="btn-primary ml-auto text-sm" onClick={() => nav('/billing')}>Upgrade paket →</button>
         </div>
       )}
@@ -304,8 +307,13 @@ export default function Students() {
             <option key={c.id ?? i} value={String(c.id ?? '')}>{String(c.name ?? '')}</option>
           ))}
         </select>
-        <input className="input sm:w-64" type="search" aria-label="Cari nama, NIS, atau username" placeholder="Cari nama / NIS…" value={search}
-          onChange={e => { setSearch(e.target.value); setParams(p => { const n = new URLSearchParams(p); if (e.target.value) n.set('q', e.target.value); else n.delete('q'); return n }) }} />
+        <SearchBox
+          className="w-full sm:w-64"
+          label="Cari nama, NIS, atau username"
+          placeholder="Cari nama / NIS…"
+          value={search}
+          onChange={v => { setSearch(v); setParams(p => { const n = new URLSearchParams(p); if (v) n.set('q', v); else n.delete('q'); return n }) }}
+        />
       </TableToolbar>
 
       {list.isLoading ? (
@@ -313,7 +321,7 @@ export default function Students() {
       ) : list.isError ? (
         <ErrorBox error={list.error} />
       ) : rows.length === 0 ? (
-        <EmptyState icon="🧑‍🎓" title="Belum ada siswa" children="Tambahkan manual atau import dari file Excel." />
+        <EmptyState icon={<IconStudents />} title="Belum ada siswa" children="Tambahkan manual atau import dari file Excel." />
       ) : (
         <>
           {/* toolbar batch — muncul saat ada baris dipilih (directive §3A) */}
@@ -465,7 +473,7 @@ export default function Students() {
               Unduh template (.xlsx), isi kolom <b>Nama, Jenis Kelamin, Kelas</b> (+ NIS opsional), lalu unggah di sini.
             </p>
             <a className="btn-ghost w-full" href={apiUrl('/students/export?format=xlsx')} onClick={e => { if (!getAccessToken()) { e.preventDefault(); toast('Harus masuk dulu untuk mengunduh', 'error') } }} target="_blank" rel="noopener">
-              ⬇️ Unduh template (.xlsx)
+              <IconDownload size={16} /> Unduh template (.xlsx)
             </a>
             <div>
               <label className="label" htmlFor="imp-file">File daftar siswa</label>
@@ -503,7 +511,7 @@ export default function Students() {
                         <td data-th="Nama" className={problem ? 'text-danger' : 'font-medium'}>{String(r.full_name ?? r.name ?? '—')}</td>
                         <td data-th="L/P">{String(r.gender ?? '—')}</td>
                         <td data-th="Kelas">{String(r.class_name ?? r.class ?? '—')}</td>
-                        <td data-th="Catatan" className={problem ? 'text-danger text-xs' : 'text-xs text-muted'}>{problem || '✓'}</td>
+                        <td data-th="Catatan" className={problem ? 'text-danger text-xs' : 'text-xs text-muted'}>{problem || <IconCheck size={12} className="text-success" aria-label="Baris valid" />}</td>
                       </tr>
                     )
                   })}
@@ -524,15 +532,15 @@ export default function Students() {
                   <div className="text-xs text-muted">sandi awal: {l.temp_pass}</div>
                 </div>
                 <button type="button" className="btn-ghost btn-sm"
-                  onClick={() => void copyLogin(`${l.username} / ${l.temp_pass}`, 'Kartu login disalin 📋')}>
+                  onClick={() => void copyLogin(`${l.username} / ${l.temp_pass}`, 'Kartu login disalin')}>
                   Salin
                 </button>
               </div>
             ))}
             {createdLogins.length > 1 && (
               <button type="button" className="btn-ghost w-full text-sm"
-                onClick={() => void copyLogin(createdLogins.map(l => `${l.username} / ${l.temp_pass}`).join('\n'), 'Semua kartu login disalin 📋')}>
-                📋 Salin semua
+                onClick={() => void copyLogin(createdLogins.map(l => `${l.username} / ${l.temp_pass}`).join('\n'), 'Semua kartu login disalin')}>
+                <IconCopy size={14} /> Salin semua
               </button>
             )}
           </div>

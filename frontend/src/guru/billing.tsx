@@ -7,6 +7,7 @@ import { toast } from '@/components/toast'
 import { Modal } from '@/components/modal'
 import { EmptyState, ErrorBox, PageHeader, SkeletonRows, StatusBadge } from './ui'
 import {  asDict, asList, errMessage, fmtDate, fmtRp, unwrap, unwrapList, qRows } from './types'
+import { IconCheck, IconCredit } from '@/components/icons'
 
 const PROVIDERS = [
   { value: 'midtrans', label: 'Midtrans', note: 'VA, kartu, e-wallet' },
@@ -101,7 +102,7 @@ export default function Billing() {
         ) : plans.isError ? (
           <ErrorBox error={plans.error} />
         ) : qRows(plans).length === 0 ? (
-          <EmptyState icon="💳" title="Paket belum tersedia" children="Coba lagi nanti ya." />
+          <EmptyState icon={<IconCredit />} title="Paket belum tersedia" children="Coba lagi nanti ya." />
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {qRows(plans).map((p, i) => {
@@ -119,7 +120,11 @@ export default function Billing() {
                   </div>
                   {Array.isArray(p.features) && (
                     <ul className="text-sm text-muted space-y-1 mb-3 flex-1">
-                      {p.features.map((f, j) => <li key={j}>✓ {String(f)}</li>)}
+                      {p.features.map((f, j) => (
+                        <li key={j} className="flex items-start gap-1.5">
+                          <IconCheck size={13} className="text-success shrink-0 mt-0.5" /> {String(f)}
+                        </li>
+                      ))}
                     </ul>
                   )}
                   <button
@@ -145,7 +150,7 @@ export default function Billing() {
         ) : invoices.isError ? (
           <ErrorBox error={invoices.error} />
         ) : qRows(invoices).length === 0 ? (
-          <EmptyState icon="🧾" title="Belum ada transaksi" />
+          <EmptyState icon={<IconCredit />} title="Belum ada transaksi" />
         ) : (
           <table className="table-base responsive-table">
             <thead>
@@ -207,7 +212,7 @@ export default function Billing() {
       >
         {receipt?.redirect_url ? (
           <>
-            <p className="text-sm">Halaman pembayaran terbuka di tab baru. Selesai bayar, paket aktif otomatis ✅</p>
+            <p className="text-sm">Halaman pembayaran terbuka di tab baru. Selesai bayar, paket aktif otomatis.</p>
             <a className="btn-primary" href={receipt.redirect_url} target="_blank" rel="noopener noreferrer">Buka halaman pembayaran</a>
           </>
         ) : (

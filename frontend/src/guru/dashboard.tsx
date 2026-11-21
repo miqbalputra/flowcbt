@@ -3,13 +3,17 @@ import { useQuery } from '@tanstack/react-query'
 import { Link, useNavigate } from 'react-router-dom'
 import { api } from '@/lib/api'
 import { ErrorBox, PageHeader, SkeletonRows } from './ui'
-import { asDict, asList, fmtDate, fmtRp, unwrap } from './types'
+import {
+  IconCalendar, IconChart2, IconExam, IconPlus, IconShield, IconStudents,
+  IconTrendDown, IconTrendUp, IconUpload,
+} from '@/components/icons'
+import { asDict, asList, fmtDate, fmtRp, unwrap, type Ico } from './types'
 
-const SHORTCUTS = [
-  { to: '/question-sets/new/edit', icon: '✏️', label: 'Buat Soal', desc: 'Buat paket soal baru' },
-  { to: '/exams/new', icon: '📝', label: 'Ujian Baru', desc: 'Jadwalkan ujian dari paket soal' },
-  { to: '/students?import=1', icon: '📥', label: 'Import Siswa', desc: 'Unduh template & unggah daftar siswa' },
-  { to: '/reports/live', icon: '📊', label: 'Rekap', desc: 'Pantauan & laporan ujian' },
+const SHORTCUTS: { to: string; Ico: Ico; label: string; desc: string }[] = [
+  { to: '/question-sets/new/edit', Ico: IconPlus, label: 'Buat Soal', desc: 'Buat paket soal baru' },
+  { to: '/exams/new', Ico: IconExam, label: 'Ujian Baru', desc: 'Jadwalkan ujian dari paket soal' },
+  { to: '/students?import=1', Ico: IconUpload, label: 'Import Siswa', desc: 'Unduh template & unggah daftar siswa' },
+  { to: '/reports/live', Ico: IconChart2, label: 'Rekap', desc: 'Pantauan & laporan ujian' },
 ]
 
 /** Persen perubahan — HANYA bila angka pembanding benar-benar ada (tidak mengarang tren) */
@@ -25,16 +29,20 @@ function TrendBadge({ pct }: { pct: number }) {
   const up = pct >= 0
   return (
     <span className={`badge shrink-0 ${up ? 'bg-success-soft text-success' : 'bg-danger-soft text-danger'}`}>
-      {up ? '↑' : '↓'} {up ? '+' : ''}{pct.toFixed(1)}%
+      {up ? <IconTrendUp size={11} /> : <IconTrendDown size={11} />}
+      {up ? '+' : ''}{pct.toFixed(1)}%
     </span>
   )
 }
 
-/** Kartu metrik: label uppercase kecil + angka besar monospace (directive §3B) */
-function StatCard({ label, value, hint, trend }: { label: string; value: string; hint?: string; trend?: number | null }) {
+/** Kartu metrik: ikon + label uppercase kecil, angka besar monospace (directive §3B) */
+function StatCard({ Ico, label, value, hint, trend }: { Ico?: Ico; label: string; value: string; hint?: string; trend?: number | null }) {
   return (
     <div className="card">
-      <div className="text-[11px] font-semibold uppercase tracking-wider text-muted truncate">{label}</div>
+      <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-muted">
+        {Ico && <Ico size={20} />}
+        <span className="truncate">{label}</span>
+      </div>
       <div className="mt-1.5 flex items-baseline gap-2 min-w-0">
         <span className="font-mono font-bold text-2xl sm:text-3xl leading-none tracking-tight truncate">{value}</span>
         {trend !== null && trend !== undefined && <TrendBadge pct={trend} />}
@@ -60,7 +68,7 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-4">
-      <PageHeader title="Dashboard" desc="Ringkasan hari ini di lembaga Anda." />
+      <PageHeader title="Dashboard" desc="Ringkasan hari ini di lembaga Anda." icon={<IconChart2 size={18} />} />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {dash.isLoading ? (
@@ -69,10 +77,10 @@ export default function Dashboard() {
           <div className="col-span-2 lg:col-span-4"><ErrorBox error={dash.error} /></div>
         ) : (
           <>
-            <StatCard label="Ujian berjalan" value={String(d.running_exams ?? d.active_exams ?? 0)} hint="sedang dikerjakan siswa" />
-            <StatCard label="Ujian terjadwal" value={String(d.scheduled_exams ?? 0)} hint="belum dibuka" />
-            <StatCard label="Total siswa" value={String(d.total_students ?? d.students ?? 0)} />
-            <StatCard label="Rata-rata nilai" value={String(avgCur ?? '—')} hint="ujian terakhir" trend={avgTrend} />
+            <StatCard Ico={IconExam} label="Ujian berjalan" value={String(d.running_exams ?? d.active_exams ?? 0)} hint="sedang dikerjakan siswa" />
+            <StatCard Ico={IconCalendar} label="Ujian terjadwal" value={String(d.scheduled_exams ?? 0)} hint="belum dibuka" />
+            <StatCard Ico={IconStudents} label="Total siswa" value={String(d.total_students ?? d.students ?? 0)} />
+            <StatCard Ico={IconChart2} label="Rata-rata nilai" value={String(avgCur ?? '—')} hint="ujian terakhir" trend={avgTrend} />
           </>
         )}
       </div>
@@ -80,7 +88,9 @@ export default function Dashboard() {
       {/* status langganan & sisa kuota (M10) */}
       <div className="card space-y-3">
         <div className="flex items-center justify-between gap-2">
-          <h3 className="font-semibold">Langganan</h3>
+          <h3 className="font-semibold flex items-center gap-2">
+            <IconShield size={16} className="text-muted" /> Langganan
+          </h3>
           <Link to="/billing" className="btn-ghost btn-sm">Kelola</Link>
         </div>
         {sub.isLoading ? (
@@ -132,7 +142,7 @@ export default function Dashboard() {
             >
               <span className="min-w-0">
                 <span className="flex items-center gap-2 text-sm font-medium">
-                  <span aria-hidden>{sc.icon}</span> {sc.label}
+                  <sc.Ico size={16} className="text-primary shrink-0" /> {sc.label}
                 </span>
                 <span className="block text-xs text-muted truncate mt-0.5">{sc.desc}</span>
               </span>
@@ -151,7 +161,7 @@ export default function Dashboard() {
                 <div className="font-medium text-sm truncate">{String(row.name ?? 'Ujian')}</div>
                 <div className="text-xs text-muted truncate">{String(row.subject_name ?? '')}</div>
               </div>
-              <Link to={`/reports/live/${row.id}`} className="btn-ghost btn-sm shrink-0">Pantau →</Link>
+              <Link to={`/reports/live/${row.id}`} className="btn-ghost btn-sm shrink-0">Pantau</Link>
             </div>
           ))}
         </div>

@@ -9,6 +9,7 @@ import { ConfirmDialog, Modal } from '@/components/modal'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { EmptyState, ErrorBox, PageHeader, SkeletonRows, TableToolbar } from './ui'
 import {  asDict, asList, copyText, errMessage, ROLE_LABELS, unwrap, unwrapList, qRows } from './types'
+import { IconPlus, IconSettings, IconStudents } from '@/components/icons'
 
 type Teacher = { id: string; name: string; email: string; role: string; class_ids: string[] }
 
@@ -45,7 +46,7 @@ export default function Settings() {
           password: password || undefined,
         }), 'PUT')
       setPassword('')
-      toast('Profil disimpan ✅', 'success')
+      toast('Profil disimpan', 'success')
       void qc.invalidateQueries({ queryKey: ['auth', 'me'] })
     } catch (err) {
       toast(errMessage(err), 'error')
@@ -69,7 +70,7 @@ export default function Settings() {
     try {
       if (editT.id) {
         await send(`/teachers/${editT.id}`, ({ name: editT.name.trim() || undefined, role: editT.role, class_ids: editT.class_ids }), 'PUT')
-        toast('Data guru diperbarui ✅', 'success')
+        toast('Data guru diperbarui', 'success')
       } else {
         const res = unwrap(await send('/teachers', { email: editT.email.trim(), full_name: editT.name.trim() }, 'POST'))
         const d = asDict(res)
@@ -77,7 +78,7 @@ export default function Settings() {
           email: String(d.email ?? editT.email),
           temp_password: String(d.temp_password ?? '—'),
         })
-        toast('Undangan guru terkirim 📤', 'success')
+        toast('Undangan guru terkirim', 'success')
       }
       setEditT(null)
       void qc.invalidateQueries({ queryKey: ['teachers'] })
@@ -105,7 +106,7 @@ export default function Settings() {
 
   return (
     <div className="space-y-4">
-      <PageHeader title="Pengaturan" desc="Profil Anda, kelola guru, dan tampilan." />
+      <PageHeader title="Pengaturan" desc="Profil Anda, kelola guru, dan tampilan." icon={<IconSettings size={18} />} />
 
       {/* profil (PUT /auth/me) */}
       <div className="card space-y-3">
@@ -146,14 +147,14 @@ export default function Settings() {
         <div className="flex items-center justify-between gap-2">
           <h3 className="font-semibold">Kelola guru</h3>
           <button type="button" className="btn-primary text-sm"
-            onClick={() => setEditT({ name: '', email: '', role: 'teacher', class_ids: [] })}>＋ Undang Guru</button>
+            onClick={() => setEditT({ name: '', email: '', role: 'teacher', class_ids: [] })}><IconPlus size={14} /> Undang Guru</button>
         </div>
         {teachers.isLoading ? (
           <SkeletonRows rows={2} cols={4} />
         ) : teachers.isError ? (
           <ErrorBox error={teachers.error} />
         ) : qRows(teachers).length === 0 ? (
-          <EmptyState icon="🧑‍🏫" title="Belum ada guru lain" children="Undang via email di samping." />
+          <EmptyState icon={<IconStudents />} title="Belum ada guru lain" children="Undang via email di samping." />
         ) : (
           <>
             <TableToolbar count={qRows(teachers).length} label="guru" />
@@ -267,7 +268,7 @@ export default function Settings() {
             <div className="font-mono font-bold break-all">{tempPass?.temp_password}</div>
           </div>
           <button type="button" className="btn-ghost btn-sm shrink-0"
-            onClick={() => void copyText(`${tempPass?.email} / ${tempPass?.temp_password}`, 'Login guru disalin 📋')}>
+            onClick={() => void copyText(`${tempPass?.email} / ${tempPass?.temp_password}`, 'Login guru disalin')}>
             Salin
           </button>
         </div>

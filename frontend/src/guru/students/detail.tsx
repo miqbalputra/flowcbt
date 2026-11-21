@@ -8,6 +8,7 @@ import { downloadFile } from '../files'
 import { toast } from '@/components/toast'
 import { EmptyState, ErrorBox, PageHeader, SkeletonRows } from '../ui'
 import {  asDict, asList, asDict as d, attemptStatus, fmtDate, fmtDuration, unwrap } from '../types'
+import { IconDownload, IconExam, IconStudents, IconTrendUp } from '@/components/icons'
 
 export default function StudentDetail() {
   const { id } = useParams()
@@ -50,7 +51,7 @@ export default function StudentDetail() {
         action={
           <div className="flex gap-2">
             <button className="btn-ghost text-sm" disabled={exporting} onClick={() => void exportPDF()}>
-              {exporting ? 'Mengunduh…' : '⬇ PDF'}
+              {exporting ? 'Mengunduh…' : <><IconDownload size={14} /> PDF</>}
             </button>
             <Link to="/students" className="btn-ghost text-sm">← Daftar siswa</Link>
           </div>
@@ -84,7 +85,7 @@ export default function StudentDetail() {
           {withScore.length > 0 && (
             <div className="card space-y-3">
               <div className="flex items-baseline justify-between">
-                <h3 className="font-semibold">📈 Tren nilai</h3>
+                <h3 className="font-semibold flex items-center gap-2"><IconTrendUp size={16} className="text-muted" /> Tren nilai</h3>
                 <span className="text-sm text-muted">Rata-rata {avg ?? '—'}</span>
               </div>
               <div className="space-y-2">
@@ -105,9 +106,9 @@ export default function StudentDetail() {
 
           {/* riwayat attempt */}
           <div>
-            <h3 className="font-semibold mb-2">🗂 Riwayat ujian</h3>
+            <h3 className="font-semibold mb-2 flex items-center gap-2"><IconExam size={16} className="text-muted" /> Riwayat ujian</h3>
             {attempts.length === 0 ? (
-              <EmptyState icon="🗂" title="Belum pernah ikut ujian" />
+              <EmptyState icon={<IconExam />} title="Belum pernah ikut ujian" />
             ) : (
               <table className="table-base responsive-table">
                 <thead>

@@ -1,5 +1,5 @@
 // ProtectedRoute + kerangka app guru (PRD §11.1: sidebar desktop, bottom nav & drawer mobile)
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ComponentType } from 'react'
 import { NavLink, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { api, clearTokens, getAccessToken, getRefreshToken } from '@/lib/api'
@@ -7,25 +7,31 @@ import { send } from './rpc'
 import { useAuth } from '@/stores/auth'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { Modal } from '@/components/modal'
+import {
+  LogoMark, IconBank, IconChart2, IconClass, IconCredit, IconDashboard,
+  IconDots, IconExam, IconLogout, IconSettings, IconStudents,
+} from '@/components/icons'
 import { asDict, unwrap } from './types'
 
-const NAV = [
-  { to: '/dashboard', label: 'Dashboard', icon: '🏠' },
-  { to: '/classes', label: 'Kelas', icon: '🏫' },
-  { to: '/students', label: 'Siswa', icon: '🧑‍🎓' },
-  { to: '/question-sets', label: 'Soal', icon: '📚' },
-  { to: '/exams', label: 'Ujian', icon: '📝' },
-  { to: '/reports', label: 'Laporan', icon: '📊' },
-  { to: '/billing', label: 'Langganan', icon: '💳' },
-  { to: '/settings', label: 'Pengaturan', icon: '⚙️' },
+type NavIco = ComponentType<{ size?: number }>
+
+const NAV: { to: string; label: string; Ico: NavIco }[] = [
+  { to: '/dashboard', label: 'Dashboard', Ico: IconDashboard },
+  { to: '/classes', label: 'Kelas', Ico: IconClass },
+  { to: '/students', label: 'Siswa', Ico: IconStudents },
+  { to: '/question-sets', label: 'Soal', Ico: IconBank },
+  { to: '/exams', label: 'Ujian', Ico: IconExam },
+  { to: '/reports', label: 'Laporan', Ico: IconChart2 },
+  { to: '/billing', label: 'Langganan', Ico: IconCredit },
+  { to: '/settings', label: 'Pengaturan', Ico: IconSettings },
 ]
 
 /** 4 rute utama di bottom nav mobile; sisanya masuk sheet "Lainnya" (FR-11.2) */
 const MOBILE_NAV = [
-  { to: '/dashboard', label: 'Dashboard', icon: '🏠' },
-  { to: '/students', label: 'Siswa', icon: '🧑‍🎓' },
-  { to: '/exams', label: 'Ujian', icon: '📝' },
-  { to: '/reports', label: 'Laporan', icon: '📊' },
+  { to: '/dashboard', label: 'Dashboard', Ico: IconDashboard },
+  { to: '/students', label: 'Siswa', Ico: IconStudents },
+  { to: '/exams', label: 'Ujian', Ico: IconExam },
+  { to: '/reports', label: 'Laporan', Ico: IconChart2 },
 ]
 const MORE_KEYS = ['/classes', '/question-sets', '/billing', '/settings']
 
@@ -58,7 +64,10 @@ function SessionBoot() {
   return (
     <div className="min-h-full flex items-center justify-center p-6">
       <div className="card w-full max-w-sm space-y-3 text-center">
-        <div className="text-lg font-bold tracking-tight">FlowCBT</div>
+        <div className="flex items-center justify-center gap-2">
+          <LogoMark size={24} />
+          <span className="text-lg font-bold tracking-tight">FlowCBT</span>
+        </div>
         <div className="skeleton h-4 w-2/3 mx-auto" />
         <div className="skeleton h-10 w-full" />
       </div>
@@ -119,7 +128,13 @@ function Shell({ name, onLogout }: { name: string; role?: string; onLogout: () =
     <div className="min-h-full lg:flex">
       {/* sidebar desktop (≥1025) — 232px, bg-surface, item aktif bg-primary-soft + border-l-2 primary */}
       <aside className="hidden lg:flex flex-col w-[232px] shrink-0 border-r border-border bg-surface sticky top-0 h-screen">
-        <div className="px-4 py-4 text-base font-bold tracking-tight border-b border-border">FlowCBT</div>
+        <div className="flex items-center gap-2.5 px-4 py-4 border-b border-border">
+          <LogoMark size={28} />
+          <div className="min-w-0">
+            <div className="font-bold leading-tight tracking-tight">FlowCBT</div>
+            <div className="text-[11px] text-muted">Ujian Online</div>
+          </div>
+        </div>
         <nav className="flex flex-col py-2 flex-1 overflow-y-auto" aria-label="Navigasi utama">
           {NAV.map(item => (
             <NavLink
@@ -130,14 +145,16 @@ function Shell({ name, onLogout }: { name: string; role?: string; onLogout: () =
                 `flex items-center gap-3 border-l-2 px-4 min-h-[44px] text-sm ${isActive ? 'bg-primary-soft text-primary border-primary font-semibold' : 'border-transparent text-muted hover:bg-bg hover:text-text'}`
               }
             >
-              <span aria-hidden className="w-5 text-center">{item.icon}</span>
+              <span aria-hidden className="w-5 flex justify-center"><item.Ico size={18} /></span>
               {item.label}
             </NavLink>
           ))}
         </nav>
         <div className="px-4 py-3 border-t border-border space-y-1">
           <div className="text-sm font-medium truncate">{name}</div>
-          <button type="button" onClick={onLogout} className="btn-ghost w-full text-sm">Keluar</button>
+          <button type="button" onClick={onLogout} className="btn-ghost w-full text-sm">
+            <IconLogout size={16} /> Keluar
+          </button>
         </div>
       </aside>
 
@@ -154,7 +171,7 @@ function Shell({ name, onLogout }: { name: string; role?: string; onLogout: () =
             title="Keluar"
             className="btn-ghost touch-target w-11 h-11 !p-0 shrink-0"
           >
-            ⏻
+            <IconLogout size={18} />
           </button>
         </header>
         <main className="p-3 sm:p-4 lg:p-6 max-w-6xl mx-auto">
@@ -172,10 +189,10 @@ function Shell({ name, onLogout }: { name: string; role?: string; onLogout: () =
             key={item.to}
             to={item.to}
             className={({ isActive }) =>
-              `flex-1 min-w-0 min-h-14 flex flex-col items-center justify-center gap-0.5 px-1 py-1.5 border-t-2 text-[11px] leading-tight text-center ${isActive ? 'text-primary border-primary font-semibold' : 'text-muted border-transparent'}`
+              `flex-1 min-w-0 min-h-14 flex flex-col items-center justify-center gap-1 px-1 py-1.5 border-t-2 text-[11px] leading-tight text-center ${isActive ? 'text-primary border-primary font-semibold' : 'text-muted border-transparent'}`
             }
           >
-            <span aria-hidden className="text-lg leading-none">{item.icon}</span>
+            <span aria-hidden><item.Ico size={20} /></span>
             {item.label}
           </NavLink>
         ))}
@@ -184,9 +201,9 @@ function Shell({ name, onLogout }: { name: string; role?: string; onLogout: () =
           onClick={() => setMoreOpen(true)}
           aria-haspopup="dialog"
           aria-expanded={moreOpen}
-          className={`flex-1 min-w-0 min-h-14 flex flex-col items-center justify-center gap-0.5 px-1 py-1.5 border-t-2 text-[11px] leading-tight text-center ${moreActive ? 'text-primary border-primary font-semibold' : 'text-muted border-transparent'}`}
+          className={`flex-1 min-w-0 min-h-14 flex flex-col items-center justify-center gap-1 px-1 py-1.5 border-t-2 text-[11px] leading-tight text-center ${moreActive ? 'text-primary border-primary font-semibold' : 'text-muted border-transparent'}`}
         >
-          <span aria-hidden className="text-lg leading-none">⋯</span>
+          <span aria-hidden><IconDots size={20} /></span>
           Lainnya
         </button>
       </nav>
@@ -203,7 +220,7 @@ function Shell({ name, onLogout }: { name: string; role?: string; onLogout: () =
                 `flex items-center gap-2.5 rounded-lg border border-border px-3 min-h-[44px] text-sm ${isActive ? 'bg-primary-soft text-primary border-primary/40 font-semibold' : 'hover:bg-bg'}`
               }
             >
-              <span aria-hidden>{item.icon}</span>
+              <span aria-hidden><item.Ico size={16} /></span>
               <span className="truncate">{item.to === '/question-sets' ? 'Soal / Paket' : item.label}</span>
             </NavLink>
           ))}
