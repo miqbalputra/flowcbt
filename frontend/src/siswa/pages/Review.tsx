@@ -1,14 +1,13 @@
-// Review — konfirmasi Selesai (FR-6.5): ringkasan terjawab/kosong/ragu,
-// peringatan bila ada yang kosong; konfirmasi → submit. Terlepas OFFLINE:
-// jawaban terkunci lokal, status "Menunggu sinkronisasi" (FR-7.6/AC-4).
+// Review — konfirmasi Selesai (FR-6.5): ringkasan terjawab/kosong/ragu.
+// Logika submit offline-first TIDAK berubah (AC-4/FR-7.6).
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { getAttempt, saveAttempt } from '../db'
 import { submitSafe } from '../lib/student-api'
 import { flush, enqueueSubmit, kick, getEngineState, subscribeSync } from '../lib/sync'
-import { SiswaLayout } from '../components/SiswaLayout'
+import { SiswaLayout, Panel } from '../components/SiswaLayout'
 import { toast } from '@/components/toast'
-import { IconCheck, IconFlag, IconWarn } from '@/components/icons'
+import { IconCheck, IconClipboard, IconFlag, IconWarn, IconWifi, IconWifiOff } from '@/components/icons'
 import type { AttemptRecord } from '../types'
 
 export default function Review() {
@@ -54,10 +53,7 @@ export default function Review() {
   async function confirm() {
     if (!rec || busy) return
     setBusy(true)
-    // tandai selesai lokal + antrean submit event (jalan walau offline, AC-4)
     await saveAttempt({ ...rec, status: rec.status === 'expired' ? 'expired' : 'submitted' })
-    // AC-4/FR-7.6: event submit MASUK ANTREAN lebih dulu — bila offline,
-    // flush berikutnya yang mengirimkannya sehingga attempt tetap final di server.
     await enqueueSubmit(id)
     void flush(id)
     const sent = await submitSafe(id)
@@ -66,7 +62,6 @@ export default function Review() {
       nav(`/s/attempt/${id}/done`, { replace: true })
       return
     }
-    // OFFLINE → terkunci "menunggu internet" (FR-7.6)
     kick()
     toast('Jawaban tersimpan di perangkat — menunggu internet untuk mengirim.', 'warn')
     nav(`/s/attempt/${id}/done`, { replace: true })
@@ -74,113 +69,109 @@ export default function Review() {
 
   if (!rec) {
     return (
-      <SiswaLayout title="Ringkasan">
-        <p className="text-center text-muted">Memuat ringkasan…</p>
+      <SiswaLayout title="Ringkasan Jawaban">
+        <p className="py-10 text-center text-sm text-muted">Memuat ringkasan…</p>
       </SiswaLayout>
     )
   }
 
+  const total = rec.questions.length
+  const pct = total ? Math.round((answered / total) * 100) : 0
+
   return (
-    <SiswaLayout title="Ringkasan jawaban" subtitle={`${rec.exam_name} — periksa sebelum menyerahkan`}>
-      <div className="card space-y-3">
-        {/* grid statistik: ikon status + angka font-mono besar (directive) */}
-        <div className="grid grid-cols-3 gap-2">
-          <StatTile n={answered} label="Terjawab" tone="success" icon={<IconCheck size={14} />} />
-          <StatTile n={ragu} label="Ragu-ragu" tone="warn" icon={<IconFlag size={14} />} />
-          <StatTile n={blank} label="Kosong" tone="canvas" icon={<IconWarn size={14} />} />
+    <SiswaLayout
+      title="Ringkasan Jawaban"
+      subtitle={rec.exam_name}
+      titleIcon={<IconClipboard size={17} />}
+      width="md"
+    >
+      <div className="space-y-4">
+        <Panel title="Status Pengerjaan" icon={<IconClipboard size={15} />}>
+          <div className="grid grid-cols-3 gap-2">
+            <StatTile n={answered} label="Terjawab" tone="success" icon={<IconCheck size={14} />} />
+            <StatTile n={ragu} label="Ragu-ragu" tone="warn" icon={<IconFlag size={14} />} />
+            <StatTile n={blank} label="Kosong" tone="muted" icon={<IconWarn size={14} />} />
+          </div>
+
+          <div className="mt-3">
+            <div className="mb-1 flex justify-between text-[11px] text-muted">
+              <span>Progres pengisian</span>
+              <span className="mono font-semibold text-text">{pct}%</span>
+            </div>
+            <div className="progress" aria-hidden><span style={{ width: `${pct}%` }} /></div>
+          </div>
+
+          {ragu > 0 && (
+            <p className="mt-3 flex items-start gap-1.5 rounded border border-border bg-canvas p-2 text-[12.5px] text-muted">
+              <IconFlag size={13} className="mt-0.5 shrink-0 text-warn" aria-hidden />
+              <span><b className="text-text">{ragu} soal</b> masih ditandai ragu-ragu — tanda tetap tersimpan, jawaban tetap dikirim.</span>
+            </p>
+          )}
+          {blank > 0 && (
+            <p role="status" className="mt-2 flex items-start gap-1.5 rounded border border-warn-line bg-warn-soft p-2 text-[12.5px] text-warn">
+              <IconWarn size={14} className="mt-0.5 shrink-0" />
+              <span><b>Perhatian:</b> {blank} soal belum dijawab. Soal kosong bernilai 0 — pastikan kamu yakin.</span>
+            </p>
+          )}
+        </Panel>
+
+        <Panel title="Status Koneksi" icon={online ? <IconWifi size={15} /> : <IconWifiOff size={15} />}>
+          {!online ? (
+            <p className="flex items-start gap-2 text-[13px] leading-relaxed">
+              <span aria-hidden className="mt-1.5 inline-block h-2 w-2 shrink-0 rounded-full bg-danger" />
+              <span>
+                <b className="text-danger">Kamu sedang offline.</b> Jawaban tersimpan di perangkat dan dikirim otomatis saat
+                internet kembali. <b>Jangan tutup atau bersihkan data peramban.</b>
+              </span>
+            </p>
+          ) : pending > 0 ? (
+            <p role="status" className="flex items-start gap-2 text-[13px] text-warn">
+              <span aria-hidden className="mt-1.5 inline-block h-2 w-2 shrink-0 rounded-full bg-warn" />
+              <span className="mono">{pending}</span> jawaban masih disinkronkan ke server — sekejap lagi selesai.
+            </p>
+          ) : (
+            <p role="status" className="flex items-start gap-2 text-[13px] text-success">
+              <span aria-hidden className="mt-1.5 inline-block h-2 w-2 shrink-0 rounded-full bg-success" />
+              Koneksi aktif — semua jawaban sudah tersinkron dan siap dikirim.
+            </p>
+          )}
+        </Panel>
+
+        <div className="space-y-2">
+          <button
+            type="button"
+            className="btn btn-block btn-lg"
+            style={{ background: 'var(--c-success-bg)', borderColor: 'var(--c-success-bg)', color: '#fff' }}
+            disabled={busy}
+            onClick={() => void confirm()}
+          >
+            {busy ? 'Mengirim…' : online ? (<><IconCheck size={18} /> Ya, Selesaikan &amp; Kirim</>) : ('Selesai (menunggu internet)')}
+          </button>
+          <button type="button" className="btn-ghost btn-block" onClick={() => nav(`/s/attempt/${id}`)}>
+            <IconFlag size={15} /> Kembali mengerjakan
+          </button>
         </div>
 
-        {ragu > 0 && (
-          <p className="flex items-center gap-1.5 rounded-lg border border-border bg-canvas p-2 text-xs text-muted">
-            <IconFlag size={13} className="shrink-0 text-warn" aria-hidden />
-            <span>
-              {ragu} soal ditandai <i>ragu-ragu</i> — tandanya tetap ikut terkirim.
-            </span>
-          </p>
-        )}
-        {blank > 0 && (
-          <p
-            role="status"
-            className="rounded-lg border p-2 text-sm"
-            style={{ borderColor: 'var(--c-warn)', background: 'var(--c-warn-soft)', color: 'var(--c-warn)' }}
-          >
-            <b>Perhatian:</b> masih ada {blank} soal belum dijawab. Yakin ingin menyerahkan?
-          </p>
-        )}
-        {!online ? (
-          <p
-            className="rounded-lg border p-3 text-sm leading-relaxed"
-            style={{ borderColor: 'var(--c-danger)', background: 'var(--c-danger-soft)' }}
-          >
-            <span aria-hidden className="mr-1.5 inline-block h-2 w-2 rounded-full align-middle" style={{ background: 'var(--c-danger)' }} />
-            <b>Kamu sedang offline.</b> Jawabanmu tersimpan di perangkat dan akan dikirim otomatis
-            saat internet kembali. <b>Jangan tutup atau bersihkan data browser!</b>
-          </p>
-        ) : pending > 0 ? (
-          <p
-            role="status"
-            className="rounded-lg border p-2 text-sm"
-            style={{ borderColor: 'var(--c-warn)', background: 'var(--c-warn-soft)', color: 'var(--c-warn)' }}
-          >
-            {pending} jawaban masih disinkronkan ke server — sekejap lagi selesai.
-          </p>
-        ) : (
-          <p role="status" className="rounded-lg border p-2 text-sm" style={{ borderColor: 'var(--c-success)', background: 'var(--c-success-soft)', color: 'var(--c-success)' }}>
-            Koneksi aktif — semua jawaban tersinkron, siap dikirim.
-          </p>
-        )}
-
-        {/* tombol hijau konfirmasi (bg token success, dark aman — directive §D) */}
-        <button
-          type="button"
-          className="btn-primary w-full min-h-12"
-          style={{ background: 'var(--c-success)' }}
-          disabled={busy}
-          onClick={() => void confirm()}
-        >
-          {busy ? (
-            'Mengirim…'
-          ) : online ? (
-            <>
-              <IconCheck size={16} />
-              Ya, Selesaikan &amp; Kirim
-            </>
-          ) : (
-            'Selesai (menunggu internet)'
-          )}
-        </button>
-        <button type="button" className="btn-ghost w-full" onClick={() => nav(`/s/attempt/${id}`)}>
-          ← Kembali mengerjakan
-        </button>
+        <p className="text-center text-[11px] leading-relaxed text-muted">
+          Setelah dikirim, jawaban tidak dapat diubah. Nilai tampil sesuai pengaturan gurumu.
+        </p>
       </div>
     </SiswaLayout>
   )
 }
 
-function StatTile({
-  n,
-  label,
-  tone,
-  icon,
-}: {
-  n: number
-  label: string
-  tone: 'success' | 'warn' | 'canvas'
-  icon?: React.ReactNode
-}) {
-  const style =
-    tone === 'success'
-      ? { background: 'var(--c-success-soft)', borderColor: 'var(--c-success)', color: 'var(--c-success)' }
-      : tone === 'warn'
-        ? { background: 'var(--c-warn-soft)', borderColor: 'var(--c-warn)', color: 'var(--c-warn)' }
-        : { background: 'var(--c-canvas)', borderColor: 'var(--c-border-strong)', color: 'var(--c-muted)' }
+function StatTile({ n, label, tone, icon }: { n: number; label: string; tone: 'success' | 'warn' | 'muted'; icon?: React.ReactNode }) {
+  const map = {
+    success: { borderColor: 'var(--c-success-line)', background: 'var(--c-success-soft)', color: 'var(--c-success)' },
+    warn: { borderColor: 'var(--c-warn-line)', background: 'var(--c-warn-soft)', color: 'var(--c-warn)' },
+    muted: { borderColor: 'var(--c-border-strong)', background: 'var(--c-canvas)', color: 'var(--c-muted)' },
+  }[tone]
   return (
-    <div className="rounded-lg border p-2.5 text-center" style={style}>
-      <div className="mb-0.5 flex items-center justify-center gap-1 font-mono text-2xl font-bold tabular-nums" aria-hidden>
-        {icon}
-        {n}
+    <div className="rounded-md border p-2.5 text-center" style={map}>
+      <div className="mono flex items-center justify-center gap-1 text-2xl font-bold leading-none" aria-hidden>
+        {icon}{n}
       </div>
-      <div className="text-[11px] font-medium" style={{ color: 'var(--c-muted)' }}>{label}</div>
+      <div className="mt-1 text-[11px] font-semibold" style={{ color: 'var(--c-muted)' }}>{label}</div>
       <span className="sr-only">{label}: {n}</span>
     </div>
   )

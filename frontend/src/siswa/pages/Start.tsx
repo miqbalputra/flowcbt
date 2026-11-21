@@ -1,26 +1,37 @@
-// Mulai ujian: tata tertib + token + persetujuan + PRA-MUAT paket ke IndexedDB
-// (FR-7.2). Urutan tahap progres JUJUR (server → save → done), tidak bisa dilewati.
+// Mulai ujian — halaman konfirmasi gaya portal ujian: identitas ujian di kiri,
+// token + tata tertib + persetujuan di kanan. Alur pra-muat TIDAK berubah
+// (FR-7.2: server → simpan IndexedDB → buka runner).
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { saveAttempt } from '../db'
 import { examDetail, startExam } from '../lib/student-api'
-import { errMessage, getProfile } from '../lib/util'
-import { SiswaLayout, TextField } from '../components/SiswaLayout'
+import { errMessage, fmtDateTime, getProfile } from '../lib/util'
+import { SiswaLayout, Panel, MetaRow, TextField } from '../components/SiswaLayout'
 import { toast } from '@/components/toast'
-import { IconExam, IconInfo, IconKey, IconShield, IconWarn } from '@/components/icons'
+import {
+  IconAlertCircle, IconCheck, IconClipboard, IconClock, IconExam, IconInfo,
+  IconKey, IconShield, IconStudents, IconWarn,
+} from '@/components/icons'
 import type { AttemptRecord, AttemptPackage, FetchedQuestion } from '../types'
 
-type RuleItem = { title: string; body: string; forbidden: boolean }
-
-/** Tahap pra-muat nyata: server → simpan IndexedDB (FR-7.2). */
 type LoadStage = 'idle' | 'server' | 'save' | 'done'
-
-const STAGE_PCT: Record<LoadStage, number> = { idle: 0, server: 10, save: 65, done: 100 }
+const STAGE_PCT: Record<LoadStage, number> = { idle: 0, server: 12, save: 65, done: 100 }
 const STAGE_LABEL: Record<LoadStage, string> = {
   idle: '',
   server: 'Mengambil paket soal dari server…',
   save: 'Menyimpan paket soal ke perangkat…',
   done: 'Paket siap — memulai ujian…',
+}
+
+type RulesCfg = {
+  anti_cheat_enabled?: boolean
+  tolerance_seconds?: number
+  penalty_points?: number
+  max_penalty?: number
+  flag_threshold?: number
+  auto_submit?: boolean
+  camera_enabled?: boolean
+  camera_required?: boolean
 }
 
 export default function Start() {
@@ -44,7 +55,6 @@ export default function Start() {
         setDetailErr(false)
       })
       .catch(() => {
-        // gagal muat → beri tahu siswa, jangan senyap (tombol lanjut tetap ada)
         if (!alive) return
         setDetail(null)
         setDetailErr(true)
@@ -54,16 +64,24 @@ export default function Start() {
     }
   }, [id])
 
+  const rules = (detail?.rules ?? {}) as RulesCfg
+  const cameraOn = Boolean(rules.camera_enabled ?? detail?.camera_enabled)
+  const cameraRequired = Boolean(rules.camera_required)
+  const attemptsUsed = Number(detail?.attempts_used ?? 0)
+  const maxAttempts = Number(detail?.max_attempts ?? 0)
+
   async function submit() {
     if (!agree) return
+    if (cameraRequired && cameraOn && !camOk) {
+      setErr('Kamera wajib diizinkan untuk ujian ini. Centang persetujuan kamera terlebih dahulu.')
+      return
+    }
     setBusy(true)
     setErr('')
     try {
-      // Tahap 1 — unduh paket dari server (waktu dinormalisasi ke epoch ms).
       setStage('server')
       const res = await startExam(id, token.trim())
       const pack = (res.package ?? ({} as AttemptPackage)) as AttemptPackage
-      // Tahap 2 — simpan paket ke IndexedDB.
       setStage('save')
       const rec: AttemptRecord = {
         attempt_id: res.attempt_id,
@@ -78,7 +96,6 @@ export default function Start() {
         profile: getProfile(),
       }
       await saveAttempt(rec)
-      // Tahap 3 — selesai.
       setStage('done')
       nav(`/s/attempt/${res.attempt_id}`)
     } catch (er) {
@@ -89,108 +106,187 @@ export default function Start() {
   }
 
   return (
-    <SiswaLayout title="Mulai ujian" titleIcon={<IconExam size={18} />}>
-      <div className="card space-y-4">
-        <Rules detail={detail} />
-        {detailErr && (
-          <p role="alert" className="text-sm" style={{ color: 'var(--c-warn)' }}>
-            Detail ujian gagal dimuat — periksa koneksimu.
-          </p>
-        )}
+    <SiswaLayout
+      title="Konfirmasi Ujian"
+      subtitle={String(detail?.name ?? 'Persiapan sebelum mulai')}
+      titleIcon={<IconExam size={17} />}
+      width="lg"
+    >
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
+        {/* ---------------- identitas ujian ---------------- */}
+        <div className="space-y-4">
+          <Panel title="Identitas Ujian" icon={<IconClipboard size={15} />}>
+            <h2 className="text-base font-bold leading-snug">{String(detail?.name ?? 'Ujian')}</h2>
+            <p className="mt-0.5 text-xs text-muted">
+              {String(detail?.subject_name ?? 'Mata pelajaran')} · Kode{' '}
+              <span className="mono font-semibold text-text">{String(detail?.exam_code ?? '—')}</span>
+            </p>
+            <dl className="mt-3">
+              <MetaRow label="Jadwal buka" value={fmtDateTime(detail?.open_at as string)} />
+              <MetaRow label="Jadwal tutup" value={fmtDateTime(detail?.close_at as string)} />
+              <MetaRow label="Durasi pengerjaan" value={`${Number(detail?.duration_minutes ?? 0)} menit`} mono />
+              <MetaRow label="Jumlah soal" value={`${Number(detail?.question_count ?? 0)} butir`} mono />
+              <MetaRow label="Total poin" value={String(detail?.total_points ?? '—')} mono />
+              <MetaRow
+                label="Percobaan"
+                value={maxAttempts > 0 ? `${attemptsUsed} dari ${maxAttempts}` : `${attemptsUsed} (tak terbatas)`}
+                mono
+              />
+              <MetaRow
+                label="Navigasi"
+                value={detail?.free_navigation === false ? 'Satu arah (tidak bisa kembali)' : 'Bebas'}
+              />
+            </dl>
+          </Panel>
 
-        <TextField
-          id="tk"
-          label="Token ujian"
-          icon={<IconKey size={18} />}
-          mono
-          value={token}
-          onChange={e => setToken(e.target.value)}
-          placeholder="XXXXXXXX"
-          autoComplete="off"
-          required
-        />
-
-        <label className="flex min-h-11 items-start gap-2 text-sm leading-relaxed">
-          <input type="checkbox" className="mt-1 shrink-0" checked={agree} onChange={e => setAgree(e.target.checked)} />
-          <span>Saya sudah membaca dan setuju dengan tata tertib ujian.</span>
-        </label>
-        {(detail?.camera_enabled ?? false) && (
-          <label className="flex min-h-11 items-start gap-2 text-sm leading-relaxed">
-            <input type="checkbox" className="mt-1 shrink-0" checked={camOk} onChange={e => setCamOk(e.target.checked)} />
-            <span>Saya mengizinkan kamera untuk proctoring selama ujian.</span>
-          </label>
-        )}
-
-        {busy && (
-          <div aria-busy="true">
-            <progress value={STAGE_PCT[stage]} max={100} className="w-full" />
-            <p className="mt-1 text-xs text-muted" role="status">{STAGE_LABEL[stage]}</p>
+          <div className="rounded-md border border-primary-line bg-primary-soft p-3 text-[13px] leading-relaxed">
+            <div className="mb-1 flex items-center gap-1.5 font-semibold text-primary">
+              <IconInfo size={15} /> Sebelum menekan Mulai
+            </div>
+            <ul className="list-disc space-y-1 pl-5 text-text">
+              <li>Pastikan perangkat terhubung internet — paket soal diunduh sekali di awal.</li>
+              <li>Setelah paket tersimpan, pengerjaan tetap berjalan walau koneksi terputus.</li>
+              <li>Jangan menutup atau menghapus data peramban selama ujian berlangsung.</li>
+              <li>Waktu dihitung server sejak kamu menekan Mulai.</li>
+            </ul>
           </div>
-        )}
-        {err && <p className="text-sm text-danger" role="alert">{err}</p>}
+        </div>
 
-        <button type="button" className="btn-primary w-full text-base" style={{ minHeight: 52 }} disabled={busy || !agree} onClick={submit}>
-          {busy ? 'Memproses…' : 'Mulai Ujian'}
-        </button>
-        <Link to="/s/exams" className="btn-ghost w-full text-center">Batal</Link>
+        {/* ---------------- token + tata tertib ---------------- */}
+        <div className="space-y-4">
+          <Panel
+            title="Token Ujian"
+            icon={<IconKey size={15} />}
+            footer={
+              <p className="text-[11px] leading-snug text-muted">
+                Token diberikan pengawas di ruang ujian. Token salah akan ditolak server.
+              </p>
+            }
+          >
+            <TextField
+              id="tk"
+              label="Masukkan token"
+              icon={<IconKey size={17} />}
+              mono
+              value={token}
+              onChange={e => setToken(e.target.value.toUpperCase())}
+              placeholder="••••••"
+              autoComplete="off"
+              autoCapitalize="characters"
+              required
+              hint="6 karakter alfanumerik, tidak peka huruf besar/kecil."
+            />
+            {detailErr && (
+              <p role="alert" className="mt-2 flex items-start gap-1.5 text-[13px] text-warn">
+                <IconWarn size={14} className="mt-0.5 shrink-0" />
+                Detail ujian gagal dimuat — periksa koneksimu sebelum melanjutkan.
+              </p>
+            )}
+          </Panel>
+
+          <Panel title="Tata Tertib Ujian" icon={<IconShield size={15} />}>
+            <ul className="space-y-1.5">
+              {ruleItems(rules).map((r, i) => (
+                <li key={i} className="flex items-start gap-2 text-[13px] leading-relaxed">
+                  <span
+                    aria-hidden
+                    className="mono mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-sm text-[10px] font-bold"
+                    style={
+                      r.forbidden
+                        ? { background: 'var(--c-danger-soft)', color: 'var(--c-danger)' }
+                        : { background: 'var(--c-primary-soft)', color: 'var(--c-primary)' }
+                    }
+                  >
+                    {i + 1}
+                  </span>
+                  <span className="min-w-0">{r.text}</span>
+                </li>
+              ))}
+            </ul>
+
+            <label className="mt-3 flex min-h-11 cursor-pointer items-start gap-2 rounded-md border border-border bg-canvas p-2.5 text-[13px] leading-relaxed">
+              <input type="checkbox" className="mt-0.5" checked={agree} onChange={e => setAgree(e.target.checked)} />
+              <span>
+                Saya telah membaca dan menyetujui seluruh tata tertib ujian, serta mengerjakan ujian secara mandiri.
+              </span>
+            </label>
+
+            {cameraOn && (
+              <label className="mt-2 flex min-h-11 cursor-pointer items-start gap-2 rounded-md border border-border bg-canvas p-2.5 text-[13px] leading-relaxed">
+                <input type="checkbox" className="mt-0.5" checked={camOk} onChange={e => setCamOk(e.target.checked)} />
+                <span>
+                  Saya mengizinkan kamera dipakai untuk pengawasan selama ujian{!cameraRequired && ' (opsional)'}. Foto
+                  diambil berkala beresolusi rendah dan dihapus otomatis.
+                </span>
+              </label>
+            )}
+
+            {err && (
+              <p role="alert" className="mt-2 flex items-start gap-1.5 rounded border border-danger-line bg-danger-soft p-2 text-[13px] text-danger">
+                <IconAlertCircle size={15} className="mt-0.5 shrink-0" />
+                {err}
+              </p>
+            )}
+
+            {busy && (
+              <div className="mt-3" aria-busy="true">
+                <div className="progress">
+                  <span style={{ width: `${STAGE_PCT[stage]}%` }} />
+                </div>
+                <p className="mt-1 text-xs text-muted" role="status">{STAGE_LABEL[stage]}</p>
+              </div>
+            )}
+
+            <div className="mt-3 space-y-2">
+              <button
+                type="button"
+                className="btn btn-primary btn-block btn-lg"
+                disabled={busy || !agree || (cameraRequired && cameraOn && !camOk)}
+                onClick={submit}
+              >
+                <IconCheck size={18} />
+                {busy ? 'Menyiapkan…' : 'Mulai Ujian'}
+              </button>
+              <Link to="/s/exams" className="btn-ghost btn-block">Batal, kembali ke daftar</Link>
+            </div>
+          </Panel>
+        </div>
       </div>
+
+      <p className="mt-4 flex items-center justify-center gap-1.5 text-center text-[11px] text-muted">
+        <IconStudents size={13} /> Butuh bantuan? Hubungi pengawas atau guru mata pelajaran.
+      </p>
     </SiswaLayout>
   )
 }
 
-/** Daftar tata tertib rapi: border kiri 3px merah (larangan) / biru (info).
- * Sumber tetap fleksibel: array terstruktur ATAU teks per-baris dari guru. */
-function Rules({ detail }: { detail: Record<string, unknown> | null }) {
-  const raw = detail?.rules_text as string | Array<{ title: string; body: string }> | undefined
-  const items: RuleItem[] = Array.isArray(raw)
-    ? raw.map(r => ({ title: r.title, body: r.body, forbidden: isForbidden(r.title + ' ' + r.body) }))
-    : String(raw ?? 'Kerjakan mandiri; jangan keluar aplikasi secara berlebihan.')
-        .split('\n')
-        .filter(l => l.trim())
-        .map(line0 => {
-          const text = line0.replace(/^(\s*[-•*]|\s*\d+[.)])\s*/, '').trim()
-          const [head, ...rest] = text.split(' — ')
-          return {
-            title: rest.length ? head.trim() : '',
-            body: rest.length ? rest.join(' — ') : text,
-            forbidden: isForbidden(text),
-          }
-        })
-  return (
-    <section aria-label="Tata tertib ujian">
-      <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold">
-        <IconShield size={16} className="text-muted" />
-        Tata tertib ujian
-      </h2>
-      <ul className="space-y-2">
-        {items.length === 0 && (
-          <li className="text-sm text-muted">Tidak ada ketentuan khusus — kerjakan mandiri.</li>
-        )}
-        {items.map((r, i) => (
-          <li
-            key={i}
-            className="flex items-start gap-2.5 rounded-md border border-border p-2.5 text-sm leading-relaxed"
-            style={{ borderLeft: `3px solid ${r.forbidden ? 'var(--c-danger)' : 'var(--c-primary)'}` }}
-          >
-            <span
-              aria-hidden
-              className="mt-0.5 shrink-0"
-              style={{ color: r.forbidden ? 'var(--c-danger)' : 'var(--c-primary)' }}
-            >
-              {r.forbidden ? <IconWarn size={16} /> : <IconInfo size={16} />}
-            </span>
-            <span className="min-w-0">
-              {r.title && <strong className="mr-1">{r.title}:</strong>}
-              {r.body}
-            </span>
-          </li>
-        ))}
-      </ul>
-    </section>
-  )
-}
-
-/** Deteksi kasar butir larangan (non-blocking, hanya menentukan warna). */
-function isForbidden(text: string): boolean {
-  return /(jangan|dilarang|tidak boleh|forbidden)/i.test(text)
+/** Susun butir tata tertib dari konfigurasi anti-cheat + aturan umum. */
+function ruleItems(rules: RulesCfg): { text: string; forbidden: boolean }[] {
+  const items: { text: string; forbidden: boolean }[] = [
+    { text: 'Kerjakan sendiri. Bertanya atau bekerja sama dengan peserta lain tidak diperbolehkan.', forbidden: true },
+  ]
+  if (rules.anti_cheat_enabled !== false) {
+    const tol = Number(rules.tolerance_seconds ?? 3)
+    const penalty = Number(rules.penalty_points ?? 5)
+    const maxPenalty = Number(rules.max_penalty ?? 30)
+    const threshold = Number(rules.flag_threshold ?? 3)
+    items.push({
+      text: `Jangan meninggalkan halaman ujian lebih dari ${tol} detik. Pelanggaran dicatat dan dapat mengurangi nilai (${penalty} poin per pelanggaran, maksimal ${maxPenalty} poin).`,
+      forbidden: true,
+    })
+    items.push({
+      text: `Setelah ${threshold} pelanggaran, ujian dilaporkan kepada pengawas${rules.auto_submit ? ' dan dapat diakhiri otomatis' : ''}.`,
+      forbidden: true,
+    })
+  }
+  if (rules.camera_enabled) {
+    items.push({
+      text: 'Kamera mengambil foto berkala sebagai bukti kehadiran. Tidak ada rekaman video atau audio.',
+      forbidden: false,
+    })
+  }
+  items.push({ text: 'Jawaban tersimpan otomatis di perangkat. Jangan menutup peramban atau menghapus data situs.', forbidden: false })
+  items.push({ text: 'Waktu mengikuti server. Ujian berakhir otomatis saat waktu habis.', forbidden: false })
+  items.push({ text: 'Hubungi pengawas bila perangkat bermasalah — jangan memulai ulang sendiri.', forbidden: false })
+  return items
 }
