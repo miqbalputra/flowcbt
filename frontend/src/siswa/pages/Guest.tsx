@@ -1,9 +1,11 @@
 // Login tanpa akun (peserta tamu) — PRD FR-1.3 metode 2.
-// Kode ujian & token pakai font-mono; profil disimpan lokal untuk header runner.
+// Panel brand mini + input ber-ikon; kode ujian & token font-mono. Tanpa emoji.
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { guestLogin } from '../lib/student-api'
 import { errMessage, saveLocalProfile } from '../lib/util'
+import { TextField } from '../components/SiswaLayout'
+import { LogoMark, IconExam, IconKey, IconStudents, IconClass } from '@/components/icons'
 
 export default function Guest() {
   const nav = useNavigate()
@@ -36,46 +38,49 @@ export default function Guest() {
   return (
     <div className="flex min-h-full items-center justify-center bg-bg p-4 text-text">
       <form onSubmit={submit} className="card w-full max-w-sm space-y-4">
-        <div className="text-center">
-          <h1 className="text-lg font-bold">Ujian Tanpa Akun</h1>
-          <p className="mt-1 text-xs text-muted">
-            Isi kode ujian + token dari pengawasmu, lalu data dirimu.
-          </p>
+        {/* panel brand mini */}
+        <div className="flex flex-col items-center gap-1.5 text-center">
+          <LogoMark size={36} />
+          <div className="text-xl font-bold tracking-tight">FlowCBT</div>
+          <p className="text-sm text-muted">Ikuti ujian tanpa akun</p>
         </div>
-        <div>
-          <label className="label" htmlFor="ec">Kode ujian</label>
-          <input
-            id="ec"
-            className="input font-mono tracking-widest uppercase"
-            value={examCode}
-            onChange={e => setExamCode(e.target.value)}
-            autoComplete="off"
-            autoCapitalize="characters"
-            spellCheck={false}
-            required
-          />
-        </div>
-        <div>
-          <label className="label" htmlFor="tk">Token ujian</label>
-          <input
-            id="tk"
-            className="input font-mono tracking-widest uppercase"
-            value={token}
-            onChange={e => setToken(e.target.value)}
-            autoComplete="off"
-            autoCapitalize="characters"
-            spellCheck={false}
-            required
-          />
-        </div>
-        <div>
-          <label className="label" htmlFor="nm">Nama lengkap</label>
-          <input id="nm" className="input" value={name} onChange={e => setName(e.target.value)} autoComplete="name" required />
-        </div>
-        <div>
-          <label className="label" htmlFor="cl">Kelas (opsional)</label>
-          <input id="cl" className="input" value={cls} onChange={e => setCls(e.target.value)} />
-        </div>
+
+        <TextField
+          id="ec"
+          label="Kode ujian"
+          icon={<IconExam size={18} />}
+          mono
+          value={examCode}
+          onChange={e => setExamCode(e.target.value)}
+          autoComplete="off"
+          required
+        />
+        <TextField
+          id="tk"
+          label="Token ujian"
+          icon={<IconKey size={18} />}
+          mono
+          value={token}
+          onChange={e => setToken(e.target.value)}
+          autoComplete="off"
+          required
+        />
+        <TextField
+          id="nm"
+          label="Nama lengkap"
+          icon={<IconStudents size={18} />}
+          value={name}
+          onChange={e => setName(e.target.value)}
+          autoComplete="name"
+          required
+        />
+        <TextField
+          id="cl"
+          label="Kelas (opsional)"
+          icon={<IconClass size={18} />}
+          value={cls}
+          onChange={e => setCls(e.target.value)}
+        />
         {err && <p className="text-sm text-danger" role="alert">{err}</p>}
         <button type="submit" className="btn-primary w-full" style={{ minHeight: 52 }} disabled={busy}>
           {busy ? 'Memproses…' : 'Lanjut'}

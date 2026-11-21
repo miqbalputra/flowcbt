@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { SiswaLayout, EmptyState } from '../components/SiswaLayout'
 import { fmtDateTime } from '../types'
+import { IconCalendar, IconSearch } from '@/components/icons'
 import { api } from '@/lib/api'
 
 interface HistoryItem {
@@ -67,14 +68,19 @@ export default function History() {
           ) : (
             <>
               {/* pencarian (type=search, directive §D) */}
-              <input
-                type="search"
-                className="input"
-                value={q}
-                onChange={e => setQ(e.target.value)}
-                placeholder={`Cari di ${items.length} ujian…`}
-                aria-label="Cari riwayat ujian"
-              />
+              <div className="relative">
+                <span aria-hidden className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted">
+                  <IconSearch size={16} />
+                </span>
+                <input
+                  type="search"
+                  className="input pl-9"
+                  value={q}
+                  onChange={e => setQ(e.target.value)}
+                  placeholder={`Cari di ${items.length} ujian…`}
+                  aria-label="Cari riwayat ujian"
+                />
+              </div>
               {filtered.length === 0 ? (
                 <p role="status" className="py-6 text-center text-sm text-muted">
                   Tidak ada ujian yang cocok dengan “{q.trim()}”.
@@ -85,7 +91,10 @@ export default function History() {
                     <li key={it.id} className="card flex items-center justify-between gap-3 !p-3 text-sm">
                       <span className="min-w-0">
                         <span className="block truncate font-semibold">{it.exam_name}</span>
-                        <span className="text-xs text-muted">{fmtDateTime(it.submitted_at)}</span>
+                        <span className="flex items-center gap-1.5 text-xs text-muted">
+                          <IconCalendar size={14} className="shrink-0" aria-hidden />
+                          {fmtDateTime(it.submitted_at)}
+                        </span>
                       </span>
                       {typeof it.score === 'number' && (
                         <span

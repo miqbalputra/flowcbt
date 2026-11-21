@@ -8,6 +8,7 @@ import { submitSafe } from '../lib/student-api'
 import { flush, enqueueSubmit, kick, getEngineState, subscribeSync } from '../lib/sync'
 import { SiswaLayout } from '../components/SiswaLayout'
 import { toast } from '@/components/toast'
+import { IconCheck, IconFlag, IconWarn } from '@/components/icons'
 import type { AttemptRecord } from '../types'
 
 export default function Review() {
@@ -82,16 +83,19 @@ export default function Review() {
   return (
     <SiswaLayout title="Ringkasan jawaban" subtitle={`${rec.exam_name} — periksa sebelum menyerahkan`}>
       <div className="card space-y-3">
-        {/* grid statistik: angka font-mono besar + label (directive §D) */}
+        {/* grid statistik: ikon status + angka font-mono besar (directive) */}
         <div className="grid grid-cols-3 gap-2">
-          <StatTile n={answered} label="Terjawab" tone="success" />
-          <StatTile n={ragu} label="Ragu-ragu" tone="warn" />
-          <StatTile n={blank} label="Kosong" tone="canvas" />
+          <StatTile n={answered} label="Terjawab" tone="success" icon={<IconCheck size={14} />} />
+          <StatTile n={ragu} label="Ragu-ragu" tone="warn" icon={<IconFlag size={14} />} />
+          <StatTile n={blank} label="Kosong" tone="canvas" icon={<IconWarn size={14} />} />
         </div>
 
         {ragu > 0 && (
-          <p className="rounded-lg border border-border bg-canvas p-2 text-xs text-muted">
-            ⚑ {ragu} soal ditandai <i>ragu-ragu</i> — tandanya tetap ikut terkirim.
+          <p className="flex items-center gap-1.5 rounded-lg border border-border bg-canvas p-2 text-xs text-muted">
+            <IconFlag size={13} className="shrink-0 text-warn" aria-hidden />
+            <span>
+              {ragu} soal ditandai <i>ragu-ragu</i> — tandanya tetap ikut terkirim.
+            </span>
           </p>
         )}
         {blank > 0 && (
@@ -134,7 +138,16 @@ export default function Review() {
           disabled={busy}
           onClick={() => void confirm()}
         >
-          {busy ? 'Mengirim…' : online ? '✓ Ya, Selesaikan & Kirim' : 'Selesai (menunggu internet)'}
+          {busy ? (
+            'Mengirim…'
+          ) : online ? (
+            <>
+              <IconCheck size={16} />
+              Ya, Selesaikan &amp; Kirim
+            </>
+          ) : (
+            'Selesai (menunggu internet)'
+          )}
         </button>
         <button type="button" className="btn-ghost w-full" onClick={() => nav(`/s/attempt/${id}`)}>
           ← Kembali mengerjakan
@@ -144,7 +157,17 @@ export default function Review() {
   )
 }
 
-function StatTile({ n, label, tone }: { n: number; label: string; tone: 'success' | 'warn' | 'canvas' }) {
+function StatTile({
+  n,
+  label,
+  tone,
+  icon,
+}: {
+  n: number
+  label: string
+  tone: 'success' | 'warn' | 'canvas'
+  icon?: React.ReactNode
+}) {
   const style =
     tone === 'success'
       ? { background: 'var(--c-success-soft)', borderColor: 'var(--c-success)', color: 'var(--c-success)' }
@@ -153,7 +176,10 @@ function StatTile({ n, label, tone }: { n: number; label: string; tone: 'success
         : { background: 'var(--c-canvas)', borderColor: 'var(--c-border-strong)', color: 'var(--c-muted)' }
   return (
     <div className="rounded-lg border p-2.5 text-center" style={style}>
-      <div className="font-mono text-2xl font-bold tabular-nums" aria-hidden>{n}</div>
+      <div className="mb-0.5 flex items-center justify-center gap-1 font-mono text-2xl font-bold tabular-nums" aria-hidden>
+        {icon}
+        {n}
+      </div>
       <div className="text-[11px] font-medium" style={{ color: 'var(--c-muted)' }}>{label}</div>
       <span className="sr-only">{label}: {n}</span>
     </div>

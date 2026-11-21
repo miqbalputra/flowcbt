@@ -6,6 +6,7 @@
 import { useState } from 'react'
 import type { FetchedQuestion } from '../types'
 import { renderSimpleHtml } from '@/lib/sanitize'
+import { IconCheck, IconX } from '@/components/icons'
 
 /** Bentuk jawaban lintas tipe: string, string[], atau map pasangan matching. */
 export type AnswerValue = string | string[] | Record<string, string> | null
@@ -22,7 +23,7 @@ function LetterBox({ letter, active, check = false }: { letter: string; active: 
       className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md border font-mono text-sm font-bold transition-colors
         ${active ? 'border-primary bg-primary-bg text-primary-fg' : 'border-border bg-canvas text-text'}`}
     >
-      {active && check ? '✓' : letter}
+      {active && check ? <IconCheck size={15} /> : letter}
     </span>
   )
 }
@@ -268,7 +269,7 @@ function MatchingPairs({
                   {String.fromCharCode(65 + ri)}
                 </span>
                 <span className="min-w-0 flex-1 break-words leading-snug">{r.text}</span>
-                {taken && <span className="shrink-0 font-mono text-xs text-muted" aria-hidden>✓</span>}
+                {taken && <IconCheck size={12} className="shrink-0 text-muted" />}
               </button>
             )
           })}
@@ -302,7 +303,7 @@ function MatchingPairs({
                       aria-label={`Lepas pasangan ${i + 1}`}
                       className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border-strong text-muted active:scale-[0.97] hover:bg-canvas disabled:opacity-40"
                     >
-                      ✕
+                      <IconX size={14} />
                     </button>
                   </li>
                 )
@@ -423,7 +424,7 @@ export function StimulusCard({ text, title = 'Wacana' }: { text?: string | null;
           </svg>
           {title}
         </span>
-        <span aria-hidden className="font-mono text-xs text-muted">{open ? '▾' : '▸'}</span>
+        <span aria-hidden className="font-mono text-xs text-muted">{open ? '\u25BE' : '\u25B8'}</span>
       </button>
       {open && (
         <div

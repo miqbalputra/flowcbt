@@ -1,10 +1,11 @@
-// Dashboard siswa (/s/exams) — daftar ujian + tombol Mulai/Lanjutkan per ujian.
-// Kartu padat (padding 1rem), badge status soft, empty state ikon outline.
+// Dashboard siswa (/s/exams) — daftar ujian dgn ikon section, strip status
+// 3px, kode ujian mono, tombol Mulai/Lanjutkan ber-ikon. Tanpa emoji.
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '@/lib/api'
 import { errMessage, fmtDateTime } from '../lib/util'
 import { SiswaLayout, EmptyState } from '../components/SiswaLayout'
+import { IconCheck, IconClock, IconExam, IconPlay, IconRight } from '@/components/icons'
 import type { StudentExam } from '../types'
 
 export default function Dashboard() {
@@ -50,9 +51,9 @@ export default function Dashboard() {
         <EmptyState title="Belum ada ujian" hint="Daftar ujian dari gurumu akan muncul di sini setelah dipublikasikan." />
       ) : (
         <div className="space-y-6">
-          <Section title="Sedang dibuka" items={exams.open} tone="primary" />
-          <Section title="Akan datang" items={exams.upcoming} tone="muted" />
-          <Section title="Selesai" items={exams.done} tone="success" />
+          <Section title="Ujian tersedia" items={exams.open} tone="primary" icon={<IconExam size={14} />} />
+          <Section title="Akan datang" items={exams.upcoming} tone="muted" icon={<IconClock size={14} />} />
+          <Section title="Selesai" items={exams.done} tone="success" icon={<IconCheck size={14} />} />
         </div>
       ))}
     </SiswaLayout>
@@ -63,14 +64,17 @@ function Section({
   title,
   items,
   tone,
+  icon,
 }: {
   title: string
   items: StudentExam[]
   tone: 'primary' | 'muted' | 'success'
+  icon?: React.ReactNode
 }) {
   return (
     <section className="space-y-2">
-      <h2 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted">
+      <h2 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted">
+        {icon && icon}
         {title}
         <span className="rounded border border-border bg-canvas px-1.5 font-mono text-[11px] font-bold text-text">{items.length}</span>
       </h2>
@@ -84,6 +88,58 @@ function Section({
   )
 }
 
+const TONE_COLOR: Record<'primary' | 'muted' | 'success', string> = {
+  primary: 'var(--c-primary)',
+  muted: 'var(--c-border-strong)',
+  success: 'var(--c-success)',
+}
+
+function ExamCard({ exam, tone }: { exam: StudentExam; tone: 'primary' | 'muted' | 'success' }) {
+  const nav = useNavigate()
+  const canStart = tone === 'primary'
+  const label = canStart ? (exam.active_attempt_id ? 'Lanjutkan' : 'Mulai') : 'Lihat'
+  return (
+    <li
+      className="card flex items-center justify-between gap-3 !p-3"
+      style={{ borderLeft: `3px solid ${TONE_COLOR[tone]}` }}
+    >
+      <div className="min-w-0">
+        <h3 className="truncate text-sm font-semibold leading-snug">{exam.name}</h3>
+        <p className="mt-0.5 flex items-center gap-1.5 text-xs text-muted">
+          {exam.exam_code && (
+            <span className="shrink-0 font-mono text-xs text-muted" title="Kode ujian">
+              {exam.exam_code}
+            </span>
+          )}
+          {exam.exam_code && <span aria-hidden>·</span>}
+          {(exam.subject_name || 'Umum') + ' · ' + fmtDateTime(exam.open_at)}
+        </p>
+        <div className="mt-1">
+          <ScheduleBadge exam={exam} tone={tone} />
+        </div>
+      </div>
+      <div className="flex shrink-0 flex-col items-end gap-1.5">
+        {typeof exam.score === 'number' && (
+          <span
+            className="badge border"
+            style={{ background: 'var(--c-success-soft)', color: 'var(--c-success)', borderColor: 'var(--c-success)' }}
+          >
+            Nilai <span className="font-mono font-bold">{exam.score}</span>
+          </span>
+        )}
+        <button
+          className="btn-primary btn-sm shrink-0"
+          style={canStart ? undefined : { background: 'var(--c-surface)', color: 'var(--c-text)', border: '1px solid var(--c-border-strong)' }}
+          onClick={() => nav(`/s/exams/${exam.id}/start`)}
+        >
+          {canStart ? <IconPlay size={14} /> : <IconRight size={14} />}
+          {label}
+        </button>
+      </div>
+    </li>
+  )
+}
+
 function ScheduleBadge({ exam, tone }: { exam: StudentExam; tone: 'primary' | 'muted' | 'success' }) {
   const style =
     tone === 'primary'
@@ -92,47 +148,16 @@ function ScheduleBadge({ exam, tone }: { exam: StudentExam; tone: 'primary' | 'm
         ? { background: 'var(--c-success-soft)', color: 'var(--c-success)', borderColor: 'var(--c-success)' }
         : { background: 'var(--c-canvas)', color: 'var(--c-muted)', borderColor: 'var(--c-border-strong)' }
   const label =
-    tone === 'primary'
-      ? 'Dibuka'
-      : tone === 'success'
-        ? 'Selesai'
-        : 'Terjadwal'
+    tone === 'primary' ? 'Dibuka' : tone === 'success' ? 'Selesai' : 'Terjadwal'
   return (
     <span className="badge shrink-0 border" style={style}>
       {label}
-      {exam.duration_minutes ? <span className="font-mono">· {exam.duration_minutes}′</span> : null}
+      {exam.duration_minutes ? (
+        <span className="font-mono" title="Durasi">
+          · {exam.duration_minutes} menit
+        </span>
+      ) : null}
     </span>
-  )
-}
-
-function ExamCard({ exam, tone }: { exam: StudentExam; tone: 'primary' | 'muted' | 'success' }) {
-  const nav = useNavigate()
-  const canStart = tone === 'primary'
-  const label = canStart ? (exam.active_attempt_id ? 'Lanjutkan' : 'Mulai') : 'Lihat'
-  return (
-    <li className="card space-y-1.5">
-      <div className="flex items-start justify-between gap-2">
-        <h3 className="text-sm font-semibold leading-snug">{exam.name}</h3>
-        {typeof exam.score === 'number' && (
-          <span className="badge shrink-0 border" style={{ background: 'var(--c-success-soft)', color: 'var(--c-success)', borderColor: 'var(--c-success)' }}>
-            Nilai <span className="font-mono font-bold">{exam.score}</span>
-          </span>
-        )}
-      </div>
-      <p className="text-xs text-muted">
-        {exam.subject_name || 'Umum'} · {fmtDateTime(exam.open_at)} → {fmtDateTime(exam.close_at)}
-      </p>
-      <div className="flex items-center justify-between gap-2 pt-1">
-        <ScheduleBadge exam={exam} tone={tone} />
-        <button
-          className="btn-primary btn-sm shrink-0"
-          style={canStart ? undefined : { background: 'var(--c-surface)', color: 'var(--c-text)', border: '1px solid var(--c-border-strong)' }}
-          onClick={() => nav(`/s/exams/${exam.id}/start`)}
-        >
-          {label}
-        </button>
-      </div>
-    </li>
   )
 }
 

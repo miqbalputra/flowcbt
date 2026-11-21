@@ -17,8 +17,10 @@ import { QuestionView, StimulusCard, type AnswerValue } from '../components/Ques
 import { ConnStatus } from '../components/ConnStatus'
 import { Modal } from '@/components/modal'
 import { ThemeToggle } from '@/components/ThemeToggle'
+import { IconAlertCircle, IconCheck, IconFlag, IconGrid, IconLeft, IconRight } from '@/components/icons'
 import { toast } from '@/components/toast'
 import { renderSimpleHtml } from '@/lib/sanitize'
+import { LogoMark } from '@/components/icons'
 import type { AttemptRecord, FetchedQuestion, StudentProfile } from '../types'
 
 type Rules = {
@@ -362,14 +364,15 @@ export default function Attempt() {
       {/* ================= HEADER UTILITAS 56px (sticky) — directive §A ================= */}
       <header className="sticky top-0 z-40 shrink-0 border-b border-border bg-surface">
         <div className="relative mx-auto flex h-14 w-full items-center gap-2 px-3">
-          {/* kiri: peta soal (mobile) + judul + kode ujian + status sinkron */}
+          {/* kiri: logo (desktop) + peta soal (mobile) */}
+          <span className="hidden shrink-0 md:block" aria-hidden><LogoMark size={20} /></span>
           <button
             type="button"
             onClick={() => setSheet(true)}
             aria-label="Buka peta soal"
-            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-border-strong bg-surface font-mono text-xs active:scale-[0.99] lg:hidden"
+            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-border-strong bg-surface text-text active:scale-[0.99] lg:hidden"
           >
-            ☰
+            <IconGrid size={18} />
           </button>
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-center gap-2">
@@ -482,7 +485,8 @@ export default function Attempt() {
                   <span className="badge badge-soft">{TYPE_LABEL[q.type] ?? 'Soal'}</span>
                   {flagged[q.id] && (
                     <span className="badge" style={{ background: 'var(--c-warn-soft)', color: 'var(--c-warn)', borderColor: 'var(--c-warn)' }}>
-                      ⚑ Ditandai ragu
+                      <IconFlag size={12} />
+                      Ditandai ragu
                     </span>
                   )}
                 </div>
@@ -519,11 +523,16 @@ export default function Attempt() {
 
             {/* navigasi cepat di panel opsi (desktop saja, action bar tetap ada) */}
             <div className="mt-4 hidden grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] gap-2 border-t border-border pt-3 lg:grid">
-              <button type="button" className="btn-ghost" disabled={idx <= 0} onClick={goPrev} aria-label="Soal sebelumnya">←</button>
-              <button type="button" className="btn-ghost font-mono" onClick={() => setSheet(true)} aria-label="Buka peta soal" title="Peta soal">
-                {idx + 1}/{qs.length || '—'}
+              <button type="button" className="btn-ghost" disabled={idx <= 0} onClick={goPrev} aria-label="Soal sebelumnya">
+                <IconLeft size={16} />
               </button>
-              <button type="button" className="btn-ghost" disabled={idx >= qs.length - 1} onClick={goNext} aria-label="Soal berikutnya">→</button>
+              <button type="button" className="btn-ghost" onClick={() => setSheet(true)} aria-label="Buka peta soal" title="Peta soal">
+                <IconGrid size={15} />
+                <span className="font-mono">{idx + 1}/{qs.length || '—'}</span>
+              </button>
+              <button type="button" className="btn-ghost" disabled={idx >= qs.length - 1} onClick={goNext} aria-label="Soal berikutnya">
+                <IconRight size={16} />
+              </button>
             </div>
           </div>
         </aside>
@@ -539,11 +548,11 @@ export default function Attempt() {
             onClick={goPrev}
             aria-label="Soal sebelumnya"
           >
-            <span aria-hidden className="text-base leading-none">←</span>
+            <IconLeft size={16} />
             <span className="hidden min-[400px]:inline">Sebelumnya</span>
           </button>
 
-          {/* toggle RAGU — state amber (checkbox visual + ikon ⚑) */}
+          {/* toggle RAGU — state amber (ikone catalan flag; border/teks warn saat aktif) */}
           <button
             type="button"
             onClick={() => q && void toggleFlag(q.id)}
@@ -554,7 +563,7 @@ export default function Attempt() {
                 ? 'border-warn bg-warn-soft text-warn'
                 : 'border-border-strong bg-surface hover:bg-canvas'}`}
           >
-            <span aria-hidden className="font-mono">{q && flagged[q.id] ? '⚑' : '⚐'}</span>
+            <IconFlag size={15} />
             <span className="hidden min-[400px]:inline">Ragu</span>
           </button>
 
@@ -562,13 +571,13 @@ export default function Attempt() {
 
           {isLast ? (
             <button type="button" className="btn-primary shrink-0" onClick={() => void finish()}>
-              <span aria-hidden>✓</span>
+              <IconCheck size={16} />
               <span className="hidden min-[400px]:inline">Selesaikan</span>
             </button>
           ) : (
             <button type="button" className="btn-primary shrink-0" disabled={locked} onClick={goNext} aria-label="Soal berikutnya">
               <span className="hidden min-[400px]:inline">Selanjutnya</span>
-              <span aria-hidden className="text-base leading-none">→</span>
+              <IconRight size={16} />
             </button>
           )}
         </div>
@@ -617,10 +626,10 @@ export default function Attempt() {
           >
             <span
               aria-hidden
-              className="mx-auto flex h-10 w-10 items-center justify-center rounded-md border font-mono text-base font-bold"
+              className="mx-auto flex h-10 w-10 items-center justify-center rounded-md border"
               style={{ borderColor: 'var(--c-danger)', background: 'var(--c-danger-soft)', color: 'var(--c-danger)' }}
             >
-              !
+              <IconAlertCircle size={22} />
             </span>
             <b>Pelanggaran ke-{violate.n}</b>
             <p className="text-sm text-muted">

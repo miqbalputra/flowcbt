@@ -8,6 +8,7 @@ import { getAttempt, getQueueFor } from '../db'
 import { getMyResult, getServerAttempt } from '../lib/student-api'
 import { flush, enqueueSubmit } from '../lib/sync'
 import { SiswaLayout } from '../components/SiswaLayout'
+import { IconChart2, IconCheck, IconDashboard } from '@/components/icons'
 import type { AttemptRecord } from '../types'
 import { fmtDateTime } from '../types'
 
@@ -96,6 +97,15 @@ export default function Done() {
   return (
     <SiswaLayout title="Ujian selesai">
       <div className="card space-y-4 text-center">
+        {/* lingkaran konfirmasi — IconCheck besar dgn bg success-soft (tanpa emoji) */}
+        <span
+          aria-hidden
+          className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border"
+          style={{ borderColor: 'var(--c-success)', background: 'var(--c-success-soft)', color: 'var(--c-success)' }}
+        >
+          <IconCheck size={40} />
+        </span>
+
         {rec && (
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold">{rec.exam_name}</p>
@@ -137,8 +147,14 @@ export default function Done() {
         )}
 
         <div className="grid gap-2">
-          <Link to="/s/history" className="btn-primary w-full">Lihat Riwayat</Link>
-          <Link to="/s/exams" className="btn-ghost w-full">Kembali ke Dashboard</Link>
+          <Link to="/s/history" className="btn-primary w-full">
+            <IconChart2 size={16} />
+            Lihat Riwayat
+          </Link>
+          <Link to="/s/exams" className="btn-ghost w-full">
+            <IconDashboard size={16} />
+            Kembali ke Dashboard
+          </Link>
         </div>
       </div>
     </SiswaLayout>

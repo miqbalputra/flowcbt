@@ -1,8 +1,9 @@
-// Indikator status sinkronisasi header runner (FR-7.7) — dot + teks, soft bg:
-// ● Tersimpan (hijau) · ● Menyinkron (n) (amber) · ● Offline — tersimpan di
-// perangkat (merah). Sumber state: getEngineState/subscribeSync (engine sync).
+// Indikator status sinkronisasi header runner (FR-7.7) — ikon + teks, soft bg:
+// IconWifi Tersimpan (hijau) · dot berdenyut Menyinkron (n) (amber) ·
+// IconWifiOff Offline — tersimpan di perangkat (merah). Tanpa emoji.
 import { useEffect, useState } from 'react'
 import { getEngineState, subscribeSync, type EngineState } from '../lib/sync'
+import { IconWifi, IconWifiOff } from '@/components/icons'
 
 export function ConnStatus({ short = false }: { short?: boolean }) {
   const [s, setS] = useState<EngineState>(getEngineState())
@@ -27,7 +28,19 @@ export function ConnStatus({ short = false }: { short?: boolean }) {
       className="badge shrink-0 border"
       style={{ background: varBg, color: varFg, borderColor: `color-mix(in srgb, ${varFg} 35%, transparent)` }}
     >
-      <span aria-hidden className="h-1.5 w-1.5 rounded-full" style={{ background: varFg }} />
+      {s.online ? (
+        syncing ? (
+          // dot bergerak (sinkron berjalan) — bukan emoji
+          <span aria-hidden className="relative flex h-2 w-2 shrink-0" style={{ color: varFg }}>
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-60" style={{ background: 'currentColor' }} />
+            <span className="relative inline-flex h-2 w-2 rounded-full" style={{ background: 'currentColor' }} />
+          </span>
+        ) : (
+          <IconWifi size={14} className="shrink-0" />
+        )
+      ) : (
+        <IconWifiOff size={14} className="shrink-0" />
+      )}
       <span className="max-w-[10rem] truncate whitespace-nowrap">{label}</span>
     </span>
   )

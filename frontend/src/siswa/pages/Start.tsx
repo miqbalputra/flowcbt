@@ -5,8 +5,9 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { saveAttempt } from '../db'
 import { examDetail, startExam } from '../lib/student-api'
 import { errMessage, getProfile } from '../lib/util'
-import { SiswaLayout } from '../components/SiswaLayout'
+import { SiswaLayout, TextField } from '../components/SiswaLayout'
 import { toast } from '@/components/toast'
+import { IconExam, IconInfo, IconKey, IconShield, IconWarn } from '@/components/icons'
 import type { AttemptRecord, AttemptPackage, FetchedQuestion } from '../types'
 
 type RuleItem = { title: string; body: string; forbidden: boolean }
@@ -88,7 +89,7 @@ export default function Start() {
   }
 
   return (
-    <SiswaLayout title="Mulai ujian">
+    <SiswaLayout title="Mulai ujian" titleIcon={<IconExam size={18} />}>
       <div className="card space-y-4">
         <Rules detail={detail} />
         {detailErr && (
@@ -97,20 +98,17 @@ export default function Start() {
           </p>
         )}
 
-        <div>
-          <label className="label" htmlFor="tk">Token ujian</label>
-          <input
-            id="tk"
-            className="input font-mono tracking-widest uppercase"
-            value={token}
-            onChange={e => setToken(e.target.value)}
-            placeholder="XXXXXXXX"
-            autoComplete="off"
-            autoCapitalize="characters"
-            spellCheck={false}
-            required
-          />
-        </div>
+        <TextField
+          id="tk"
+          label="Token ujian"
+          icon={<IconKey size={18} />}
+          mono
+          value={token}
+          onChange={e => setToken(e.target.value)}
+          placeholder="XXXXXXXX"
+          autoComplete="off"
+          required
+        />
 
         <label className="flex min-h-11 items-start gap-2 text-sm leading-relaxed">
           <input type="checkbox" className="mt-1 shrink-0" checked={agree} onChange={e => setAgree(e.target.checked)} />
@@ -161,10 +159,7 @@ function Rules({ detail }: { detail: Record<string, unknown> | null }) {
   return (
     <section aria-label="Tata tertib ujian">
       <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="text-muted" aria-hidden>
-          <path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7l8-4z" />
-          <path d="M12 8v5M12 16h.01" />
-        </svg>
+        <IconShield size={16} className="text-muted" />
         Tata tertib ujian
       </h2>
       <ul className="space-y-2">
@@ -179,10 +174,10 @@ function Rules({ detail }: { detail: Record<string, unknown> | null }) {
           >
             <span
               aria-hidden
-              className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-sm font-mono text-[11px] font-bold text-white"
-              style={{ background: r.forbidden ? 'var(--c-danger)' : 'var(--c-primary)' }}
+              className="mt-0.5 shrink-0"
+              style={{ color: r.forbidden ? 'var(--c-danger)' : 'var(--c-primary)' }}
             >
-              {r.forbidden ? '✕' : 'i'}
+              {r.forbidden ? <IconWarn size={16} /> : <IconInfo size={16} />}
             </span>
             <span className="min-w-0">
               {r.title && <strong className="mr-1">{r.title}:</strong>}
