@@ -1,22 +1,23 @@
-// Dashboard guru/admin (FR-2.1..2.3, M10) — status langganan & sisa kuota dari /billing/subscription
+// Dashboard guru/admin (FR-2.1..2.3, M10) — ringkasan operasional harian.
+// Sumber data: GET /dashboard (exams_running, exams_scheduled, students_count,
+// last_exam_avg, quota) + GET /reports/live untuk daftar ujian berjalan.
 import { useQuery } from '@tanstack/react-query'
 import { Link, useNavigate } from 'react-router-dom'
 import { api } from '@/lib/api'
-import { ErrorBox, PageHeader, SkeletonRows } from './ui'
+import { ErrorBox, PageHeader, Panel, SkeletonRows, StatCard, EmptyState } from './ui'
 import {
-  IconCalendar, IconChart2, IconExam, IconPlus, IconShield, IconStudents,
-  IconTrendDown, IconTrendUp, IconUpload,
+  IconCalendar, IconChart2, IconCredit, IconExam, IconPlus, IconShield,
+  IconStudents, IconTrendDown, IconTrendUp, IconUpload, IconPlay, IconClock, IconBank,
 } from '@/components/icons'
-import { asDict, asList, fmtDate, fmtRp, unwrap, type Ico } from './types'
+import { asDict, asList, fmtDate, fmtDuration, unwrap, type Ico } from './types'
 
 const SHORTCUTS: { to: string; Ico: Ico; label: string; desc: string }[] = [
-  { to: '/question-sets/new/edit', Ico: IconPlus, label: 'Buat Soal', desc: 'Buat paket soal baru' },
-  { to: '/exams/new', Ico: IconExam, label: 'Ujian Baru', desc: 'Jadwalkan ujian dari paket soal' },
-  { to: '/students?import=1', Ico: IconUpload, label: 'Import Siswa', desc: 'Unduh template & unggah daftar siswa' },
-  { to: '/reports/live', Ico: IconChart2, label: 'Rekap', desc: 'Pantauan & laporan ujian' },
+  { to: '/question-sets/new/edit', Ico: IconPlus, label: 'Buat Bank Soal', desc: 'Paket soal AKM baru' },
+  { to: '/exams/new', Ico: IconExam, label: 'Jadwalkan Ujian', desc: 'Dari paket soal terbit' },
+  { to: '/students?import=1', Ico: IconUpload, label: 'Import Siswa', desc: 'Template & unggah massal' },
+  { to: '/reports/live', Ico: IconChart2, label: 'Pantau Ujian', desc: 'Status real-time peserta' },
 ]
 
-/** Persen perubahan — HANYA bila angka pembanding benar-benar ada (tidak mengarang tren) */
 function trendPct(cur: unknown, prev: unknown): number | null {
   const c = Number(cur)
   const p = Number(prev)
@@ -28,144 +29,252 @@ function trendPct(cur: unknown, prev: unknown): number | null {
 function TrendBadge({ pct }: { pct: number }) {
   const up = pct >= 0
   return (
-    <span className={`badge shrink-0 ${up ? 'bg-success-soft text-success' : 'bg-danger-soft text-danger'}`}>
+    <span className={`badge ${up ? 'bg-success-soft text-success' : 'bg-danger-soft text-danger'}`}>
       {up ? <IconTrendUp size={11} /> : <IconTrendDown size={11} />}
       {up ? '+' : ''}{pct.toFixed(1)}%
     </span>
   )
 }
 
-/** Kartu metrik: ikon + label uppercase kecil, angka besar monospace (directive §3B) */
-function StatCard({ Ico, label, value, hint, trend }: { Ico?: Ico; label: string; value: string; hint?: string; trend?: number | null }) {
-  return (
-    <div className="card">
-      <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-muted">
-        {Ico && <Ico size={20} />}
-        <span className="truncate">{label}</span>
-      </div>
-      <div className="mt-1.5 flex items-baseline gap-2 min-w-0">
-        <span className="font-mono font-bold text-2xl sm:text-3xl leading-none tracking-tight truncate">{value}</span>
-        {trend !== null && trend !== undefined && <TrendBadge pct={trend} />}
-      </div>
-      {hint && <div className="mt-1.5 text-xs text-muted truncate">{hint}</div>}
-    </div>
-  )
-}
-
 export default function Dashboard() {
   const nav = useNavigate()
   const dash = useQuery({ queryKey: ['dashboard'], queryFn: async () => unwrap(await api('/dashboard')) })
-  const sub = useQuery({ queryKey: ['billing', 'subscription'], queryFn: async () => unwrap(await api('/billing/subscription')) })
+  const live = useQuery({ queryKey: ['reports', 'live'], queryFn: async () => unwrap(await api('/reports/live')), refetchInterval: 15_000 })
 
   const d = dash.data ? asDict(dash.data) : {}
-  const s = sub.data ? asDict(sub.data) : {}
-  const quotas = sub.data ? asList(s.quotas ?? s.quota ?? []) : []
+  const quota = d.quota ? asDict(d.quota) : {}
+  const liveExams = live.data ? asList(live.data) : []
 
-  // tren rata-rata nilai: hanya bila backend menyediakan pembanding periode sebelumnya
-  const avgCur = d.avg_last_score ?? d.avg_score
-  const avgPrev = d.prev_avg_score ?? d.prev_avg ?? d.avg_prev_score
-  const avgTrend = trendPct(avgCur, avgPrev)
+  const running = Number(d.exams_running ?? d.running_exams ?? 0)
+  const scheduled = Number(d.exams_scheduled ?? d.scheduled_exams ?? 0)
+  const studentsCount = Number(d.students_count ?? d.total_students ?? 0)
+  const avgCur = d.last_exam_avg ?? d.avg_last_score
+  const avgTrend = trendPct(avgCur, d.prev_avg_score)
+
+  const quotaStatus = String(quota.status ?? 'active')
+  const monthly = Boolean(quota.monthly_active)
+  const planLabel = monthly ? String(quota.monthly_plan || 'Bulanan') : quotaStatus === 'trial' ? 'Trial' : 'Gratis / Kredit'
+  const maxStudents = Number(quota.max_students ?? 0)
+  const credits = Number(quota.exam_credits_remaining ?? 0)
+  const studentsQuotaUsed = Number(quota.students_count ?? studentsCount)
+  const periodEnd = quota.monthly_ends_at ?? quota.trial_ends_at ?? quota.rights_ends_at
+  const accessOk = quota.access_ok !== false
 
   return (
-    <div className="space-y-4">
-      <PageHeader title="Dashboard" desc="Ringkasan hari ini di lembaga Anda." icon={<IconChart2 size={18} />} />
+    <div className="space-y-5">
+      <PageHeader
+        eyebrow="Ringkasan Operasional"
+        title="Dashboard"
+        desc="Kondisi ujian dan langganan lembaga Anda hari ini."
+        icon={<IconChart2 size={18} />}
+        action={
+          <>
+            <Link to="/students?import=1" className="btn-ghost btn-sm">
+              <IconUpload size={14} /> Import siswa
+            </Link>
+            <Link to="/exams/new" className="btn-primary btn-sm">
+              <IconPlus size={14} /> Ujian baru
+            </Link>
+          </>
+        }
+      />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      {/* KPI */}
+      <div className="grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-4">
         {dash.isLoading ? (
-          <div className="col-span-2 lg:col-span-4 space-y-3"><SkeletonRows rows={2} /></div>
+          <div className="col-span-2 lg:col-span-4"><SkeletonRows rows={2} /></div>
         ) : dash.isError ? (
-          <div className="col-span-2 lg:col-span-4"><ErrorBox error={dash.error} /></div>
+          <div className="col-span-2 lg:col-span-4"><ErrorBox error={dash.error} onRetry={() => void dash.refetch()} /></div>
         ) : (
           <>
-            <StatCard Ico={IconExam} label="Ujian berjalan" value={String(d.running_exams ?? d.active_exams ?? 0)} hint="sedang dikerjakan siswa" />
-            <StatCard Ico={IconCalendar} label="Ujian terjadwal" value={String(d.scheduled_exams ?? 0)} hint="belum dibuka" />
-            <StatCard Ico={IconStudents} label="Total siswa" value={String(d.total_students ?? d.students ?? 0)} />
-            <StatCard Ico={IconChart2} label="Rata-rata nilai" value={String(avgCur ?? '—')} hint="ujian terakhir" trend={avgTrend} />
+            <StatCard
+              label="Ujian berjalan"
+              value={String(running)}
+              hint="sedang dalam jadwal"
+              tone="primary"
+              icon={<IconPlay size={14} />}
+            />
+            <StatCard
+              label="Ujian terjadwal"
+              value={String(scheduled)}
+              hint="menunggu jadwal buka"
+              icon={<IconCalendar size={14} />}
+            />
+            <StatCard
+              label="Total siswa"
+              value={String(studentsCount)}
+              hint={maxStudents > 0 ? `kuota tier ${maxStudents} siswa` : 'aktif terdaftar'}
+              icon={<IconStudents size={14} />}
+            />
+            <StatCard
+              label="Rata-rata nilai"
+              value={avgCur !== null && avgCur !== undefined && avgCur !== 0 ? String(avgCur) : '—'}
+              hint={String(d.last_exam_name ?? 'ujian terakhir')}
+              tone="success"
+              icon={<IconChart2 size={14} />}
+              action={avgTrend !== null ? <TrendBadge pct={avgTrend} /> : undefined}
+            />
           </>
         )}
       </div>
 
-      {/* status langganan & sisa kuota (M10) */}
-      <div className="card space-y-3">
-        <div className="flex items-center justify-between gap-2">
-          <h3 className="font-semibold flex items-center gap-2">
-            <IconShield size={16} className="text-muted" /> Langganan
-          </h3>
-          <Link to="/billing" className="btn-ghost btn-sm">Kelola</Link>
-        </div>
-        {sub.isLoading ? (
-          <SkeletonRows rows={2} />
-        ) : sub.isError ? (
-          <ErrorBox error={sub.error} />
-        ) : (
-          <>
-            <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm">
-              <span>Paket: <b className="text-primary">{String(s.plan_name ?? s.plan_code ?? 'Gratis')}</b></span>
-              {s.status && <span>Status: <b>{String(s.status)}</b></span>}
-              {s.current_period_end && <span className="text-muted">Berakhir {fmtDate(s.current_period_end)}</span>}
-            </div>
-            {quotas.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {quotas.map((q, i) => {
-                  const used = Number(q.used ?? 0)
-                  const limit = Number(q.limit ?? 0)
-                  return (
-                    <div key={q.code ?? i} className="rounded-lg border border-border px-3 py-2.5 space-y-1">
-                      <div className="flex justify-between text-sm">
-                        <span className="truncate mr-2">{String(q.name ?? q.code ?? 'Kuota')}</span>
-                        <span className="text-muted shrink-0 font-mono">{used}/{limit || '∞'}</span>
-                      </div>
-                      <div className="h-2 rounded-full bg-border/40">
-                        <div className="h-full rounded-full bg-primary" style={{ width: `${limit ? Math.min(100, Math.round((used / limit) * 100)) : 0}%` }} />
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+        {/* kiri: ujian berjalan + aksi cepat */}
+        <div className="min-w-0 space-y-4">
+          <Panel
+            title="Ujian Sedang Berlangsung"
+            icon={<IconPlay size={15} />}
+            action={<Link to="/reports/live" className="btn-quiet btn-sm">Lihat semua</Link>}
+            flush
+          >
+            {live.isLoading ? (
+              <div className="p-3"><SkeletonRows rows={2} cols={3} /></div>
+            ) : live.isError ? (
+              <div className="p-3"><ErrorBox error={live.error} onRetry={() => void live.refetch()} /></div>
+            ) : liveExams.length === 0 ? (
+              <EmptyState title="Tidak ada ujian berjalan" >
+                Ujian yang sedang dibuka akan muncul di sini beserta status pesertanya.
+              </EmptyState>
             ) : (
-              <p className="text-sm text-muted">Kuota paket: {fmtRp(s.exams_left ?? s.credit_idr ?? 0)} / sisa ujian <span className="font-mono">{String(s.exams_left ?? s.exam_credits ?? '—')}</span></p>
-            )}
-          </>
-        )}
-      </div>
-
-      {/* aksi cepat (FR-2.2) — ghost + border, bukan kartu warna-warni */}
-      <div>
-        <h3 className="font-semibold mb-2">Aksi cepat</h3>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          {SHORTCUTS.map(sc => (
-            <button
-              key={sc.to}
-              type="button"
-              onClick={() => nav(sc.to)}
-              className="btn-ghost !justify-start h-auto text-left px-3.5 py-3 hover:!border-primary"
-            >
-              <span className="min-w-0">
-                <span className="flex items-center gap-2 text-sm font-medium">
-                  <sc.Ico size={16} className="text-primary shrink-0" /> {sc.label}
-                </span>
-                <span className="block text-xs text-muted truncate mt-0.5">{sc.desc}</span>
-              </span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* ujian berjalan hari ini — ringkas */}
-      {dash.data && !dash.isError && Array.isArray(d.live_exams) && (
-        <div>
-          <h3 className="font-semibold mb-2">Sedang berjalan</h3>
-          {asList(d.live_exams).map((row, i) => (
-            <div key={row.id ?? i} className="card mb-2 flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <div className="font-medium text-sm truncate">{String(row.name ?? 'Ujian')}</div>
-                <div className="text-xs text-muted truncate">{String(row.subject_name ?? '')}</div>
+              <div className="table-scroll">
+                <table className="table-base responsive-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Ujian</th>
+                      <th scope="col">Mata pelajaran</th>
+                      <th scope="col" className="num">Peserta</th>
+                      <th scope="col" className="num">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {liveExams.map((row, i) => {
+                      const counts = asDict(row.counts)
+                      return (
+                        <tr key={String(row.exam_id ?? i)}>
+                          <td data-th="Ujian">
+                            <span className="block max-w-[16rem] truncate font-semibold">{String(row.name ?? 'Ujian')}</span>
+                            <span className="mono text-[11px] text-muted">
+                              tutup dalam {fmtDuration(Number(row.close_in_seconds ?? 0))}
+                            </span>
+                          </td>
+                          <td data-th="Mapel" className="text-muted">{String(row.subject_name ?? '—')}</td>
+                          <td data-th="Peserta" className="num">
+                            <span className="mono">{Number(counts.working ?? 0)}</span>
+                            <span className="text-[11px] text-muted"> / {Number(counts.participants ?? 0)}</span>
+                          </td>
+                          <td data-th="Aksi" className="num">
+                            <Link to={`/reports/live/${row.exam_id}`} className="btn-ghost btn-sm">
+                              Pantau <IconChart2 size={13} />
+                            </Link>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
               </div>
-              <Link to={`/reports/live/${row.id}`} className="btn-ghost btn-sm shrink-0">Pantau</Link>
+            )}
+          </Panel>
+
+          <div>
+            <h2 className="mb-2 flex items-center gap-2 text-sm font-bold">
+              <IconClock size={15} className="text-muted" /> Aksi cepat
+            </h2>
+            <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
+              {SHORTCUTS.map(sc => (
+                <button
+                  key={sc.to}
+                  type="button"
+                  onClick={() => nav(sc.to)}
+                  className="group flex flex-col items-start gap-1.5 rounded-md border border-border bg-surface p-3 text-left transition-colors hover:border-primary hover:bg-primary-soft/40"
+                >
+                  <span className="flex h-7 w-7 items-center justify-center rounded border border-border bg-canvas text-primary group-hover:border-primary-line group-hover:bg-surface" aria-hidden>
+                    <sc.Ico size={15} />
+                  </span>
+                  <span className="text-[13px] font-semibold leading-tight">{sc.label}</span>
+                  <span className="text-[11px] leading-snug text-muted">{sc.desc}</span>
+                </button>
+              ))}
             </div>
-          ))}
+          </div>
         </div>
-      )}
+
+        {/* kanan: langganan + kesiapan */}
+        <div className="space-y-4">
+          <Panel
+            title="Langganan & Kuota"
+            icon={<IconCredit size={15} />}
+            action={<Link to="/billing" className="btn-ghost btn-sm">Kelola</Link>}
+          >
+            {dash.isLoading ? (
+              <SkeletonRows rows={2} cols={2} />
+            ) : (
+              <div className="space-y-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="section-label">Paket aktif</div>
+                    <div className="truncate text-[15px] font-bold text-primary">{planLabel}</div>
+                  </div>
+                  <span
+                    className={`badge border ${
+                      accessOk ? 'border-success-line bg-success-soft text-success' : 'border-warn-line bg-warn-soft text-warn'
+                    }`}
+                  >
+                    {accessOk ? 'Aktif' : 'Baca-saja'}
+                  </span>
+                </div>
+                {periodEnd && <p className="text-xs text-muted">Berlaku sampai {fmtDate(periodEnd)}</p>}
+
+                <div className="space-y-2.5">
+                  <div>
+                    <div className="flex justify-between text-[12px]">
+                      <span className="mr-2">Siswa terdaftar</span>
+                      <span className="mono shrink-0 text-muted">{studentsQuotaUsed}/{maxStudents || '—'}</span>
+                    </div>
+                    <div className="mt-1 h-1.5 overflow-hidden rounded-sm bg-canvas">
+                      <div
+                        className="h-full rounded-sm bg-primary"
+                        style={{ width: `${maxStudents ? Math.min(100, Math.round((studentsQuotaUsed / maxStudents) * 100)) : 0}%` }}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between rounded border border-border bg-canvas px-2.5 py-2 text-[12px]">
+                    <span className="text-muted">Sisa kredit ujian</span>
+                    <span className="mono font-semibold">{monthly ? 'Tanpa batas' : `${credits} ujian`}</span>
+                  </div>
+                  {quota.retention_delete_at ? (
+                    <p className="text-[11px] text-warn">
+                      Akses berakhir — data dihapus {fmtDate(quota.retention_delete_at)}.
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+            )}
+          </Panel>
+
+          <Panel title="Kesiapan Platform" icon={<IconShield size={15} />}>
+            <ul className="space-y-2 text-[12.5px]">
+              <li className="flex items-center justify-between gap-2">
+                <span className="text-muted">Mode offline siswa</span>
+                <span className="badge border border-success-line bg-success-soft text-success">Aktif</span>
+              </li>
+              <li className="flex items-center justify-between gap-2">
+                <span className="text-muted">Laporan real-time</span>
+                <span className="badge border border-success-line bg-success-soft text-success">SSE</span>
+              </li>
+              <li className="flex items-center justify-between gap-2">
+                <span className="text-muted">Bank soal</span>
+                <span className="inline-flex items-center gap-1 text-muted"><IconBank size={12} /> 5 tipe AKM</span>
+              </li>
+            </ul>
+            <div className="mt-2.5 border-t border-border pt-2">
+              <Link to="/settings" className="btn-quiet btn-sm w-full !justify-start !px-1.5">
+                <IconShield size={14} /> Buka pengaturan keamanan
+              </Link>
+            </div>
+          </Panel>
+        </div>
+      </div>
     </div>
   )
 }

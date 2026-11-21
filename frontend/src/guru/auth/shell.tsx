@@ -1,58 +1,72 @@
-// Kerangka halaman auth — split-brand (desktop 2 kolom) / ringkas (mobile), toggle tema (PRD §11)
+// Kerangka halaman auth staf — panel identitas institusi (kiri) + formulir (kanan).
+// Mobile: panel atas ringkas, formulir di bawah. Tanpa emoji.
 import type { ReactNode } from 'react'
 import { ThemeToggle } from '@/components/ThemeToggle'
-import { IconChart2, IconShield, IconStudents, LogoMark } from '@/components/icons'
+import { IconChart2, IconShield, IconStudents, IconWifi, LogoMark } from '@/components/icons'
 
-const SELLING_POINTS = [
-  { Ico: IconShield, label: 'Anti-cheat & offline penuh' },
-  { Ico: IconChart2, label: 'Nilai otomatis & laporan real-time' },
-  { Ico: IconStudents, label: 'Tanpa instalasi — cukup browser' },
+const POINTS = [
+  { Ico: IconShield, title: 'Ujian terkendali', body: 'Token, tata tertib, penalti, dan kamera opsional.' },
+  { Ico: IconWifi, title: 'Offline-first', body: 'Siswa tetap mengerjakan saat koneksi terputus.' },
+  { Ico: IconChart2, title: 'Laporan otomatis', body: 'Nilai objektif langsung, pantauan real-time.' },
+  { Ico: IconStudents, title: 'Multi-sekolah', body: 'Data setiap lembaga terisolasi penuh.' },
 ]
 
 export function AuthShell({ title, subtitle, children }: { title: string; subtitle?: string; children: ReactNode }) {
   return (
-    <div className="min-h-full flex items-center justify-center p-4 sm:p-6">
-      <div className="w-full max-w-sm md:max-w-xl md:grid md:grid-cols-[1fr_1.15fr] bg-surface border border-border rounded-lg shadow-sm overflow-hidden">
-        {/* kolom brand — hanya desktop */}
-        <div className="hidden md:flex flex-col justify-between border-r border-border p-7">
+    <div className="min-h-dvh bg-bg text-text">
+      <div className="mx-auto flex min-h-dvh w-full max-w-5xl flex-col lg:flex-row">
+        {/* panel identitas */}
+        <aside className="appbar flex flex-col justify-between px-5 py-5 sm:px-7 lg:w-[46%] lg:py-8">
           <div>
             <div className="flex items-center gap-2.5">
-              <LogoMark size={40} />
+              <LogoMark size={30} />
               <div>
-                <div className="font-bold text-xl leading-tight tracking-tight">FlowCBT</div>
-                <div className="text-xs text-muted">Ujian Online</div>
+                <div className="text-[15px] font-bold leading-tight tracking-tight">FlowCBT</div>
+                <div className="text-[10px] uppercase tracking-[0.14em] text-ink-muted">Ruang Kerja Ujian</div>
               </div>
             </div>
-            <p className="text-sm text-muted mt-5 leading-relaxed">
-              Ujian online untuk sekolah Anda — tetap jalan walau internet putus.
+
+            <h1 className="mt-6 hidden max-w-sm text-xl font-bold leading-snug lg:block">
+              Kelola ujian sekolah<br />tanpa ribet teknis.
+            </h1>
+            <p className="mt-2 hidden max-w-sm text-[13px] leading-relaxed text-ink-muted lg:block">
+              Bank soal AKM, penjadwalan, pengawasan real-time, dan rekap nilai dalam satu tempat.
             </p>
-            <ul className="mt-6 space-y-3">
-              {SELLING_POINTS.map(({ Ico, label }) => (
-                <li key={label} className="flex items-center gap-2.5 text-sm">
-                  <span className="w-7 h-7 shrink-0 rounded-md bg-primary-soft text-primary flex items-center justify-center" aria-hidden>
+
+            <ul className="mt-6 hidden space-y-3 lg:block">
+              {POINTS.map(({ Ico, title: t, body }) => (
+                <li key={t} className="flex items-start gap-2.5">
+                  <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded border border-ink-line bg-white/5 text-ink-fg" aria-hidden>
                     <Ico size={15} />
                   </span>
-                  {label}
+                  <div className="min-w-0">
+                    <div className="text-[13px] font-semibold">{t}</div>
+                    <p className="text-[12px] leading-snug text-ink-muted">{body}</p>
+                  </div>
                 </li>
               ))}
             </ul>
           </div>
-          <p className="text-xs text-muted mt-8">CBT multi-sekolah · siap offline · PWA</p>
-        </div>
 
-        {/* kolom form */}
-        <div className="p-5 sm:p-7">
-          <div className="flex items-center justify-between md:justify-end">
-            <div className="md:hidden flex items-center gap-2">
-              <LogoMark size={24} />
-              <span className="font-bold tracking-tight">FlowCBT</span>
-            </div>
-            <ThemeToggle />
+          <div className="mt-5 flex items-center justify-between gap-3 border-t border-ink-line pt-3">
+            <span className="text-[11px] text-ink-muted">CBT multi-sekolah · siap offline · PWA</span>
+            <ThemeToggle tone="inverse" />
           </div>
-          <h1 className="font-bold text-lg mt-3 md:mt-0">{title}</h1>
-          {subtitle && <p className="text-sm text-muted mt-0.5 mb-3">{subtitle}</p>}
-          <div className={subtitle ? '' : 'mt-3'}>{children}</div>
-        </div>
+        </aside>
+
+        {/* formulir */}
+        <main className="flex flex-1 items-start justify-center px-4 py-6 sm:px-6 lg:items-center lg:py-8">
+          <div className="w-full max-w-md">
+            <div className="mb-4">
+              <h2 className="text-lg font-bold tracking-tight sm:text-xl">{title}</h2>
+              {subtitle && <p className="mt-1 text-sm text-muted">{subtitle}</p>}
+            </div>
+            <div className="rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">{children}</div>
+            <p className="mt-4 text-center text-[11px] leading-relaxed text-muted">
+              FlowCBT · Sistem Ujian Berbasis Komputer untuk sekolah dan lembaga.
+            </p>
+          </div>
+        </main>
       </div>
     </div>
   )
