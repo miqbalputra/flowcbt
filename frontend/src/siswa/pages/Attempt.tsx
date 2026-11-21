@@ -1,12 +1,13 @@
-// Attempt runner (/s/attempt/:id) — ENGIN UJIAN SISWA, layout split-panel
-// gaya ujian nasional (directive §2). REFACTOR LAYOUT+INTERAKSI: mesin
-// offline-first TIDAK berubah —
+// Attempt runner (/s/attempt/:id) — LAYAR UJIAN gaya portal ujian nasional.
+// Struktur: kepala institusional (identitas ujian + timer) → strip peserta &
+// status sinkron → grid [soal | panel Daftar Soal] → bar aksi bawah.
+// LOGIKA TIDAK BERUBAH (offline-first, idempoten, AC-1..AC-12):
 // - Jawaban ditulis SEGERA ke IndexedDB (queue event, seq monoton) — FR-7.3.
 // - Engine sync (lib/sync.ts) mengirim batch saat online; status sinkron di
 //   header memakai getEngineState/subscribeSync (FR-7.4, AC-2/AC-3).
 // - Timer memakai deadline_at server + server_offset (epoch ms) — FR-7.5.
 // - Merge recovery dgn getQueuedQuestionIds — FR-7.8.
-// - Anti-cheat listeners (visibility/blur/fullscreen) — FR-5.8A (AC-1..AC-12).
+// - Anti-cheat listeners (visibility/blur/fullscreen) — FR-5.8A.
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { getAttempt, putAnswer, saveAttempt, getQueuedQuestionIds } from '../db'
@@ -17,10 +18,12 @@ import { QuestionView, StimulusCard, type AnswerValue } from '../components/Ques
 import { ConnStatus } from '../components/ConnStatus'
 import { Modal } from '@/components/modal'
 import { ThemeToggle } from '@/components/ThemeToggle'
-import { IconAlertCircle, IconCheck, IconFlag, IconGrid, IconLeft, IconRight } from '@/components/icons'
+import {
+  IconAlertCircle, IconCheck, IconClock, IconExpand, IconFlag, IconGrid,
+  IconLeft, IconRight, IconShrink, LogoMark,
+} from '@/components/icons'
 import { toast } from '@/components/toast'
 import { renderSimpleHtml } from '@/lib/sanitize'
-import { LogoMark } from '@/components/icons'
 import type { AttemptRecord, FetchedQuestion, StudentProfile } from '../types'
 
 type Rules = {
@@ -33,7 +36,7 @@ type Rules = {
   camera_enabled?: boolean
 }
 
-/** Skala font 3 langkah (directive §A): 14 / 16 / 18 px. */
+/** Skala font 3 langkah: 14 / 16 / 18 px. */
 const FS_STEPS = [14, 16, 18] as const
 const FS_KEY = 'flowcbt.fsz'
 
@@ -41,7 +44,7 @@ const TYPE_LABEL: Record<string, string> = {
   mcq: 'Pilihan Ganda',
   mcq_complex: 'PG Kompleks',
   matching: 'Menjodohkan',
-  short_answer: 'Isian',
+  short_answer: 'Isian Singkat',
   essay: 'Uraian',
 }
 
@@ -58,6 +61,7 @@ export default function Attempt() {
   const [sheet, setSheet] = useState(false)
   const [violate, setViolate] = useState<{ n: number; left: number } | null>(null)
   const [locked, setLocked] = useState(false)
+  const [isFs, setIsFs] = useState(false)
   const [fsStep, setFsStep] = useState<number>(() => {
     try {
       const v = Number(localStorage.getItem(FS_KEY))
@@ -69,15 +73,51 @@ export default function Attempt() {
 
   useEffect(() => {
     let alive = true
-    getAttempt(id).then(r0 => {
+    void (async () => {
+      let r0 = await getAttempt(id)
+      if (!alive) return
+
+      // FR-7.8 — pemulihan lintas perangkat/tab: bila paket tidak ada di
+      // perangkat (cache dibersihkan / ganti browser), ambil dari server.
+      if (!r0) {
+        try {
+          const v = await getServerAttempt(id)
+          const meta = (v.attempt ?? {}) as Record<string, unknown>
+          if (meta.id && meta.status && meta.status !== 'in_progress') {
+            toast('Ujian ini sudah dikirim. Menampilkan hasil…', 'info')
+            nav(`/s/attempt/${id}/done`, { replace: true })
+            return
+          }
+          const pkg = (v as { package?: { questions?: FetchedQuestion[] } }).package
+          const questions = pkg?.questions ?? []
+          if (meta.id && questions.length) {
+            r0 = {
+              attempt_id: id,
+              exam_name: String(meta.exam_name ?? 'Ujian'),
+              exam_code: typeof meta.exam_code === 'string' ? meta.exam_code : undefined,
+              subject_name: typeof meta.subject_name === 'string' ? meta.subject_name : undefined,
+              questions,
+              deadline_at: toEpochMs(meta.deadline_at) || 0,
+              server_offset: v.server_offset_ms || 0,
+              started_at: toEpochMs(meta.started_at) || Date.now(),
+              status: 'in_progress',
+              profile: getProfile(),
+              flags: (v.flags ?? {}) as Record<string, boolean>,
+              answers: (v.answers ?? {}) as Record<string, unknown>,
+            } as AttemptRecord
+            await saveAttempt(r0)
+          }
+        } catch {
+          /* offline / bukan pemilik → jatuh ke pesan di bawah */
+        }
+      }
       if (!alive) return
       if (!r0) {
-        toast('Data ujian tidak ditemukan di perangkat ini.', 'error')
+        toast('Ujian tidak ditemukan di perangkat ini dan gagal dimuat dari server.', 'error')
         nav('/s/exams', { replace: true })
         return
       }
-      // Normalisasi data lama: deadline_at/started_at dari build sebelumnya bisa
-      // masih berupa string RFC3339 — pastikan epoch ms agar timer tak NaN (FR-7.5).
+      // Normalisasi data lama: deadline/started bisa string RFC3339.
       const r: AttemptRecord = {
         ...r0,
         deadline_at: toEpochMs(r0.deadline_at) || 0,
@@ -88,9 +128,8 @@ export default function Attempt() {
       setRec(r)
       setAttemptStart(r.started_at || Date.now())
       registerAttempt(id)
-      // merge data server saat online: server = sumber kebenaran yang sudah ACK (FR-7.8)
       void mergeFromServer(r)
-    })
+    })()
     return () => {
       alive = false
       unregisterAttempt()
@@ -104,21 +143,27 @@ export default function Attempt() {
     return () => clearInterval(t)
   }, [])
 
+  // status layar penuh (tombol di header)
+  useEffect(() => {
+    const on = () => setIsFs(Boolean(document.fullscreenElement))
+    document.addEventListener('fullscreenchange', on)
+    return () => document.removeEventListener('fullscreenchange', on)
+  }, [])
+
   const qs: FetchedQuestion[] = rec?.questions ?? []
   const q = qs[Math.min(idx, Math.max(0, qs.length - 1))]
   const profile: StudentProfile = rec?.profile ?? getProfile()
 
-  // Waktu server = acuan (FR-7.5): deadline server dikoreksi offset jam klien
+  // Waktu server = acuan (FR-7.5)
   const deadlineEff = rec?.deadline_at ? rec.deadline_at - (rec.server_offset || 0) : 0
   const remainingMs = deadlineEff ? deadlineEff - now : 0
   const expired = (deadlineEff > 0 && remainingMs <= 0) || rec?.status === 'expired'
 
   const saveAnswer = useCallback(
     async (qid: string, val: AnswerValue) => {
-      if (locked || expired) return // AC-x: jawaban tak bisa berubah setelah final
+      if (locked || expired) return
       setAnswers(p => ({ ...p, [qid]: val }))
       setDirty(p => ({ ...p, [qid]: true }))
-      // tulis event antrean — engine sync mengirim saat online (FR-7.3)
       await enqueue({
         client_event_id: uuid(),
         attempt_id: id,
@@ -133,7 +178,6 @@ export default function Attempt() {
     [id, locked, expired],
   )
 
-  // FLAG ragu-ragu — terkirim sebagai event 'flag' agar tetap disimpan (FR-6.3)
   const toggleFlag = useCallback(
     async (qid: string | undefined) => {
       if (!qid || locked) return
@@ -153,14 +197,12 @@ export default function Attempt() {
     [id, flagged, answers, locked],
   )
 
-  // RECOVERY + merge server bila online (FR-7.8) — dipertahankan apa adanya.
   async function mergeFromServer(r: AttemptRecord) {
     if (!navigator.onLine) return
     try {
       const v = await getServerAttempt(id)
       if (!v) return
       const rr = v as ServerAttemptView
-      // deadline & offset kekal ke yang terbaru dari server (sudah epoch ms)
       const dl = rr.attempt?.deadline_at ?? 0
       const offset = rr.server_offset_ms || 0
       if ((dl && (!r.deadline_at || Math.abs(dl - r.deadline_at) > 60_000)) || (offset && offset !== r.server_offset)) {
@@ -168,9 +210,6 @@ export default function Attempt() {
         await saveAttempt(next)
         setRec(next)
       }
-      // Cek antrean: soal yang masih punya event belum-ACK berarti versi LOKAL
-      // lebih baru daripada snapshot server → JANGAN ditimpa (FR-7.8). Hanya
-      // jawaban tanpa event antrean yang boleh disamakan dengan server.
       const queuedQids = await getQueuedQuestionIds(id)
       const srvAns = (rr.answers ?? {}) as Record<string, unknown>
       setAnswers(prev => {
@@ -184,7 +223,7 @@ export default function Attempt() {
       setFlagged(prev => {
         const out = { ...prev }
         for (const [qid, v] of Object.entries(rr.flags ?? {})) {
-          if (queuedQids.has(qid)) continue // ada event lokal belum ACK → pertahankan
+          if (queuedQids.has(qid)) continue
           out[qid] = Boolean(v)
         }
         return out
@@ -198,7 +237,7 @@ export default function Attempt() {
     }
   }
 
-  // AUTO-SUBMIT saat waktu habis (FR-6.5) — deadline efektif = server − offset
+  // AUTO-SUBMIT saat waktu habis (FR-6.5)
   useEffect(() => {
     if (!rec || locked) return
     const dl = rec.deadline_at ? rec.deadline_at - (rec.server_offset || 0) : 0
@@ -206,16 +245,13 @@ export default function Attempt() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [now, rec, locked])
 
-  // Selesai → halaman konfirmasi/review (FR-6.5). OFFLINE tetap boleh (FR-7.6).
   async function finish(auto = false) {
     if (!rec) return
     if (rec && rec.status === 'in_progress') {
-      // AC-4: antrekan event SUBMIT lebih dulu — bila offline, flush berikutnya
-      // yang mengirimkannya sehingga attempt tetap final di server (FR-7.6).
       await enqueueSubmit(id)
       await saveAttempt({ ...rec, status: 'submitted' })
     }
-    kick() // dorong sync terakhir
+    kick()
     nav(`/s/attempt/${id}/review`, { replace: auto })
   }
 
@@ -229,7 +265,7 @@ export default function Attempt() {
   useEffect(() => {
     const tol = (rules.tolerance_seconds ?? 3) * 1000
     function startAway(type: 'tab_hidden' | 'blur' | 'fullscreen_exit') {
-      if (awayRef.current) return // sudah terhitung keluar
+      if (awayRef.current) return
       awayRef.current = { startedAt: Date.now(), type }
     }
     async function backOnline() {
@@ -237,8 +273,8 @@ export default function Attempt() {
       awayRef.current = null
       if (!away || locked) return
       const dur = Date.now() - away.startedAt
-      if (dur < tol) return // dalam toleransi — tidak dihitung (PRD 5.8)
-      if (Date.now() - lastViolationAt.current < 1500) return // dedupe
+      if (dur < tol) return
+      if (Date.now() - lastViolationAt.current < 1500) return
       lastViolationAt.current = Date.now()
       const evId = uuid()
       const res = await reportViolation(id, {
@@ -248,7 +284,6 @@ export default function Attempt() {
         client_event_id: evId,
       })
       if (res === undefined) {
-        // offline → antrean event violation, tersinkron nanti (FR-7.4/5.8)
         await enqueue({ client_event_id: evId, attempt_id: id, type: 'violation',
           payload: { violation_type: away.type, started_at: new Date(away.startedAt).toISOString(), duration_ms: dur },
           client_ts: Date.now(), seq: 0 })
@@ -267,8 +302,6 @@ export default function Attempt() {
     function onVis() { document.hidden ? startAway('tab_hidden') : void backOnline() }
     function onBlur() { startAway('blur') }
     function onFocus() { void backOnline() }
-    // Keluar fullscreen = mulai dihitung "keluar"; masuk kembali fullscreen =
-    // selesai (durasi keluar dihitung, bukan null-op).
     function onFs() {
       if ((document as any).fullscreenElement) void backOnline()
       else startAway('fullscreen_exit')
@@ -286,17 +319,17 @@ export default function Attempt() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, rules, locked, rec])
 
-  /* ============================ KEYBOARD (directive §2B) ============================ */
+  /* ============================ KEYBOARD ============================ */
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       const t = e.target as HTMLElement | null
       const typing = !!t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)
       if (sheet) {
         if (e.key === 'Escape') setSheet(false)
-        return // selagi sheet terbuka, tombol pintas soal dilumpuhkan
+        return
       }
       if (typing || locked) return
-      if (e.ctrlKey || e.metaKey || e.altKey || e.repeat) return // biarkan shortcut browser (mis. Ctrl+R)
+      if (e.ctrlKey || e.metaKey || e.altKey || e.repeat) return
       if (e.key === 'ArrowLeft') {
         e.preventDefault()
         setIdx(i => Math.max(0, i - 1))
@@ -321,7 +354,6 @@ export default function Attempt() {
       if (q.type === 'mcq') {
         void saveAnswer(q.id, opt.id)
       } else {
-        // PG kompleks: tekan tambah/hapus pilihan (toggle, FR-6.3)
         const arr: string[] = Array.isArray(answers[q.id]) ? (answers[q.id] as string[]) : []
         void saveAnswer(q.id, arr.includes(opt.id) ? arr.filter(x => x !== opt.id) : [...arr, opt.id])
       }
@@ -331,11 +363,17 @@ export default function Attempt() {
   }, [sheet, locked, qs.length, q, id, answers, saveAnswer, toggleFlag])
 
   const fsVal = FS_STEPS[Math.min(Math.max(0, fsStep), FS_STEPS.length - 1)]
+  useEffect(() => {
+    try { localStorage.setItem(FS_KEY, String(fsStep)) } catch { /* ignore */ }
+  }, [fsStep])
 
   if (!rec) {
     return (
-      <div className="flex min-h-full items-center justify-center bg-bg text-text">
-        <p className="animate-pulse text-sm text-muted">Menyiapkan soal…</p>
+      <div className="flex min-h-dvh items-center justify-center bg-bg text-text">
+        <div className="text-center">
+          <LogoMark size={30} />
+          <p className="mt-3 animate-pulse text-sm text-muted">Menyiapkan soal…</p>
+        </div>
       </div>
     )
   }
@@ -348,297 +386,376 @@ export default function Attempt() {
   const answeredCount = Object.values(answers).filter(v =>
     Array.isArray(v) ? v.length > 0 : v !== null && v !== undefined && v !== '',
   ).length
+  const flagCount = Object.values(flagged).filter(Boolean).length
+  const total = qs.length
 
-  // Warna huruf di kartu peta soal — pakai kelas .q-nav* dari styles.css (§2C)
-  const qnavCls = (qi: number, qid: string) => {
-    const f = flagged[qid]
-    const filled = (() => {
-      const v = answers[qid]
-      return Array.isArray(v) ? v.length > 0 : v !== null && v !== undefined && v !== ''
-    })()
-    return `q-nav ${filled ? 'q-nav-answered' : f ? 'q-nav-flag' : 'q-nav-clear'}${qi === idx ? ' q-nav-active' : ''}`
+  const filled = (qid: string) => {
+    const v = answers[qid]
+    return Array.isArray(v) ? v.length > 0 : v !== null && v !== undefined && v !== ''
+  }
+
+  const qnavCls = (qi: number, qid: string) =>
+    `q-nav ${filled(qid) ? 'q-nav-answered' : flagged[qid] ? 'q-nav-flag' : 'q-nav-clear'}${qi === idx ? ' q-nav-active' : ''}`
+
+  const toggleFullscreen = async () => {
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen()
+      else await document.documentElement.requestFullscreen()
+    } catch {
+      toast('Peramban tidak mengizinkan mode layar penuh.', 'warn')
+    }
   }
 
   return (
-    <div className="flex min-h-full flex-col overflow-x-hidden bg-bg text-text">
-      {/* ================= HEADER UTILITAS 56px (sticky) — directive §A ================= */}
-      <header className="sticky top-0 z-40 shrink-0 border-b border-border bg-surface">
-        <div className="relative mx-auto flex h-14 w-full items-center gap-2 px-3">
-          {/* kiri: logo (desktop) + peta soal (mobile) */}
-          <span className="hidden shrink-0 md:block" aria-hidden><LogoMark size={20} /></span>
-          <button
-            type="button"
-            onClick={() => setSheet(true)}
-            aria-label="Buka peta soal"
-            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-border-strong bg-surface text-text active:scale-[0.99] lg:hidden"
-          >
-            <IconGrid size={18} />
-          </button>
+    <div className="exam-shell">
+      {/* ===================== KEPALA INSTITUSIONAL ===================== */}
+      <header className="appbar sticky top-0 z-40 shrink-0">
+        <div className="mx-auto flex h-14 w-full max-w-[1440px] items-center gap-2.5 px-3 sm:px-4">
+          <LogoMark size={20} />
+          <div className="hidden shrink-0 border-l border-ink-line pl-2.5 sm:block">
+            <div className="text-[9px] font-semibold uppercase tracking-[0.14em] text-ink-muted">Ujian Berbasis Komputer</div>
+            <div className="max-w-[260px] truncate text-[13px] font-semibold leading-tight">{rec.exam_name}</div>
+          </div>
+          <span aria-hidden className="hidden h-7 w-px bg-ink-line sm:block" />
+
           <div className="min-w-0 flex-1">
-            <div className="flex min-w-0 items-center gap-2">
-              <h1 className="truncate text-sm font-bold leading-tight sm:text-base">{rec.exam_name}</h1>
+            <div className="flex items-center gap-1.5">
               {rec.exam_code && (
-                <span className="hidden shrink-0 rounded border border-border bg-canvas px-1 font-mono text-[10px] font-semibold tracking-wider text-muted sm:inline">
+                <span className="mono shrink-0 rounded border border-ink-line bg-white/5 px-1.5 py-0.5 text-[10px] font-bold tracking-wider">
                   {rec.exam_code}
                 </span>
               )}
-              <span className="hidden md:block"><ConnStatus /></span>
-            </div>
-            <div className="truncate text-[11px] text-muted">
-              Soal {qs.length ? idx + 1 : 0}/{qs.length || '—'}
-              {rules.anti_cheat_enabled ? ' · Tata tertib aktif' : ''}
+              <span className="truncate text-[11px] text-ink-muted sm:hidden">{rec.exam_name}</span>
+              {rec.subject_name && (
+                <span className="hidden truncate text-[11px] text-ink-muted sm:block">{rec.subject_name}</span>
+              )}
             </div>
           </div>
 
-          {/* tengah (desktop): countdown — font-mono text-xl, <=5 menit warn merah */}
           {hasDeadline && (
             <div
+              className="hidden shrink-0 items-center gap-2 rounded-md border border-ink-line bg-white/5 px-2.5 py-1 md:flex"
               role="timer"
               aria-live="off"
               aria-label={`Sisa waktu ${fmtClock(remainingMs)}`}
-              className="absolute left-1/2 hidden -translate-x-1/2 font-mono text-xl font-bold tabular-nums lg:block"
-              style={{ color: urgent ? 'var(--c-danger)' : 'var(--c-text)' }}
             >
-              {fmtClock(remainingMs)}
+              <IconClock size={15} className="text-ink-muted" />
+              <div>
+                <div className="text-[8.5px] font-semibold uppercase tracking-[0.1em] text-ink-muted">Sisa waktu</div>
+                <div className={`timer text-[17px] leading-none ${urgent ? 'text-[#FCA5A5]' : 'text-white'}`}>
+                  {fmtClock(remainingMs)}
+                </div>
+              </div>
             </div>
           )}
 
-          {/* kanan: timer (mobile) + kontrol teks + tema + profil */}
-          <div className="flex shrink-0 items-center gap-1.5">
+          <div className="flex shrink-0 items-center gap-0.5">
+            <button
+              type="button"
+              onClick={toggleFullscreen}
+              title={isFs ? 'Keluar layar penuh' : 'Layar penuh'}
+              aria-label={isFs ? 'Keluar layar penuh' : 'Masuk layar penuh'}
+              className="hidden h-9 w-9 items-center justify-center rounded text-ink-muted hover:bg-white/10 hover:text-white md:flex"
+            >
+              {isFs ? <IconShrink size={17} /> : <IconExpand size={17} />}
+            </button>
+            <span className="hidden md:block"><ThemeToggle tone="inverse" /></span>
+          </div>
+        </div>
+      </header>
+
+      {/* ===================== STRIP PESERTA & STATUS ===================== */}
+      <div className="sticky top-14 z-30 shrink-0 border-b border-border bg-surface">
+        <div className="mx-auto flex h-11 w-full max-w-[1440px] items-center gap-2 px-3 sm:px-4">
+          <span aria-hidden className="mono flex h-6 w-6 shrink-0 items-center justify-center rounded bg-ink text-[10px] font-bold text-ink-fg">
+            {profile.name.trim().split(/\s+/).slice(0, 2).map(w => w.charAt(0)).join('').toUpperCase() || 'S'}
+          </span>
+          <span className="max-w-[9rem] truncate text-[12px] font-semibold sm:max-w-[16rem]">{profile.name}</span>
+          <span className="hidden text-[11px] text-muted sm:inline">
+            {profile.isGuest ? 'Peserta tamu' : profile.sid ? `NIS ${profile.sid}` : 'Peserta'}
+          </span>
+          <span aria-hidden className="hidden h-4 w-px bg-border sm:block" />
+          <span className="hidden text-[11px] text-muted lg:inline">{rec.exam_name}</span>
+
+          <div className="ml-auto flex items-center gap-2">
+            <ConnStatus />
             {hasDeadline && (
               <span
                 role="timer"
                 aria-live="off"
-                className={`font-mono text-lg font-bold tabular-nums lg:hidden ${urgent ? 'text-danger' : 'text-text'}`}
+                className={`timer text-[15px] md:hidden ${urgent ? 'text-danger' : ''}`}
               >
                 {fmtClock(remainingMs)}
               </span>
             )}
-            {/* kontrol ukuran teks [A-][100%][A+] — tombol 32px (desktop betulan; mobile baris utilitas) */}
-            <div className="hidden items-center rounded-md border border-border bg-canvas lg:flex" role="group" aria-label="Ukuran teks soal">
+            <div className="hidden items-center rounded border border-border bg-surface sm:flex" role="group" aria-label="Ukuran teks soal">
               <button
                 type="button"
                 aria-label="Perkecil teks"
                 disabled={fsStep <= 0}
                 onClick={() => setFsStep(s => Math.max(0, s - 1))}
-                className="h-8 w-8 rounded-l-md font-mono text-xs font-bold hover:bg-surface disabled:opacity-40"
+                className="mono h-8 w-8 rounded-l text-xs font-bold text-muted hover:bg-canvas disabled:opacity-40"
               >A−</button>
               <button
                 type="button"
                 aria-label="Kembalikan ukuran standar"
                 onClick={() => setFsStep(1)}
-                className="h-8 w-12 font-mono text-[11px] text-muted hover:bg-surface"
+                className="mono h-8 w-10 border-x border-border text-[11px] text-muted hover:bg-canvas"
               >{Math.round((FS_STEPS[fsStep] / 16) * 100)}%</button>
               <button
                 type="button"
                 aria-label="Perbesar teks"
                 disabled={fsStep >= FS_STEPS.length - 1}
                 onClick={() => setFsStep(s => Math.min(FS_STEPS.length - 1, s + 1))}
-                className="h-8 w-8 rounded-r-md font-mono text-sm font-bold hover:bg-surface disabled:opacity-40"
+                className="mono h-8 w-8 rounded-r text-sm font-bold text-muted hover:bg-canvas disabled:opacity-40"
               >A+</button>
             </div>
-            <div className="hidden lg:block"><ThemeToggle /></div>
-            <ProfilePill profile={profile} />
+            <button
+              type="button"
+              onClick={() => setSheet(true)}
+              className="inline-flex h-8 items-center gap-1.5 rounded border border-border px-2 text-xs font-semibold text-text hover:bg-canvas lg:hidden"
+              aria-label="Buka peta soal"
+            >
+              <IconGrid size={14} />
+              <span className="mono">{answeredCount}/{total || '—'}</span>
+            </button>
           </div>
-        </div>
-      </header>
-
-      {/* baris utilitas mobile: status sinkron + kontrol teks + tema */}
-      <div className="flex shrink-0 items-center gap-2 border-b border-border bg-surface px-3 py-1.5 lg:hidden">
-        <ConnStatus short />
-        <div className="ml-auto flex items-center gap-1.5">
-          <div className="flex items-center rounded-md border border-border bg-canvas" role="group" aria-label="Ukuran teks soal">
-            <button type="button" aria-label="Perkecil teks" disabled={fsStep <= 0}
-              onClick={() => setFsStep(s => Math.max(0, s - 1))}
-              className="h-8 w-8 rounded-l-md font-mono text-xs font-bold active:scale-[0.98] disabled:opacity-40">A−</button>
-            <button type="button" aria-label="Kembalikan ukuran standar" onClick={() => setFsStep(1)}
-              className="h-8 w-11 font-mono text-[11px] text-muted active:scale-[0.98]">{Math.round((FS_STEPS[fsStep] / 16) * 100)}%</button>
-            <button type="button" aria-label="Perbesar teks" disabled={fsStep >= FS_STEPS.length - 1}
-              onClick={() => setFsStep(s => Math.min(FS_STEPS.length - 1, s + 1))}
-              className="h-8 w-8 rounded-r-md font-mono text-sm font-bold active:scale-[0.98] disabled:opacity-40">A+</button>
-          </div>
-          <ThemeToggle />
         </div>
       </div>
 
+      {urgent && !expired && (
+        <div className="shrink-0 border-b border-warn-line bg-warn-soft px-3 py-1.5 text-center text-xs font-medium text-warn" role="status">
+          Sisa waktu kurang dari 5 menit — periksa jawabanmu dan segera akhiri ujian.
+        </div>
+      )}
       {expired && (
-        <p role="status" className="mx-3 mt-3 rounded-lg border text-sm" style={{ borderColor: 'var(--c-danger)', background: 'var(--c-danger-soft)', color: 'var(--c-danger)' }}>
+        <div className="shrink-0 border-b border-danger-line bg-danger-soft px-3 py-1.5 text-center text-xs font-medium text-danger" role="status">
           Waktu pengerjaan habis — jawaban dikirim otomatis.
-        </p>
+        </div>
       )}
 
-      {/* ================= BODY SPLIT — kolom konten | panel opsi (directive §A) ================= */}
-      <main className="grid w-full flex-1 grid-cols-1 items-start lg:grid-cols-[minmax(0,1fr)_360px]">
-        {/* kolom kiri: AREA KONTEN — stimulus pelipat + body soal */}
-        <section className="min-w-0 px-4 pb-6 pt-4 lg:border-r lg:border-border">
-          <div className="mx-auto max-w-prose" style={{ fontSize: fsVal, lineHeight: 1.6 }}>
-            {q && <StimulusCard text={stimContent(q)} />}
-            {q ? (
-              <>
-                <div className="mb-3 flex flex-wrap items-center gap-2">
-                  <span
-                    className="inline-flex items-center justify-center rounded-md border border-border-strong bg-canvas px-2 font-mono text-xs font-bold"
-                    title={`Nomor soal ${idx + 1}`}
-                  >
-                    No. {idx + 1}
+      {/* ===================== BADAN: SOAL + DAFTAR SOAL ===================== */}
+      <main className="exam-main">
+        <div className="exam-grid mx-auto w-full max-w-[1440px]">
+          {/* --- kolom soal --- */}
+          <section className="min-w-0" aria-label={`Soal ${idx + 1} dari ${total}`}>
+            <div className="exam-content">
+              <div className="mx-auto max-w-[780px]" style={{ fontSize: fsVal, lineHeight: 1.65 }}>
+                {/* kepala soal */}
+                <div className="mb-3 flex flex-wrap items-center gap-2 border-b border-border pb-2.5">
+                  <span className="mono inline-flex items-baseline gap-1 rounded border border-border-strong bg-surface px-2 py-0.5 text-[13px] font-bold">
+                    Soal {total ? idx + 1 : 0}
+                    <span className="text-[11px] font-medium text-muted">/ {total || '—'}</span>
                   </span>
-                  <span className="badge badge-soft">{TYPE_LABEL[q.type] ?? 'Soal'}</span>
-                  {flagged[q.id] && (
-                    <span className="badge" style={{ background: 'var(--c-warn-soft)', color: 'var(--c-warn)', borderColor: 'var(--c-warn)' }}>
-                      <IconFlag size={12} />
-                      Ditandai ragu
+                  <span className="chip">{TYPE_LABEL[q?.type ?? ''] ?? 'Soal'}</span>
+                  {q?.points !== undefined && <span className="chip">{q.points} poin</span>}
+                  {q && flagged[q.id] && (
+                    <span className="inline-flex items-center gap-1 rounded border border-warn-line bg-warn-soft px-1.5 py-0.5 text-[11px] font-semibold text-warn">
+                      <IconFlag size={11} /> Ragu-ragu
                     </span>
                   )}
+                  <span className="ml-auto hidden text-[11px] text-muted md:block">
+                    Jawaban tersimpan otomatis
+                  </span>
                 </div>
-                <div className="whitespace-pre-wrap break-words" dangerouslySetInnerHTML={{ __html: renderSimpleHtml(String(q.body ?? '')) }} />
-              </>
-            ) : (
-              <p className="text-sm text-muted">Soal tidak tersedia.</p>
-            )}
-            {/* petunjuk keyboard — desktop saja (directive §2B) */}
-            <p className="hidden pt-4 font-mono text-xs text-muted lg:block">
-              Navigasi: ← → · Pilih: A–E · Ragu: R
-            </p>
-          </div>
-        </section>
 
-        {/* kolom kanan (lg+): panel opsi + navigasi; mobile turun ke bawah konten */}
-        <aside className="border-t border-border bg-surface lg:sticky lg:top-14 lg:self-start lg:border-t-0">
-          <div className="p-4" style={{ fontSize: fsVal, lineHeight: 1.6 }}>
-            {locked && (
-              <p className="mb-3 rounded-lg border border-border bg-canvas p-2 text-xs">
-                Ujian sudah dikirim — jawaban tidak dapat diubah.
-              </p>
-            )}
-            {q ? (
-              <QuestionView
-                q={q}
-                value={answers[q.id] ?? null}
-                onChange={v => void saveAnswer(q.id, v)}
-                disabled={locked || expired}
-              />
-            ) : (
-              <p className="text-sm text-muted">Soal tidak tersedia.</p>
-            )}
+                {q ? (
+                  <>
+                    <StimulusCard text={stimContent(q)} title={stimTitle(q)} />
+                    <div
+                      className="question-body whitespace-pre-wrap break-words [&_img]:my-2 [&_img]:max-w-full [&_img]:rounded [&_table]:my-2 [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:border-border [&_td]:p-1.5 [&_th]:border [&_th]:border-border [&_th]:bg-canvas [&_th]:p-1.5"
+                      dangerouslySetInnerHTML={{ __html: renderSimpleHtml(String(q.body ?? '')) }}
+                    />
+                    <div className="mt-5">
+                      <div className="section-label mb-2">Pilih jawaban</div>
+                      {locked && (
+                        <p className="mb-3 rounded border border-border bg-canvas p-2 text-xs">
+                          Ujian sudah dikirim — jawaban tidak dapat diubah.
+                        </p>
+                      )}
+                      <QuestionView
+                        q={q}
+                        value={answers[q.id] ?? null}
+                        onChange={v => void saveAnswer(q.id, v)}
+                        disabled={locked || expired}
+                      />
+                    </div>
 
-            {/* navigasi cepat di panel opsi (desktop saja, action bar tetap ada) */}
-            <div className="mt-4 hidden grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] gap-2 border-t border-border pt-3 lg:grid">
-              <button type="button" className="btn-ghost" disabled={idx <= 0} onClick={goPrev} aria-label="Soal sebelumnya">
-                <IconLeft size={16} />
-              </button>
-              <button type="button" className="btn-ghost" onClick={() => setSheet(true)} aria-label="Buka peta soal" title="Peta soal">
-                <IconGrid size={15} />
-                <span className="font-mono">{idx + 1}/{qs.length || '—'}</span>
-              </button>
-              <button type="button" className="btn-ghost" disabled={idx >= qs.length - 1} onClick={goNext} aria-label="Soal berikutnya">
-                <IconRight size={16} />
-              </button>
+                    <p className="mt-6 hidden items-center gap-3 border-t border-border pt-3 text-[11px] text-muted lg:flex">
+                      <span className="mono rounded border border-border bg-canvas px-1.5 py-0.5 font-semibold">←</span> sebelumnya
+                      <span className="mono rounded border border-border bg-canvas px-1.5 py-0.5 font-semibold">→</span> berikutnya
+                      <span className="mono rounded border border-border bg-canvas px-1.5 py-0.5 font-semibold">A–E</span> pilih
+                      <span className="mono rounded border border-border bg-canvas px-1.5 py-0.5 font-semibold">R</span> ragu-ragu
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-sm text-muted">Soal tidak tersedia.</p>
+                )}
+              </div>
             </div>
-          </div>
-        </aside>
+          </section>
+
+          {/* --- panel Daftar Soal (desktop) --- */}
+          <aside className="hidden border-l border-border bg-surface lg:block" aria-label="Daftar soal">
+            <div className="sticky top-[100px] flex max-h-[calc(100dvh-100px)] flex-col">
+              <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
+                <div>
+                  <div className="section-label">Navigasi</div>
+                  <h2 className="text-[13px] font-bold">Daftar Soal</h2>
+                </div>
+                <span className="mono rounded border border-border bg-canvas px-1.5 py-0.5 text-xs font-semibold">
+                  {total ? idx + 1 : 0}/{total || '—'}
+                </span>
+              </div>
+
+              <div className="flex-1 overflow-y-auto px-4 py-3">
+                <div className="mb-1.5 flex items-center justify-between text-[11px] text-muted">
+                  <span>Terjawab</span>
+                  <span className="mono font-semibold text-text">{answeredCount}/{total}</span>
+                </div>
+                <div className="progress mb-3" aria-hidden>
+                  <span style={{ width: `${total ? (answeredCount / total) * 100 : 0}%` }} />
+                </div>
+
+                <div className="grid grid-cols-5 gap-1.5" role="group" aria-label="Nomor soal">
+                  {qs.map((qq, i) => (
+                    <button
+                      key={qq.id}
+                      type="button"
+                      className={qnavCls(i, qq.id)}
+                      onClick={() => setIdx(i)}
+                      aria-label={`Soal ${i + 1} — ${filled(qq.id) ? 'terjawab' : flagged[qq.id] ? 'ragu-ragu' : 'belum dijawab'}${i === idx ? ', sedang dibuka' : ''}`}
+                      aria-current={i === idx ? 'true' : undefined}
+                    >
+                      {i + 1}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="mt-4 grid grid-cols-2 gap-x-2 gap-y-1.5 border-t border-border pt-3 text-[11px] text-muted">
+                  <LegendBar tone="answered" label="Terjawab" count={answeredCount} />
+                  <LegendBar tone="flag" label="Ragu-ragu" count={flagCount} />
+                  <LegendBar tone="clear" label="Kosong" count={Math.max(0, total - answeredCount)} />
+                  <LegendBar tone="active" label="Dibuka" />
+                </div>
+              </div>
+
+              <div className="border-t border-border p-3">
+                <button type="button" className="btn btn-dark btn-block" onClick={() => void finish()} disabled={locked}>
+                  <IconCheck size={16} />
+                  Selesai Ujian
+                </button>
+                <p className="mt-1.5 text-center text-[10.5px] leading-snug text-muted">
+                  Periksa kembali jawaban sebelum menyerahkan.
+                </p>
+              </div>
+            </div>
+          </aside>
+        </div>
       </main>
 
-      {/* ================= ACTION BAR sticky bawah 64px — directive §A ================= */}
+      {/* ===================== BAR AKSI BAWAH ===================== */}
       <div className="safe-bottom sticky bottom-0 z-40 shrink-0 border-t border-border bg-surface">
-        <div className="mx-auto flex h-16 w-full max-w-5xl items-center gap-2 px-3">
+        <div className="mx-auto flex h-16 w-full max-w-[1440px] items-center gap-2 px-3 sm:px-4">
           <button
             type="button"
-            className="btn-ghost shrink-0"
+            className="btn-ghost h-12 shrink-0 justify-center px-3 sm:w-auto"
             disabled={idx <= 0}
             onClick={goPrev}
             aria-label="Soal sebelumnya"
           >
             <IconLeft size={16} />
-            <span className="hidden min-[400px]:inline">Sebelumnya</span>
+            <span className="sm:hidden">Kembali</span>
+            <span className="hidden sm:inline">Sebelumnya</span>
           </button>
 
-          {/* toggle RAGU — state amber (ikone catalan flag; border/teks warn saat aktif) */}
           <button
             type="button"
             onClick={() => q && void toggleFlag(q.id)}
             disabled={locked}
             aria-pressed={Boolean(q && flagged[q.id])}
-            className={`inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-md border px-3 text-sm font-medium active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-45
-              ${q && flagged[q.id]
-                ? 'border-warn bg-warn-soft text-warn'
-                : 'border-border-strong bg-surface hover:bg-canvas'}`}
+            className={`inline-flex h-12 min-w-12 shrink-0 items-center justify-center gap-1.5 rounded-md border px-2.5 text-[13px] font-semibold transition-colors active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-45 sm:px-3 sm:text-sm ${
+              q && flagged[q.id]
+                ? 'border-warn-line bg-warn-soft text-warn'
+                : 'border-border-strong bg-surface text-muted hover:bg-canvas hover:text-text'
+            }`}
           >
             <IconFlag size={15} />
-            <span className="hidden min-[400px]:inline">Ragu</span>
+            <span className="sm:hidden">Ragu</span>
+            <span className="hidden sm:inline">Ragu-ragu</span>
           </button>
 
-          <span className="flex-1" />
+          <div className="flex flex-1 items-center justify-center gap-2">
+            <span className="mono hidden text-xs text-muted sm:block">Soal</span>
+            <span className="mono rounded border border-border bg-canvas px-2 py-0.5 text-xs font-bold">{total ? idx + 1 : 0}/{total || '—'}</span>
+            <span className="hidden text-xs text-muted md:block">· {answeredCount} terjawab</span>
+          </div>
 
           {isLast ? (
-            <button type="button" className="btn-primary shrink-0" onClick={() => void finish()}>
+            <button type="button" className="btn btn-primary h-12 shrink-0 px-3" onClick={() => void finish()} disabled={locked}>
               <IconCheck size={16} />
-              <span className="hidden min-[400px]:inline">Selesaikan</span>
+              <span className="hidden sm:inline">Selesaikan Ujian</span>
+              <span className="sm:hidden">Selesai</span>
             </button>
           ) : (
-            <button type="button" className="btn-primary shrink-0" disabled={locked} onClick={goNext} aria-label="Soal berikutnya">
-              <span className="hidden min-[400px]:inline">Selanjutnya</span>
+            <button type="button" className="btn btn-primary h-12 shrink-0 px-3" disabled={locked} onClick={goNext} aria-label="Soal berikutnya">
+              <span className="sm:hidden">Lanjut</span>
+              <span className="hidden sm:inline">Selanjutnya</span>
               <IconRight size={16} />
             </button>
           )}
         </div>
       </div>
 
-      {/* ================= PETA SOAL — bottom sheet (role=dialog, aria-modal, Escape) ================= */}
-      <Modal open={sheet} onClose={() => setSheet(false)} title="Peta soal">
-        <p className="text-sm text-muted">
-          Terjawab <b className="font-mono text-text">{answeredCount}</b> dari <b className="font-mono text-text">{qs.length}</b> soal
-          {' · '}ragu <b className="font-mono text-warn">{Object.values(flagged).filter(Boolean).length}</b>
-        </p>
-        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Daftar nomor soal">
+      {/* ===================== PETA SOAL (sheet mobile) ===================== */}
+      <Modal open={sheet} onClose={() => setSheet(false)} title="Daftar Soal">
+        <div className="flex items-center justify-between text-xs text-muted">
+          <span>Terjawab <b className="mono text-text">{answeredCount}</b> dari <b className="mono text-text">{total}</b></span>
+          <span>Ragu <b className="mono text-warn">{flagCount}</b></span>
+        </div>
+        <div className="progress">
+          <span style={{ width: `${total ? (answeredCount / total) * 100 : 0}%` }} />
+        </div>
+        <div className="grid grid-cols-6 gap-1.5 sm:grid-cols-8" role="group" aria-label="Daftar nomor soal">
           {qs.map((qq, i) => (
             <button
               key={qq.id}
               type="button"
               className={qnavCls(i, qq.id)}
               onClick={() => { setIdx(i); setSheet(false) }}
-              aria-label={`Soal ${i + 1} — ${flagged[qq.id] ? 'ditandai ragu' : answers[qq.id] ? 'terjawab' : 'belum dijawab'}${i === idx ? ', sedang dibuka' : ''}`}
+              aria-label={`Soal ${i + 1} — ${filled(qq.id) ? 'terjawab' : flagged[qq.id] ? 'ragu-ragu' : 'belum dijawab'}`}
             >
               {i + 1}
             </button>
           ))}
         </div>
-        {/* LEGENDA */}
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted">
-          <LegendSwatch cls="q-nav q-nav-answered" label="Terjawab" />
-          <LegendSwatch cls="q-nav q-nav-flag" label="Ragu-ragu" />
-          <LegendSwatch cls="q-nav q-nav-clear" label="Kosong" />
-          <LegendSwatch cls="q-nav q-nav-clear q-nav-active" label="Sedang dibuka" />
+        <div className="grid grid-cols-2 gap-2 text-[11px] text-muted">
+          <LegendBar tone="answered" label="Terjawab" count={answeredCount} />
+          <LegendBar tone="flag" label="Ragu-ragu" count={flagCount} />
+          <LegendBar tone="clear" label="Kosong" count={Math.max(0, total - answeredCount)} />
+          <LegendBar tone="active" label="Sedang dibuka" />
         </div>
-        <button type="button" className="btn-primary w-full" disabled={locked} onClick={() => void finish()}>
-          Selesai &amp; kirim jawaban
+        <button type="button" className="btn btn-dark btn-block" disabled={locked} onClick={() => { setSheet(false); void finish() }}>
+          <IconCheck size={16} /> Selesai &amp; kirim jawaban
         </button>
-        <button type="button" className="btn-ghost w-full" onClick={() => setSheet(false)}>Tutup</button>
+        <button type="button" className="btn-ghost btn-block" onClick={() => setSheet(false)}>Kembali ke soal</button>
       </Modal>
 
       {/* peringatan pelanggaran (AC-8+ FR-5.8) */}
       {violate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div
-            className="card w-full max-w-sm space-y-2 text-center"
-            role="alertdialog"
-            aria-modal="true"
-            aria-label="Peringatan pelanggaran tata tertib"
-          >
-            <span
-              aria-hidden
-              className="mx-auto flex h-10 w-10 items-center justify-center rounded-md border"
-              style={{ borderColor: 'var(--c-danger)', background: 'var(--c-danger-soft)', color: 'var(--c-danger)' }}
-            >
+          <div className="w-full max-w-sm rounded-lg border border-border bg-surface p-4 text-center shadow-sm" role="alertdialog" aria-modal="true" aria-label="Peringatan pelanggaran tata tertib">
+            <span aria-hidden className="mx-auto mb-2 flex h-11 w-11 items-center justify-center rounded-lg border border-danger-line bg-danger-soft text-danger">
               <IconAlertCircle size={22} />
             </span>
-            <b>Pelanggaran ke-{violate.n}</b>
-            <p className="text-sm text-muted">
+            <h2 className="text-base font-bold">Pelanggaran ke-{violate.n}</h2>
+            <p className="mt-1 text-sm text-muted">
               Kamu keluar dari halaman ujian lebih dari {rules.tolerance_seconds ?? 3} detik.
               {violate.left > 0
                 ? ` Sisa kesempatan sebelum ujian dilaporkan: ${violate.left}.`
                 : ' Kamu sudah dilaporkan ke pengawas.'}
             </p>
-            <button type="button" className="btn-primary w-full" onClick={() => setViolate(null)}>
+            <button type="button" className="btn btn-primary btn-block mt-4" onClick={() => setViolate(null)}>
               Saya mengerti — lanjutkan
             </button>
           </div>
@@ -656,28 +773,27 @@ function stimContent(q: FetchedQuestion): string | null {
   return null
 }
 
-function LegendSwatch({ cls, label }: { cls: string; label: string }) {
-  return (
-    <span className="inline-flex items-center gap-1.5">
-      <span aria-hidden className={`${cls} !h-4 !w-4 !cursor-default !text-[8px]`} />
-      {label}
-    </span>
-  )
+function stimTitle(q: FetchedQuestion): string | undefined {
+  if (q.stimulus && typeof q.stimulus === 'object' && q.stimulus.title) return q.stimulus.title
+  return undefined
 }
 
-function ProfilePill({ profile }: { profile: StudentProfile }) {
-  const name = profile?.name || 'Siswa'
-  const initials =
-    name.trim().split(/\s+/).slice(0, 2).map(w => w.charAt(0)).join('').toUpperCase() || 'S'
+function LegendBar({ tone, label, count }: { tone: 'answered' | 'flag' | 'clear' | 'active'; label: string; count?: number }) {
+  const style =
+    tone === 'answered'
+      ? { background: 'var(--c-success-bg)', borderColor: 'var(--c-success-bg)' }
+      : tone === 'flag'
+        ? { background: 'var(--c-warn-bg)', borderColor: 'var(--c-warn-bg)' }
+        : { background: 'var(--c-surface)', borderColor: 'var(--c-border-strong)' }
   return (
-    <span
-      className="hidden items-center gap-1.5 rounded-full border border-border bg-canvas py-0.5 pl-0.5 pr-2.5 md:flex"
-      title={profile?.isGuest ? `${name} (tamu)` : `${name}${profile?.sid ? ` · NIS ${profile.sid}` : ''}`}
-    >
-      <span aria-hidden className="flex h-6 w-6 items-center justify-center rounded-full bg-primary-bg font-mono text-[10px] font-bold text-primary-fg">
-        {initials}
-      </span>
-      <span className="max-w-[8rem] truncate text-xs font-medium">{name}</span>
+    <span className="inline-flex min-w-0 items-center gap-1.5">
+      <span
+        aria-hidden
+        className="legend-dot"
+        style={tone === 'active' ? { ...style, boxShadow: '0 0 0 2px var(--c-surface), 0 0 0 3.5px var(--c-primary)' } : style}
+      />
+      <span className="truncate">{label}</span>
+      {typeof count === 'number' && <span className="mono ml-auto font-semibold text-text">{count}</span>}
     </span>
   )
 }

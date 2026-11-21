@@ -6,7 +6,7 @@
 import { useState } from 'react'
 import type { FetchedQuestion } from '../types'
 import { renderSimpleHtml } from '@/lib/sanitize'
-import { IconCheck, IconX } from '@/components/icons'
+import { IconCheck, IconX, IconBook, IconChevronDown, IconChevronUp } from '@/components/icons'
 
 /** Bentuk jawaban lintas tipe: string, string[], atau map pasangan matching. */
 export type AnswerValue = string | string[] | Record<string, string> | null
@@ -16,14 +16,29 @@ const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
 /* --------------------------- primitif visual --------------------------- */
 
 /** Kotak huruf 32px font-mono — indikator pilihan (terpilih = peril strip biru). */
-function LetterBox({ letter, active, check = false }: { letter: string; active: boolean; check?: boolean }) {
+function LetterBox({ letter, active }: { letter: string; active: boolean }) {
   return (
     <span
       aria-hidden
-      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md border font-mono text-sm font-bold transition-colors
-        ${active ? 'border-primary bg-primary-bg text-primary-fg' : 'border-border bg-canvas text-text'}`}
+      className={`mono flex h-8 w-8 shrink-0 items-center justify-center rounded border text-[13px] font-bold transition-colors ${
+        active ? 'border-primary bg-primary-bg text-primary-fg' : 'border-border-strong bg-canvas text-text'
+      }`}
     >
-      {active && check ? <IconCheck size={15} /> : letter}
+      {letter}
+    </span>
+  )
+}
+
+/** Penanda pilihan di sisi kanan kartu — radio (PG) / kotak centang (kompleks). */
+function ChoiceMark({ active, multiple = false }: { active: boolean; multiple?: boolean }) {
+  return (
+    <span
+      aria-hidden
+      className={`mt-1 flex h-[18px] w-[18px] shrink-0 items-center justify-center border-[1.5px] transition-colors ${
+        multiple ? 'rounded-[4px]' : 'rounded-full'
+      } ${active ? 'border-primary bg-primary text-white' : 'border-border-strong bg-surface'}`}
+    >
+      {active && (multiple ? <IconCheck size={11} /> : <span className="h-1.5 w-1.5 rounded-full bg-white" />)}
     </span>
   )
 }
@@ -31,12 +46,12 @@ function LetterBox({ letter, active, check = false }: { letter: string; active: 
 /** Kelas kartu opsi (MCQ & kompleks): border-2 jelas, radius lg, 48px, tekan 0.99. */
 function cardCls(active: boolean, disabled?: boolean): string {
   return [
-    'flex w-full items-start gap-3 rounded-lg border-2 p-3 text-left min-h-12',
-    'transition-[background-color,border-color] active:scale-[0.99]',
-    disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer',
+    'flex w-full items-start gap-3 rounded-md border p-3 text-left min-h-12',
+    'transition-[background-color,border-color,box-shadow] active:scale-[0.99]',
+    disabled ? 'cursor-not-allowed opacity-55' : 'cursor-pointer',
     active
-      ? 'border-primary bg-primary-soft/50'
-      : 'border-border-strong bg-surface hover:bg-canvas',
+      ? 'border-primary bg-primary-soft shadow-[inset_3px_0_0_0_var(--c-primary)]'
+      : 'border-border-strong bg-surface hover:border-primary/60 hover:bg-canvas',
   ].join(' ')
 }
 
@@ -97,6 +112,7 @@ function McqList({
           >
             <LetterBox letter={LETTERS[i] ?? '·'} active={active} />
             <span className="min-w-0 flex-1 break-words leading-relaxed">{o.text || `Pilihan ${LETTERS[i]}`}</span>
+            <ChoiceMark active={active} />
           </button>
         )
       })}
@@ -134,8 +150,9 @@ function McqComplexList({
             onClick={() => toggleComplex(arr, o.id, onChange)}
             className={cardCls(active, disabled)}
           >
-            <LetterBox letter={LETTERS[i] ?? '·'} active={active} check />
+            <LetterBox letter={LETTERS[i] ?? '·'} active={active} />
             <span className="min-w-0 flex-1 break-words leading-relaxed">{o.text || `Pilihan ${LETTERS[i]}`}</span>
+            <ChoiceMark active={active} multiple />
           </button>
         )
       })}
@@ -210,7 +227,7 @@ function MatchingPairs({
                 disabled={disabled}
                 onClick={() => tapLeft(l.id)}
                 aria-pressed={sel}
-                className={`flex w-full items-start gap-2.5 rounded-lg border-2 p-2.5 text-left min-h-12
+                className={`flex w-full items-start gap-2.5 rounded-md border p-2.5 text-left min-h-12
                   transition-[background-color,border-color] active:scale-[0.99]
                   disabled:cursor-not-allowed disabled:opacity-50
                   ${sel
@@ -254,7 +271,7 @@ function MatchingPairs({
                 disabled={disabled || !selLeft}
                 onClick={() => tapRight(r.id)}
                 aria-label={`Jodohkan dengan ${LETTERS[i] ?? i + 1}`}
-                className={`flex w-full items-start gap-2.5 rounded-lg border-2 p-2.5 text-left min-h-12
+                className={`flex w-full items-start gap-2.5 rounded-md border p-2.5 text-left min-h-12
                   transition-[background-color,border-color] active:scale-[0.99]
                   disabled:cursor-not-allowed disabled:opacity-50
                   ${!selLeft && !taken
@@ -410,25 +427,22 @@ export function StimulusCard({ text, title = 'Wacana' }: { text?: string | null;
   const [open, setOpen] = useState(true)
   if (!text) return null
   return (
-    <div className="mb-4 overflow-hidden rounded-lg border border-border bg-surface">
+    <div className="mb-4 overflow-hidden rounded-md border border-border bg-surface">
       <button
         type="button"
         onClick={() => setOpen(o => !o)}
         aria-expanded={open}
-        className="flex min-h-11 w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm font-semibold"
+        className="flex min-h-11 w-full items-center justify-between gap-2 border-b border-border bg-canvas px-3 py-2 text-left"
       >
-        <span className="flex items-center gap-2">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden className="text-muted">
-            <path d="M7 4h7l4 4v12a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z" />
-            <path d="M14 4v4h4M9 12h6M9 16h4" />
-          </svg>
-          {title}
+        <span className="flex min-w-0 items-center gap-2">
+          <IconBook size={15} className="shrink-0 text-muted" />
+          <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-muted">{title}</span>
         </span>
-        <span aria-hidden className="font-mono text-xs text-muted">{open ? '\u25BE' : '\u25B8'}</span>
+        <span aria-hidden className="text-muted">{open ? <IconChevronUp size={15} /> : <IconChevronDown size={15} />}</span>
       </button>
       {open && (
         <div
-          className="whitespace-pre-wrap border-t border-border px-3 py-3 leading-relaxed"
+          className="whitespace-pre-wrap px-3.5 py-3 leading-relaxed"
           // hanya tag allowlist tanpa atribut (PRD §12) — body/stimulus dari guru
           dangerouslySetInnerHTML={{ __html: renderSimpleHtml(text) }}
         />

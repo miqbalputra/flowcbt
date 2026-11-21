@@ -188,6 +188,7 @@ export interface ServerAttemptView {
   answers?: Record<string, unknown>
   flags?: Record<string, unknown>
   rules?: Record<string, unknown>
+  package?: { questions?: unknown[]; explain_visible?: boolean }
   /** server_time - now klien saat respons diterima (ms) */
   server_offset_ms: number
   [k: string]: unknown
