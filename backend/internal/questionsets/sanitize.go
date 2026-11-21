@@ -13,7 +13,7 @@ var allowedTags = map[string]bool{
 	"p": true, "br": true, "b": true, "i": true, "u": true,
 	"em": true, "strong": true, "ul": true, "ol": true, "li": true,
 	"table": true, "thead": true, "tbody": true, "tr": true,
-	"td": true, "th": true, "img": true, "sub": true, "sup": true,
+	"td": true, "th": true, "img": true, "sub": true, "sup": true, "s": true,
 }
 
 var voidTags = map[string]bool{"br": true, "img": true}

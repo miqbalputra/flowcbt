@@ -543,6 +543,72 @@ input[type="checkbox"], input[type="radio"] {
 .rich-text u { text-decoration: underline; }
 
 /* ============================================================
+   RICH EDITOR (teks soal berformat, gaya Google Form)
+   Kotak teks = contentEditable; toolbar B/I/U/daftar/pangkat.
+   ============================================================ */
+.rt {
+  border: 1px solid var(--c-border-strong);
+  border-radius: 6px;
+  background: var(--c-surface);
+  transition: border-color 0.15s, box-shadow 0.15s;
+  overflow: hidden;
+}
+.rt:hover { border-color: var(--c-muted); }
+.rt:focus-within { border-color: var(--c-primary); box-shadow: 0 0 0 3px color-mix(in oklab, var(--c-primary) 18%, transparent); }
+.rt[data-disabled="true"] { background: var(--c-canvas); }
+
+.rt-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border-bottom: 1px solid var(--c-border);
+  background: var(--c-canvas);
+}
+.rt-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  height: 30px;
+  padding: 0 0.35rem;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  color: var(--c-muted);
+  font-size: 0.8125rem;
+  line-height: 1;
+  transition: background-color 0.12s, color 0.12s, border-color 0.12s;
+}
+.rt-btn:hover:not(:disabled) { background: var(--c-surface); border-color: var(--c-border); color: var(--c-text); }
+.rt-btn[aria-pressed="true"] { background: var(--c-primary-soft); border-color: var(--c-primary-line); color: var(--c-primary); }
+.rt-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.rt-sep { width: 1px; height: 18px; margin: 0 3px; background: var(--c-border); }
+
+.rt-editor {
+  padding: 0.5625rem 0.75rem;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: var(--c-text);
+  outline: none;
+  max-height: 420px;
+  overflow-y: auto;
+}
+.rt-editor[data-empty="true"]::before {
+  content: attr(data-placeholder);
+  color: var(--c-muted);
+  opacity: 0.8;
+  pointer-events: none;
+}
+.rt-editor p { margin: 0 0 0.4em; }
+.rt-editor ul, .rt-editor ol { margin: 0.15em 0 0.45em; }
+.rt-editor sup, .rt-editor sub { font-size: 0.75em; }
+.rt-editor:focus { outline: none; }
+
+/* pangkat pada tampilan soal siswa */
+.rich-text sup, .rich-text sub { font-size: 0.75em; }
+
+/* ============================================================
    UTIL
    ============================================================ */
 .skeleton {

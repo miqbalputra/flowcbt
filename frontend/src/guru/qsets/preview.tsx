@@ -2,7 +2,7 @@
 // v3 "Portal Ujian": tiruan lembar ujian siswa — kepala lembar (judul + chip tipe/poin),
 // stimulus, batang soal, opsi bergaya kartu jawaban, dan catatan kunci untuk guru.
 import { Modal } from '@/components/modal'
-import { LETTERS, qtypeLabel, renderInline, renderText, type QType, asDict } from '../types'
+import { LETTERS, qtypeLabel, renderInline, renderRich, type QType, asDict } from '../types'
 import { IconCheck } from '@/components/icons'
 import type { Dict } from '../types'
 
@@ -17,7 +17,7 @@ export function QuestionPreview({
 }) {
   if (!q) return null
   const type = String(q.type ?? 'pg') as QType
-  const body = renderText(String(q.body ?? ''))
+  const body = renderRich(String(q.body ?? ''))
   const options = Array.isArray(q.options) ? q.options.map((o: unknown) => asDict(o)) : []
   const correct = Array.isArray(q.correct) ? q.correct.map(String) : q.key ? [String(q.key)] : []
   const pairs = Array.isArray(q.pairs) ? q.pairs.map((p: unknown) => asDict(p)) : []

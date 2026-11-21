@@ -73,6 +73,7 @@ export const IconDownload = (p: IconProps) => (<I {...p}><path d="M21 15v4a2 2 0
 export const IconTrash = (p: IconProps) => (<I {...p}><path d="M3 6h18" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></I>)
 export const IconEdit = (p: IconProps) => (<I {...p}><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" /></I>)
 export const IconCopy = (p: IconProps) => (<I {...p}><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></I>)
+export const IconEraser = (p: IconProps) => (<I {...p}><path d="m7 21-4.3-4.3a1 1 0 0 1 0-1.4l9-9a1 1 0 0 1 1.4 0l6.3 6.3a1 1 0 0 1 0 1.4L13 21H7Z" /><path d="M22 21H7" /><path d="m5 11 8 8" /></I>)
 export const IconRefresh = (p: IconProps) => (<I {...p}><path d="M21 12a9 9 0 1 1-2.64-6.36" /><path d="M21 3v6h-6" /></I>)
 export const IconPlay = (p: IconProps) => (<I {...p}><polygon points="6 3 20 12 6 21 6 3" /></I>)
 export const IconFlag = (p: IconProps) => (<I {...p}><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" /><path d="M4 22v-7" /></I>)

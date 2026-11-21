@@ -218,6 +218,70 @@ sederhana dan lebih aman: teks biasa masuk, HTML aman keluar saat render.
   HTML lama (`<p>`, `<ul>`, `<li>`), entitas backend (`&lt;`), XSS (`<script>`,
   `<img onerror>`), teks kosong.
 
+## Tambahan 2026-11-22 (putaran 8 — teks soal BERFORMAT ala Google Form)
+
+Keputusan: putaran 7 (teks biasa) diganti editor WYSIWYG ringan. Guru **tidak**
+menulis tag HTML; yang tersimpan hanya HTML dari allowlist.
+
+### `frontend/src/components/RichEditor.tsx` (baru)
+- `contentEditable` + toolbar B / I / U / daftar butir / daftar nomor / x² / x₂ /
+  hapus format. `execCommand` dipakai hanya untuk format inline
+  (`styleWithCSS=false` → menghasilkan `<b>/<i>/<u>`, bukan `<span style>`).
+- **Daftar dibuat manual via DOM**, bukan `insertOrderedList`: Chromium menaruh
+  `<ol>` di dalam `<p>` (HTML tidak sah) — ditemukan lewat uji Playwright.
+- Enter di baris `1. …`/`- …` → butir daftar; Enter di butir kosong → keluar
+  daftar (Chromium tidak keluar sendiri karena ada `<br>` pengisi).
+- Penanda teks yang meniru nomor butir (`1. abc` di dalam `<li>`) dibuang sebelum
+  Enter supaya tidak tampil ganda. `markerLen()` menghitung panjang penanda dari
+  sisa teks (bug awal: `m[0].length` memakan seluruh baris).
+- **Baris baru tidak mewarisi format** baris sebelumnya (`resetBlankBlock()` +
+  `clearPendingStyle()` — Chromium menyimpan "typing style" walau DOM diganti).
+- Ctrl+A + Delete yang menyisakan `<ol><li><br></li></ol>` dibersihkan jadi satu
+  paragraf (`onInput`) agar ketikan berikutnya tidak jadi butir daftar.
+- Tempel selalu teks biasa → `renderText()`; satu baris disisipkan inline,
+  banyak baris jadi blok baru setelah paragraf kursor (`insertBlocksAfterCaret`).
+- Kapital otomatis saat mengetik lewat `beforeinput`. Catatan: React memetakan
+  event ini via polyfill `textInput` sehingga `inputType` **undefined** —
+  penjagaan harus mengizinkan `inputType` kosong. NBSP (U+00A0) dari Chromium
+  (spasi di ujung baris) dinormalkan agar aturan "setelah . ! ?" tetap berlaku.
+
+### Penyimpanan & render
+- `lib/sanitize.ts`: `sanitizeRich()` (tokenizer allowlist: `b/strong→b`,
+  `i/em→i`, `u`, `s`, `sup`, `sub`, `br`, `p/div`, `ul/ol/li`; atribut dibuang;
+  `<script>/<style>` beserta isinya dibuang), `renderRich()` (HTML → sanitasi,
+  teks biasa → `renderText`), `tidyRich()` (buang `<br>` pengisi di ujung `<p>/<li>`).
+- Entitas di segmen teks di-decode dulu sebelum di-escape: `innerHTML` Chromium
+  menulis NBSP sebagai `&nbsp;`, dan escape mentah membuat `&amp;nbsp;` yang
+  tampil harfiah (bug ditemukan saat uji simpan→muat ulang).
+- Badan soal & isi wacana memakai `RichEditor`; pratinjau, grading, dan layar
+  siswa memakai `renderRich`. Opsi/pasangan tetap `renderInline`/`htmlToText`.
+- Backend: allowlist `sanitizeHTML` ditambah `s` (coret) agar setara FE.
+
+### Perbaikan bug non-format yang ketemu saat uji
+- `PUT /api/v1/question-sets/{id}` → 500 `INTERNAL`: FE tidak mengirim
+  `exam_code`, handler menulis `''` sehingga menabrak unique `(tenant_id,
+  exam_code)` dan **menghapus kode ujian** paket. Kini `exam_code` kosong =
+  pertahankan nilai lama. FE juga mengirim `level_tag` (string dipisah koma)
+  sesuai kontrak backend, bukan `level_tags` (array) yang dulu diabaikan.
+- `Modal`: efek berfokus ulang berjalan setiap render karena `onClose` selalu
+  fungsi baru → fokus lompat keluar dari input saat mengetik (wacana/modal
+  lain). `onClose` dipindah ke ref; efek hanya bergantung pada `open`.
+- Salinan bantuan yang masih menyebut "tanpa kode HTML"/"teks biasa" diperbarui.
+
+### Verifikasi
+- `tsc -b --noEmit` 0 error, `npm run build` lulus, `go vet`/`go test ./...` hijau
+  (termasuk kasus baru: daftar + `b/i/u/s/sup/sub` lolos `sanitizeHTML`).
+- Playwright (Chromium, data lokal): ketik `1. …` → `<ol>` tanpa penanda ganda;
+  Enter pada butir kosong keluar daftar; B/I/U via tombol & Ctrl+B; sup hanya
+  pada karakter terpilih; baris setelah sup bersih; Ctrl+A+Delete lalu mengetik
+  bersih; tempel multi-baris → `<p>/<ol>/<ul>` sah; simpan draft → muat ulang →
+  format bertahan, tanpa atribut `style`/`class`, tanpa `&amp;amp;`; pratinjau
+  merender daftar + format; layar siswa (`/s/attempt/...`) tetap normal; 375 px
+  tanpa overflow horizontal; 0 error konsol.
+- Catatan data uji: `&amp;nbsp;` yang terlanjur tersimpan dari uji putaran ini
+  dibersihkan lewat SQL (`replace(..., '&amp;nbsp;', '&nbsp;')` di `questions`,
+  `stimuli`).
+
 ## Remaining backlog (P1/P2, tidak memblokir MVP)
 
 - E2E PWA offline di browser nyata (Playwright), uji beban k6.

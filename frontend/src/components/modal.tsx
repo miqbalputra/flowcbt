@@ -13,6 +13,11 @@ export function Modal({
 }) {
   const panelRef = useRef<HTMLDivElement>(null)
   const prevFocusRef = useRef<HTMLElement | null>(null)
+  // onClose hampir selalu arrow function baru tiap render: simpan di ref agar
+  // efek di bawah hanya berjalan saat modal dibuka/ditutup (bukan tiap ketikan,
+  // yang dulu mencuri fokus dari input di dalam modal).
+  const closeRef = useRef(onClose)
+  closeRef.current = onClose
 
   useEffect(() => {
     if (!open) return
@@ -20,7 +25,7 @@ export function Modal({
     const active = document.activeElement
     prevFocusRef.current = active instanceof HTMLElement && active !== document.body ? active : null
     panelRef.current?.focus()
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') closeRef.current() }
     window.addEventListener('keydown', onKey)
     document.body.style.overflow = 'hidden'
     return () => {
@@ -28,7 +33,7 @@ export function Modal({
       document.body.style.overflow = ''
       prevFocusRef.current?.focus()
     }
-  }, [open, onClose])
+  }, [open])
 
   if (!open) return null
   return (

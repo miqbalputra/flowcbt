@@ -1,4 +1,8 @@
-// sanitize — TEKS SOAL = TEKS BIASA (tanpa kode HTML).
+// sanitize — TEKS SOAL: teks biasa + format ringan (tebal/miring/daftar/pangkat).
+//
+// Guru TIDAK menulis tag HTML: kotak teks soal kini WYSIWYG (RichEditor) yang
+// menyimpan HTML aman dari allowlist di bawah. Teks tanpa tag tetap didukung
+// (data lama & soal yang diketik apa adanya) lewat renderText().
 //
 // Keputusan produk: guru TIDAK menulis tag HTML. Semua teks (soal, wacana,
 // opsi, pasangan menjodohkan) disimpan apa adanya sebagai teks biasa; FE yang
@@ -90,7 +94,9 @@ export function htmlToText(raw: string): string {
  * Panjang teks TIDAK berubah → posisi kursor aman.
  */
 export function autoCapitalize(input: string): string {
-  const s = String(input ?? '')
+  // NBSP (U+00A0) muncul dari contenteditable saat spasi di ujung baris;
+  // disamakan jadi spasi biasa agar aturan "setelah . ! ?" tetap berlaku.
+  const s = String(input ?? '').replace(/\u00a0/g, ' ')
   if (!s) return ''
   let out = ''
   let atStart = true // sedang di posisi awal kalimat/baris?
@@ -152,7 +158,7 @@ type Block =
 
 /** Pecah teks biasa menjadi blok paragraf + daftar (angka, butir, huruf). */
 export function parseBlocks(text: string): Block[] {
-  const lines = String(text ?? '').replace(/\r\n?/g, '\n').split('\n')
+  const lines = String(text ?? '').replace(/\r\n?/g, '\n').replace(/\u00a0/g, ' ').split('\n')
   const blocks: Block[] = []
   let para: string[] | null = null
   let list: Block | null = null
@@ -252,6 +258,106 @@ export function renderText(raw: string): string {
   const text = autoCapitalize(htmlToText(raw))
   if (!text.trim()) return ''
   return renderBlocks(parseBlocks(text))
+}
+
+/* ------------------------------------------------------------------ *
+ * MODE KAYA (format) — B / I / U / daftar / pangkat, seperti Google Form
+ * ------------------------------------------------------------------ */
+
+/** Tag yang boleh muncul dari editor format + pemetaan ke tag kanonik. */
+const RICH_TAGS: Record<string, string> = {
+  b: 'b', strong: 'b',
+  i: 'i', em: 'i',
+  u: 'u',
+  s: 's', strike: 's', del: 's',
+  sup: 'sup', sub: 'sub',
+  br: 'br', p: 'p', div: 'p', ul: 'ul', ol: 'ol', li: 'li',
+}
+const RICH_VOID = new Set(['br'])
+
+/** Teks di antara tag: escape + baris baru lama tetap dihormati. */
+function richText(t: string): string {
+  if (!t) return ''
+  const clean = t.replace(/\r\n?/g, '\n').replace(/[ \t]*\n[ \t]*/g, '\n')
+  return escapeHtml(clean).replace(/\n/g, '<br>')
+}
+
+/** Rapikan hasil: buang tag kosong dan bungkus teks liar jadi paragraf. */
+function tidyRich(html: string): string {
+  let out = html
+  for (let n = 0; n < 3; n++) {
+    out = out.replace(/<(b|i|u|s|sup|sub)>\s*<\/\1>/gi, '')
+  }
+  // <br> pengisi di ujung/awal paragraf (khas contenteditable) tidak disimpan
+  out = out.replace(/<br\s*\/?>\s*<\/(p|li)>/gi, '</$1>').replace(/<(p|li)>\s*<br\s*\/?>/gi, '<$1>')
+  out = out.replace(/<p>\s*<\/p>/gi, '')
+  const bertag = /<(p|ul|ol|li)\b/i.test(out)
+  if (!bertag && out.trim()) out = `<p>${out}</p>`
+  return out.trim()
+}
+
+/**
+ * HTML bebas → HTML aman berformat (allowlist tag tanpa atribut).
+ * `<script>`/`<style>` dibuang beserta isinya; tag lain dilepas tapi teksnya
+ * tetap (di-escape), jadi tidak ada jalur XSS.
+ */
+export function sanitizeRich(raw: string): string {
+  const s = String(raw ?? '')
+  if (!s) return ''
+  let out = ''
+  let i = 0
+  while (i < s.length) {
+    const lt = s.indexOf('<', i)
+    if (lt < 0) {
+      out += richText(decodeEntities(s.slice(i)))
+      break
+    }
+    if (lt > i) out += richText(decodeEntities(s.slice(i, lt)))
+    i = lt
+    if (s.startsWith('<!--', i)) {
+      const end = s.indexOf('-->', i + 4)
+      i = end < 0 ? s.length : end + 3
+      continue
+    }
+    const m = /^<\s*(\/?)\s*([a-zA-Z][a-zA-Z0-9]*)/.exec(s.slice(i))
+    const gt = s.indexOf('>', i)
+    if (!m) {
+      out += '&lt;' // "<" bukan tag (mis. 5 < 10)
+      i += 1
+      continue
+    }
+    if (gt < 0) break
+    const name = m[2].toLowerCase()
+    const closing = m[1] === '/'
+    if (name === 'script' || name === 'style') {
+      if (closing) {
+        i = gt + 1
+        continue
+      }
+      const end = s.toLowerCase().indexOf(`</${name}`, gt)
+      const endGt = end < 0 ? -1 : s.indexOf('>', end)
+      i = endGt < 0 ? s.length : endGt + 1
+      continue
+    }
+    const mapped = RICH_TAGS[name]
+    if (mapped) {
+      if (closing && !RICH_VOID.has(mapped)) out += `</${mapped}>`
+      else if (!closing) out += `<${mapped}>`
+    }
+    i = gt + 1
+  }
+  return tidyRich(out)
+}
+
+/**
+ * Render teks soal untuk siswa/guru:
+ * - teks biasa (data lama, ketikan apa adanya) → paragraf + daftar otomatis;
+ * - HTML berformat dari editor → disanitasi (allowlist) saja.
+ */
+export function renderRich(raw: string): string {
+  const s = String(raw ?? '')
+  if (!s.trim()) return ''
+  return looksLikeHtml(s) ? sanitizeRich(s) : renderText(s)
 }
 
 /** Satu baris pendek (opsi jawaban, kolom menjodohkan) → HTML aman tanpa blok. */

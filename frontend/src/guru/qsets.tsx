@@ -45,7 +45,7 @@ export default function Qsets() {
           subject_name: src.subject_name,
           title: `${String(src.title ?? 'Paket')} (salinan)`,
           description: src.description,
-          level_tags: src.level_tags,
+          level_tag: src.level_tag ?? '',
         }), 'POST'))
       const setId = String(asDict(created).id ?? '')
       // salin per soal (kontrak API: 1 endpoint per soal)

@@ -200,7 +200,7 @@ func (m *Module) updateSet(w http.ResponseWriter, r *http.Request) {
 		}
 		err := tx.QueryRow(r.Context(), `
 			UPDATE question_sets SET subject_name=$2, title=$3, description=$4, level_tag=$5,
-				exam_code=$6, updated_at=now()
+				exam_code=COALESCE(NULLIF($6, ''), exam_code), updated_at=now()
 			WHERE id=$1
 			RETURNING id, subject_name, title, description, exam_code, level_tag, status, current_version,
 				(SELECT COUNT(1)::int FROM questions qq

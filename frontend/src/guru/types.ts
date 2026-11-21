@@ -150,7 +150,7 @@ export function statusBadge(s: unknown): { label: string; cls: string } {
  * Teks soal = TEKS BIASA (tanpa HTML). Renderer + util kapital/daftar otomatis
  * ada di `@/lib/sanitize` (satu sumber kebenaran untuk guru & siswa).
  */
-export { renderText, renderInline, htmlToText, autoCapitalize } from '@/lib/sanitize'
+export { renderText, renderRich, renderInline, htmlToText, autoCapitalize } from '@/lib/sanitize'
 
 /** salin ke clipboard + toast */
 export async function copyText(text: string, successMsg = 'Disalin ke clipboard'): Promise<void> {

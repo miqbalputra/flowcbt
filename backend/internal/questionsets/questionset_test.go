@@ -26,6 +26,9 @@ func TestSanitizeHTML(t *testing.T) {
 			`<td colspan="2" rowspan="3">c</td>`, `<td colspan="2" rowspan="3">c</td>`},
 		{"tag hancur dibuang",
 			`<p>ok <span>a</span></p>`, "<p>ok a</p>"},
+		{"daftar dan format editor lolos",
+			`<p>Ibu kota:</p><ol><li>Bandung</li></ol><ul><li><b>a</b> <i>b</i> <u>c</u> <s>d</s> x<sup>2</sup> H<sub>2</sub>O</li></ul>`,
+			`<p>Ibu kota:</p><ol><li>Bandung</li></ol><ul><li><b>a</b> <i>b</i> <u>c</u> <s>d</s> x<sup>2</sup> H<sub>2</sub>O</li></ul>`},
 		{"komentar dibuang",
 			`<p>a</p><!-- k --> <p>b</p>`, "<p>a</p> <p>b</p>"},
 	}

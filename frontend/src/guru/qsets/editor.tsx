@@ -1,11 +1,12 @@
 // HALAMAN TERPENTING: buat/edit paket soal AKM (FR-4.3..4.7).
-// Teks soal = TEKS BIASA (tanpa kode HTML): daftar & huruf kapital otomatis,
-// Enter melanjutkan nomor/butir berikutnya. Render aman via renderText()/renderInline()
+// Teks soal = kotak teks BERFORMAT gaya Google Form (RichEditor): tebal, miring,
+// garis bawah, daftar, pangkat — guru tidak pernah melihat tag HTML. Daftar &
+// huruf kapital otomatis tetap jalan. Render aman via renderRich()/renderInline()
 // dari @/lib/sanitize. Pratinjau tampilan siswa via modal.
 // v3 "Portal Ujian": kepala halaman + aksi, panel info/wacana/publikasi, daftar soal
 //     yang bisa diurutkan (seret pegangan atau tombol naik/turun), tiap soal = panel
 //     editor dengan field berlabel + chip tipe soal.
-import { useMemo, useState, type ChangeEvent, type KeyboardEvent } from 'react'
+import { useMemo, useState, type ChangeEvent } from 'react'
 import { flushSync } from 'react-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams } from 'react-router-dom'
@@ -20,10 +21,10 @@ import {
 import { QuestionPreview } from './preview'
 import {
   LETTERS, SCHOOL_LEVELS, QTYPES, asDict, asList, errMessage, qtypeIco, qtypeLabel,
-  renderText, unwrap, type Dict, type QType,
+  unwrap, type Dict, type QType,
 } from '../types'
-import { autoCapitalize, escapeHtml, htmlToText, renderInline } from '@/lib/sanitize'
-import { continueList, toggleListMarker } from './textEdit'
+import { autoCapitalize, escapeHtml, htmlToText, renderInline, renderRich } from '@/lib/sanitize'
+import { RichEditor } from '@/components/RichEditor'
 import {
   IconBank, IconBook, IconCheck, IconChevronDown, IconChevronUp, IconClipboard, IconCopy, IconEye,
   IconMenu, IconPlus, IconTrash, IconWarn, IconX,
@@ -93,9 +94,9 @@ function fromServerQuestion(raw: Dict): Dict {
   const type = FROM_SERVER[String(q.type ?? '')] ?? 'pg'
   const key = asDict(q.answer_key)
   q.type = type
-  // Data lama masih memuat HTML sederhana (<p>, <br>, <li>, …) → teks biasa,
-  // supaya guru tidak melihat tag lagi di kotak teks.
-  q.body = htmlToText(String(q.body ?? ''))
+  // Badan soal masuk kotak berformat: teks lama tanpa tag dirapikan jadi
+  // paragraf/daftar sungguhan, HTML lama disanitasi (allowlist) — tanpa tag terlihat.
+  q.body = renderRich(String(q.body ?? ''))
   q.explanation = htmlToText(String(q.explanation ?? ''))
   if (type === 'pg' || type === 'pg_kompleks') {
     q.options = asList(q.options).map((o, i) => ({
@@ -150,14 +151,18 @@ export default function QsetEditor() {
       subject_name: String(d.subject_name ?? d.subject ?? ''),
       title: String(d.title ?? ''),
       description: String(d.description ?? ''),
-      level_tags: asList(d.level_tags ?? d.levels ?? []).map(t => String(t)),
+      // backend menyimpan level_tag sebagai satu string dipisah koma
+      level_tags: String(d.level_tag ?? '')
+        .split(',')
+        .map(t => t.trim())
+        .filter(Boolean),
       exam_code: String(d.exam_code ?? ''),
       status: String(d.status ?? 'draft'),
       questions: asList(d.questions ?? []).map(q => ({ ...fromServerQuestion(asDict(q)), _uid: `x${String(asDict(q).id ?? '')}` })),
       stimuli: asList(d.stimuli ?? d.stimulus ?? []).map(s => ({
         ...asDict(s),
         title: htmlToText(String(asDict(s).title ?? '')),
-        content: htmlToText(String(asDict(s).content ?? '')),
+        content: renderRich(String(asDict(s).content ?? '')),
       })),
     }
   }, [detail.data])
@@ -274,27 +279,11 @@ export default function QsetEditor() {
   }
 
   /* ------------------------------------------------------------------
-     TEKS BIASA: tanpa tag HTML. Bantuan yang tersedia hanya kapital
-     otomatis + daftar otomatis (nomor/butir) — guru cukup mengetik.
+     Bantuan teks: kapital otomatis untuk isian satu baris (opsi, pasangan,
+     rubrik, pembahasan). Kotak teks soal sendiri berformat (RichEditor).
      ------------------------------------------------------------------ */
 
-  /**
-   * Tulis nilai baru ke state lalu taruh kursor — SINKRON (flushSync), bukan
-   * requestAnimationFrame: rAF bisa menyala setelah ketikan berikutnya dan
-   * melempar kursor ke tempat lain saat guru mengetik cepat/paste.
-   */
-  function applyEdit(
-    el: HTMLTextAreaElement | HTMLInputElement,
-    value: string,
-    caret: number,
-    commit: (v: string) => void,
-  ) {
-    flushSync(() => commit(value))
-    el.focus()
-    try { el.setSelectionRange(caret, caret) } catch { /* input tanpa seleksi */ }
-  }
-
-  /** onChange teks: huruf kapital dirapikan sambil posisi kursor dijaga. */
+  /** onChange teks satu baris (opsi/pasangan/dll): kapital dirapikan, kursor dijaga. */
   function withAutoCap(e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>, commit: (v: string) => void) {
     const el = e.currentTarget
     const raw = el.value
@@ -310,32 +299,9 @@ export default function QsetEditor() {
     try { el.setSelectionRange(start, end) } catch { /* input tanpa seleksi */ }
   }
 
-  /**
-   * Enter di dalam butir daftar → lanjutkan penomoran/butir berikutnya.
-   * Enter pada butir kosong → keluar dari daftar (penanda dihapus).
-   * Logika murni ada di ./textEdit (diuji terpisah).
-   */
-  function smartEnter(e: KeyboardEvent<HTMLTextAreaElement>, commit: (v: string) => void) {
-    if (e.key !== 'Enter' || e.shiftKey || e.altKey || e.ctrlKey || e.metaKey) return
-    if (e.nativeEvent.isComposing) return
-    const el = e.currentTarget
-    const edit = continueList(el.value, el.selectionStart ?? 0, el.selectionEnd ?? 0)
-    if (!edit) return
-    e.preventDefault()
-    applyEdit(el, edit.value, edit.caret, commit)
-  }
-
-  /** Klik "1." / "•": pasang (atau lepas) penanda daftar di awal baris kursor. */
-  function toggleMarker(qi: number, marker: string) {
-    const el = document.getElementById(`body-${qi}`) as HTMLTextAreaElement | null
-    if (!el) return
-    const edit = toggleListMarker(el.value, el.selectionStart ?? 0, marker)
-    applyEdit(el, edit.value, edit.caret, v => patchQuestion(qi, { body: v }))
-  }
-
   // validasi FR-4.7 sebelum publish: tiap soal punya kunci & poin
   function keyProblem(q: Dict): string {
-    if (!String(q.body ?? '').trim()) return 'Teks soal masih kosong'
+    if (!htmlToText(String(q.body ?? '')).trim()) return 'Teks soal masih kosong'
     if (q.type === 'pg' && !String(q.key ?? '')) return 'Kunci jawaban PG belum dipilih'
     if (q.type === 'pg_kompleks' && strArr(q.correct).length === 0) return 'Minimal satu kunci PG kompleks'
     if (q.type === 'menjodohkan' && asList(q.pairs).filter(p => String(p.left ?? '').trim() && String(p.right ?? '').trim()).length < 1)
@@ -357,8 +323,8 @@ export default function QsetEditor() {
       const meta = {
         subject_name: String(info.subject_name ?? '').trim(),
         title: String(info.title ?? '').trim(),
-        description: String(info.description ?? '').trim() || undefined,
-        level_tags: asList(info.level_tags).map(String),
+        description: String(info.description ?? '').trim(),
+        level_tag: asList(info.level_tags).map(String).filter(Boolean).join(', '),
       }
       let setId = id ?? ''
       if (isNew) {
@@ -435,7 +401,7 @@ export default function QsetEditor() {
   const stimulusHtmlFor = (sid: unknown) => {
     const s = stimuli.find(x => String(x.id ?? '') === String(sid ?? ''))
     if (!s) return ''
-    return `<p><b>${escapeHtml(String(s.title ?? 'Wacana'))}</b></p>${renderText(String(s.content ?? ''))}`
+    return `<p><b>${escapeHtml(String(s.title ?? 'Wacana'))}</b></p>${renderRich(String(s.content ?? ''))}`
   }
 
   /* ---- ringkasan paket (turunan state, tanpa query baru) ---- */
@@ -803,29 +769,16 @@ export default function QsetEditor() {
                 )}
 
                 <div>
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <label className="label" htmlFor={`body-${qi}`}>Teks soal</label>
-                    <div role="group" aria-label="Sisipkan daftar" className="mb-1 flex items-center gap-1">
-                      <button
-                        type="button" title="Daftar bernomor — Enter melanjutkan nomor" aria-label="Daftar bernomor"
-                        className="mono h-8 rounded border border-border bg-surface px-2.5 text-[11px] font-bold text-muted hover:border-border-strong hover:text-text"
-                        onMouseDown={e => { e.preventDefault(); toggleMarker(qi, '1. ') }}
-                      >1.</button>
-                      <button
-                        type="button" title="Daftar butir — Enter melanjutkan butir" aria-label="Daftar butir"
-                        className="mono h-8 rounded border border-border bg-surface px-2.5 text-[11px] font-bold text-muted hover:border-border-strong hover:text-text"
-                        onMouseDown={e => { e.preventDefault(); toggleMarker(qi, '• ') }}
-                      >•</button>
-                    </div>
-                  </div>
-                  <textarea
-                    id={`body-${qi}`} className="input min-h-24" value={String(question.body ?? '')}
-                    placeholder={'Ketik soal apa adanya — tanpa kode HTML.\nContoh:\n1. Ibu kota Provinsi Jawa Barat adalah …'}
-                    onChange={e => withAutoCap(e, v => patchQuestion(qi, { body: v }))}
-                    onKeyDown={e => smartEnter(e, v => patchQuestion(qi, { body: v }))}
+                  <label className="label" htmlFor={`body-${qi}`}>Teks soal</label>
+                  <RichEditor
+                    id={`body-${qi}`}
+                    value={String(question.body ?? '')}
+                    onChange={v => patchQuestion(qi, { body: v })}
+                    ariaLabel={`Teks soal ${qi + 1}`}
+                    placeholder="Ketik soal di sini…"
                   />
                   <p className="hint mt-1">
-                    Tulis biasa saja, tanpa kode HTML. Enter melanjutkan nomor/butir; huruf kapital dirapikan sendiri.
+                    Blok teks lalu pakai tombol B / I / U / daftar / pangkat. Enter di baris "1." atau "-" otomatis jadi daftar bernomor/butir.
                   </p>
                   {Boolean(question.body) && (
                     <button
@@ -1093,7 +1046,7 @@ export default function QsetEditor() {
           </>
         }
       >
-        <p className="text-sm text-muted">Wacana dipakai bersama beberapa soal (khas AKM literasi). Tulis sebagai teks biasa — tanpa kode HTML.</p>
+        <p className="text-sm text-muted">Wacana dipakai bersama beberapa soal (khas AKM literasi). Bisa tebal/miring/daftar seperti teks soal.</p>
         <div className="space-y-3">
           <div>
             <label className="label" htmlFor="stim-t">Judul wacana</label>
@@ -1104,14 +1057,16 @@ export default function QsetEditor() {
           </div>
           <div>
             <label className="label" htmlFor="stim-c">Isi wacana</label>
-            <textarea
-              id="stim-c" className="input min-h-28" value={stimOpen?.content ?? ''}
-              placeholder={'Tulis wacana apa adanya.\nBaris baru = paragraf baru.'}
-              onChange={e => withAutoCap(e, v => setStimOpen(s => (s ? { ...s, content: v } : s)))}
-              onKeyDown={e => smartEnter(e, v => setStimOpen(s => (s ? { ...s, content: v } : s)))}
+            <RichEditor
+              id="stim-c"
+              value={stimOpen?.content ?? ''}
+              onChange={v => setStimOpen(s => (s ? { ...s, content: v } : s))}
+              ariaLabel="Isi wacana"
+              placeholder="Tulis wacana di sini…"
+              minHeight={132}
             />
             <p className="hint mt-1">
-              Teks biasa saja. Enter melanjutkan nomor/butir otomatis; huruf kapital dirapikan sendiri.
+              Bisa tebal/miring/daftar seperti teks soal. Enter di baris "1." atau "-" jadi daftar otomatis.
             </p>
           </div>
         </div>

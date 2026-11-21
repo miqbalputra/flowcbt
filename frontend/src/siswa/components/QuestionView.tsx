@@ -5,7 +5,7 @@
 // Kontrak LAMA dipertahankan: prop (q, value, onChange, disabled) + AnswerValue.
 import { useState } from 'react'
 import type { FetchedQuestion } from '../types'
-import { htmlToText, renderText } from '@/lib/sanitize'
+import { htmlToText, renderRich } from '@/lib/sanitize'
 import { IconCheck, IconX, IconBook, IconChevronDown, IconChevronUp } from '@/components/icons'
 
 /** Bentuk jawaban lintas tipe: string, string[], atau map pasangan matching. */
@@ -422,7 +422,7 @@ function EssayInput({
 
 /* ------------------------ stimulus (wacana) pelipat ------------------------ */
 
-/** Stimulus/wacana collapsible — teks biasa guru → HTML aman via renderText (XSS-safe). */
+/** Stimulus/wacana collapsible — teks/format guru → HTML aman via renderRich (XSS-safe). */
 export function StimulusCard({ text, title = 'Wacana' }: { text?: string | null; title?: string }) {
   const [open, setOpen] = useState(true)
   if (!text) return null
@@ -443,8 +443,8 @@ export function StimulusCard({ text, title = 'Wacana' }: { text?: string | null;
       {open && (
         <div
           className="rich-text px-3.5 py-3 leading-relaxed"
-          // teks biasa dari guru di-escape penuh oleh renderText (PRD §12)
-          dangerouslySetInnerHTML={{ __html: renderText(text) }}
+          // teks & format dari guru dibersihkan renderRich (allowlist, PRD §12)
+          dangerouslySetInnerHTML={{ __html: renderRich(text) }}
         />
       )}
     </div>
