@@ -1,6 +1,6 @@
-// Halaman login guru/admin (FR-1.2) — estetika "ruang kerja" konsisten dengan
-// Design System v3: panel brand bertekstur halus, formulir dengan ikon,
-// toggle lihat password, deteksi Caps Lock, alert error, dan akun demo.
+// Halaman login guru/admin (FR-1.2) — mengikuti pola login "tebar.app":
+// aksi cepat di atas → pembatas → formulir; input kompak, toggle password,
+// deteksi Caps Lock, alert error, dan akun demo (hapus saat produksi).
 import { useState, type FormEvent, type KeyboardEvent } from 'react'
 import { Navigate, useLocation, useNavigate, Link } from 'react-router-dom'
 import { setTokens, clearTokens, getAccessToken } from '@/lib/api'
@@ -9,20 +9,7 @@ import { useAuth } from '@/stores/auth'
 import { toast } from '@/components/toast'
 import { asDict, errMessage, unwrap } from '../types'
 import { AuthShell } from './shell'
-import { IconEye, IconEyeOff, IconWarn } from '@/components/icons'
-
-const IconMail = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-    <rect x="2" y="4" width="20" height="16" rx="2" />
-    <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
-  </svg>
-)
-const IconLock = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-    <rect x="3" y="11" width="18" height="11" rx="2" />
-    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-  </svg>
-)
+import { IconExam, IconEye, IconEyeOff, IconWarn } from '@/components/icons'
 
 function roleOf(u: { role?: string }): 'owner' | 'teacher' | 'superadmin' {
   return (['owner', 'teacher', 'superadmin'] as const).includes(u?.role as never) ? (u.role as 'owner' | 'teacher' | 'superadmin') : 'owner'
@@ -70,89 +57,89 @@ export default function Login() {
     setCapsOn(Boolean(e.getModifierState?.('CapsLock')))
 
   return (
-    <AuthShell title="Masuk ke akun guru" subtitle="Kelola ujian, nilai, dan laporan sekolah Anda dalam satu tempat.">
-      <form onSubmit={submit} className="space-y-4" noValidate={false}>
-        <div>
-          <label className="label" htmlFor="email">Email</label>
-          <div className="relative">
-            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" aria-hidden>
-              <IconMail />
-            </span>
+    <AuthShell title="Selamat datang kembali" subtitle="Masuk untuk mengelola ujian, nilai, dan laporan sekolah Anda.">
+      <div className="grid gap-5">
+        {/* aksi cepat — posisi "Continue with Google" pada referensi */}
+        <button type="button" className="auth-alt" onClick={() => { setEmail('guru@demo.cbt'); setPassword('Guru#12345') }}>
+          <IconExam />
+          Coba cepat — akun demo guru
+        </button>
+
+        <div className="auth-divider" role="separator">atau masuk manual</div>
+
+        <form onSubmit={submit} className="grid gap-4" noValidate={false}>
+          <div>
+            <label className="auth-label" htmlFor="email">Email</label>
             <input
-              id="email" className="input pl-9" type="email" required autoComplete="email"
+              id="email" className="auth-input" type="email" required autoComplete="email"
               placeholder="guru@sekolah.sch.id" value={email} onChange={e => setEmail(e.target.value)}
               aria-invalid={Boolean(error)}
             />
           </div>
-        </div>
 
-        <div>
-          <div className="flex items-center justify-between">
-            <label className="label" htmlFor="password">Password</label>
-            <button
-              type="button"
-              onClick={() => setShowPw(v => !v)}
-              className="mb-1.5 inline-flex items-center gap-1 text-xs font-medium text-muted hover:text-primary"
-              aria-label={showPw ? 'Sembunyikan password' : 'Tampilkan password'}
-            >
-              {showPw ? <IconEyeOff size={14} /> : <IconEye size={14} />}
-              {showPw ? 'Sembunyikan' : 'Lihat'}
-            </button>
+          <div>
+            <div className="flex items-center justify-between">
+              <label className="auth-label" htmlFor="password">Password</label>
+              <Link className="auth-label !mb-0 cursor-pointer font-medium text-muted hover:text-primary hover:underline underline-offset-4" to="/forgot-password">
+                Lupa password?
+              </Link>
+            </div>
+            <div className="relative">
+              <input
+                id="password" className="auth-input pr-11" type={showPw ? 'text' : 'password'} required
+                autoComplete="current-password" placeholder="••••••••"
+                value={password} onChange={e => setPassword(e.target.value)} onKeyUp={onPwKey}
+                aria-invalid={Boolean(error)}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPw(v => !v)}
+                className="absolute inset-y-0 right-0 grid w-11 place-items-center rounded-r-lg text-muted outline-none transition-colors hover:text-primary focus-visible:text-primary"
+                aria-label={showPw ? 'Sembunyikan password' : 'Tampilkan password'}
+              >
+                {showPw ? <IconEyeOff size={15} /> : <IconEye size={15} />}
+              </button>
+            </div>
+            {capsOn && (
+              <p className="mt-1.5 flex items-center gap-1.5 text-xs text-warn" role="status">
+                <IconWarn size={13} /> Caps Lock aktif
+              </p>
+            )}
           </div>
-          <div className="relative">
-            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" aria-hidden>
-              <IconLock />
-            </span>
-            <input
-              id="password" className="input px-9" type={showPw ? 'text' : 'password'} required
-              autoComplete="current-password" placeholder="••••••••"
-              value={password} onChange={e => setPassword(e.target.value)} onKeyUp={onPwKey}
-              aria-invalid={Boolean(error)}
-            />
-          </div>
-          {capsOn && (
-            <p className="mt-1.5 flex items-center gap-1.5 text-xs text-warn" role="status">
-              <IconWarn size={13} /> Caps Lock aktif
-            </p>
+
+          {error && (
+            <div className="flex items-start gap-2 rounded-lg border border-danger-line bg-danger-soft px-3 py-2.5 text-sm text-danger" role="alert">
+              <span className="mt-0.5 shrink-0" aria-hidden><IconWarn size={15} /></span>
+              <span>{error}</span>
+            </div>
           )}
-        </div>
 
-        {error && (
-          <div className="flex items-start gap-2 rounded-md border border-danger-line bg-danger-soft px-3 py-2.5 text-sm text-danger" role="alert">
-            <span className="mt-0.5 shrink-0" aria-hidden><IconWarn size={15} /></span>
-            <span>{error}</span>
-          </div>
+          <button type="submit" className="btn-primary flex h-10 w-full items-center justify-center gap-2 rounded-lg" disabled={busy}>
+            <span className="flex h-4 w-4 items-center justify-center">{busy && <span className="spinner" />}</span>
+            {busy ? 'Memproses…' : 'Masuk'}
+          </button>
+        </form>
+
+        <p className="text-center text-sm text-muted">
+          Belum punya akun?{' '}
+          <Link className="font-medium text-primary underline-offset-4 hover:underline" to="/register">Daftar sekolah</Link>
+        </p>
+
+        {getAccessToken() && (
+          <button
+            type="button"
+            className="mx-auto text-xs text-muted underline-offset-4 hover:text-primary hover:underline"
+            onClick={() => { clearTokens(); toast('Sesi lama dibersihkan', 'info') }}
+          >
+            Bersihkan sesi tersimpan
+          </button>
         )}
 
-        <button type="submit" className="btn-primary flex w-full items-center justify-center gap-2" disabled={busy}>
-          <span className="flex h-4 w-4 items-center justify-center">{busy && <span className="spinner" />}</span>
-          {busy ? 'Memproses…' : 'Masuk'}
-        </button>
-      </form>
-
-      <div className="mt-4 flex items-center justify-between border-t border-border pt-4 text-sm">
-        <Link className="font-medium text-muted hover:text-primary hover:underline" to="/forgot-password">Lupa password?</Link>
-        <Link className="font-medium text-primary hover:underline" to="/register">Daftar sekolah →</Link>
+        <p className="text-center text-[11px] leading-relaxed text-muted">
+          Dengan melanjutkan, Anda menyetujui ketentuan layanan dan kebijakan
+          privasi FlowCBT.
+        </p>
       </div>
-
-      {/* akun demo untuk lingkung ujicoba publik — hapus blok ini saat produksi */}
-      <button
-        type="button"
-        className="mt-4 w-full rounded-md border border-dashed border-border px-3 py-2 text-xs text-muted transition-colors hover:border-primary-line hover:bg-primary-soft hover:text-primary"
-        onClick={() => { setEmail('guru@demo.cbt'); setPassword('Guru#12345') }}
-      >
-        Isi akun demo guru (laporan ujicoba publik)
-      </button>
-
-      {getAccessToken() && (
-        <button
-          type="button"
-          className="btn-ghost mt-3 w-full text-xs"
-          onClick={() => { clearTokens(); toast('Sesi lama dibersihkan', 'info') }}
-        >
-          Bersihkan sesi tersimpan
-        </button>
-      )}
     </AuthShell>
   )
 }

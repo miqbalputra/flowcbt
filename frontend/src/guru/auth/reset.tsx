@@ -35,20 +35,20 @@ export default function Reset() {
     <AuthShell title="Atur ulang password" subtitle="Buat password baru memakai token reset dari email.">
       <form onSubmit={submit} className="space-y-3">
         <div>
-          <label className="label" htmlFor="tk">Token reset</label>
-          <input id="tk" className="input" required value={token} onChange={e => setToken(e.target.value)} placeholder="Kode dari email" />
+          <label className="auth-label" htmlFor="tk">Token reset</label>
+          <input id="tk" className="auth-input" required value={token} onChange={e => setToken(e.target.value)} placeholder="Kode dari email" />
         </div>
         <div>
-          <label className="label" htmlFor="np">Password baru</label>
-          <input id="np" className="input" type="password" required autoComplete="new-password"
+          <label className="auth-label" htmlFor="np">Password baru</label>
+          <input id="np" className="auth-input" type="password" required autoComplete="new-password"
             value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="min. 8 karakter" />
         </div>
         <div>
-          <label className="label" htmlFor="npc">Ulangi password baru</label>
-          <input id="npc" className="input" type="password" required autoComplete="new-password"
+          <label className="auth-label" htmlFor="npc">Ulangi password baru</label>
+          <input id="npc" className="auth-input" type="password" required autoComplete="new-password"
             value={confirm} onChange={e => setConfirm(e.target.value)} placeholder="ulangi" />
         </div>
-        <button type="submit" className="btn-primary w-full" disabled={busy}>
+        <button type="submit" className="btn-primary flex h-10 w-full items-center justify-center rounded-lg" disabled={busy}>
           {busy ? 'Menyimpan…' : 'Simpan Password Baru'}
         </button>
       </form>

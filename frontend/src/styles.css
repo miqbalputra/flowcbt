@@ -164,7 +164,7 @@ html, body {
 /* ============================================================
    KEPALA INSTITUSIONAL
    ============================================================ */
-/* ---------- Auth shell (login/register/forgot/reset) ---------- */
+/* ---------- Auth shell — pola "tebar.app": panel cerita + formulir terbuka ---------- */
 .auth-visual {
   background: var(--c-ink);
   position: relative;
@@ -174,25 +174,89 @@ html, body {
   content: "";
   position: absolute;
   inset: 0;
-  background-image:
-    linear-gradient(color-mix(in oklab, #fff 4%, transparent) 1px, transparent 1px),
-    linear-gradient(90deg, color-mix(in oklab, #fff 4%, transparent) 1px, transparent 1px);
-  background-size: 44px 44px;
-  -webkit-mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.2) 72%, transparent);
-  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.2) 72%, transparent);
+  background-image: radial-gradient(color-mix(in oklab, #fff 7%, transparent) 1px, transparent 1px);
+  background-size: 26px 26px;
+  -webkit-mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.18) 65%, transparent);
+  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.18) 65%, transparent);
   pointer-events: none;
 }
 .auth-visual::after {
   content: "";
   position: absolute;
   inset: 0;
-  background: radial-gradient(46% 42% at 16% 4%, color-mix(in oklab, var(--c-primary) 20%, transparent), transparent 72%);
+  background: radial-gradient(52% 46% at 14% 2%, color-mix(in oklab, var(--c-primary) 14%, transparent), transparent 70%);
   pointer-events: none;
 }
-.auth-glow {
-  position: relative;
-  z-index: 1;
+.auth-layer { position: relative; z-index: 1; }
+
+/* animasi rise halus (fade-up), hormati reduced-motion */
+@keyframes rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
 }
+.animate-rise { animation: rise 0.55s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.rise-1 { animation-delay: 90ms; }
+.rise-2 { animation-delay: 180ms; }
+.rise-3 { animation-delay: 300ms; }
+@media (prefers-reduced-motion: reduce) {
+  .animate-rise { animation: none; }
+}
+
+/* form kanan: input kompak ala tebar (rounded-lg, h-10) */
+.auth-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--c-text);
+  margin-bottom: 6px;
+}
+.auth-input {
+  width: 100%;
+  height: 2.5rem;
+  border-radius: 8px;
+  border: 1px solid var(--c-border);
+  background: var(--c-surface);
+  padding: 0 0.75rem;
+  font-size: 0.925rem;
+  color: var(--c-text);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.auth-input:hover:not(:disabled) { border-color: var(--c-border-strong); }
+.auth-input:focus {
+  outline: none;
+  border-color: var(--c-primary);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--c-primary) 16%, transparent);
+}
+.auth-input::placeholder { color: var(--c-muted); opacity: 0.85; }
+
+/* tombol sekunder full-width (ghost, tanpa aksen tebal) */
+.auth-alt {
+  display: inline-flex;
+  width: 100%;
+  height: 2.5rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 8px;
+  border: 1px solid var(--c-border);
+  background: var(--c-surface);
+  color: var(--c-text);
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+.auth-alt:hover:not(:disabled) { background: var(--c-bg); border-color: var(--c-border-strong); }
+
+/* pembatas "atau" */
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: var(--c-muted);
+  font-size: 12px;
+}
+.auth-divider::before,
+.auth-divider::after { content: ""; flex: 1; height: 1px; background: var(--c-border); }
 
 .spinner {
   width: 14px;

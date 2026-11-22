@@ -74,11 +74,11 @@ export default function Register() {
         )}
         <form onSubmit={ev => { ev.preventDefault(); verify() }} className="space-y-3">
           <div>
-            <label className="label" htmlFor="vt">Token verifikasi</label>
-            <input id="vt" className="input" required value={tokenInput}
+            <label className="auth-label" htmlFor="vt">Token verifikasi</label>
+            <input id="vt" className="auth-input" required value={tokenInput}
               onChange={e => setTokenInput(e.target.value)} placeholder="Kode dari email" />
           </div>
-          <button type="submit" className="btn-primary w-full" disabled={busy}>
+          <button type="submit" className="btn-primary flex h-10 w-full items-center justify-center rounded-lg" disabled={busy}>
             {busy ? 'Memverifikasi…' : 'Verifikasi Email'}
           </button>
         </form>
@@ -91,40 +91,40 @@ export default function Register() {
     <AuthShell title="Buat akun sekolah Anda" subtitle="Anda akan menjadi Admin Sekolah untuk lembaga Anda.">
       <form onSubmit={submit} className="space-y-3">
         <div>
-          <label className="label" htmlFor="fn">Nama lengkap</label>
-          <input id="fn" className="input" required value={form.full_name} onChange={set('full_name')} placeholder="Budi Santoso" />
+          <label className="auth-label" htmlFor="fn">Nama lengkap</label>
+          <input id="fn" className="auth-input" required value={form.full_name} onChange={set('full_name')} placeholder="Budi Santoso" />
         </div>
         <div>
-          <label className="label" htmlFor="em">Email</label>
-          <input id="em" className="input" type="email" required value={form.email} onChange={set('email')} placeholder="guru@sekolah.sch.id" />
+          <label className="auth-label" htmlFor="em">Email</label>
+          <input id="em" className="auth-input" type="email" required value={form.email} onChange={set('email')} placeholder="guru@sekolah.sch.id" />
         </div>
         <div>
-          <label className="label" htmlFor="ph">Nomor HP <span className="font-normal">(opsional)</span></label>
-          <input id="ph" className="input" type="tel" value={form.phone} onChange={set('phone')} placeholder="0812…" />
+          <label className="auth-label" htmlFor="ph">Nomor HP <span className="font-normal">(opsional)</span></label>
+          <input id="ph" className="auth-input" type="tel" value={form.phone} onChange={set('phone')} placeholder="0812…" />
         </div>
         <div>
-          <label className="label" htmlFor="sn">Nama sekolah/lembaga</label>
-          <input id="sn" className="input" required value={form.school_name} onChange={set('school_name')} placeholder="SMK Negeri 1" />
+          <label className="auth-label" htmlFor="sn">Nama sekolah/lembaga</label>
+          <input id="sn" className="auth-input" required value={form.school_name} onChange={set('school_name')} placeholder="SMK Negeri 1" />
         </div>
         <div>
-          <label className="label" htmlFor="lv">Jenjang</label>
-          <select id="lv" className="input" value={form.school_level} onChange={set('school_level')}>
+          <label className="auth-label" htmlFor="lv">Jenjang</label>
+          <select id="lv" className="auth-input" value={form.school_level} onChange={set('school_level')}>
             {LEVELS.map(l => <option key={l} value={l}>{l}</option>)}
           </select>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <label className="label" htmlFor="pw">Password</label>
-            <input id="pw" className="input" type="password" required autoComplete="new-password"
+            <label className="auth-label" htmlFor="pw">Password</label>
+            <input id="pw" className="auth-input" type="password" required autoComplete="new-password"
               value={form.password} onChange={set('password')} placeholder="min. 8 karakter" />
           </div>
           <div>
-            <label className="label" htmlFor="pwc">Ulangi password</label>
-            <input id="pwc" className="input" type="password" required autoComplete="new-password"
+            <label className="auth-label" htmlFor="pwc">Ulangi password</label>
+            <input id="pwc" className="auth-input" type="password" required autoComplete="new-password"
               value={form.confirm} onChange={set('confirm')} placeholder="ulangi" />
           </div>
         </div>
-        <button type="submit" className="btn-primary w-full" disabled={busy}>
+        <button type="submit" className="btn-primary flex h-10 w-full items-center justify-center rounded-lg" disabled={busy}>
           {busy ? 'Mendaftarkan…' : 'Daftar'}
         </button>
       </form>

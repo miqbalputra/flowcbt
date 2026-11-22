@@ -36,11 +36,11 @@ export default function Forgot() {
     <AuthShell title="Lupa password" subtitle="Masukkan email Anda — kami kirim tautan untuk mengatur ulang password.">
       <form onSubmit={submit} className="space-y-3">
         <div>
-          <label className="label" htmlFor="email">Email</label>
-          <input id="email" className="input" type="email" required value={email}
+          <label className="auth-label" htmlFor="email">Email</label>
+          <input id="email" className="auth-input" type="email" required value={email}
             onChange={e => setEmail(e.target.value)} placeholder="guru@sekolah.sch.id" />
         </div>
-        <button type="submit" className="btn-primary w-full" disabled={busy}>
+        <button type="submit" className="btn-primary flex h-10 w-full items-center justify-center rounded-lg" disabled={busy}>
           {busy ? 'Mengirim…' : 'Kirim Tautan Reset'}
         </button>
       </form>

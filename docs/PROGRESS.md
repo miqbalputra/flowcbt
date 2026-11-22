@@ -788,6 +788,45 @@ per siswa di tabel terlihat rusak.
 - Audit regresi 15 halaman guru + mobile + peserta: **0 error konsol,
   0 HTTP >=400**; `tsc` + `npm run build` hijau.
 
+## Tambahan 2026-11-23 (putaran 19 — login mengikuti pola referensi tebar.app)
+
+**Masukan pengguna**: desain putaran 18 dinilai "jelek norak"; jadikan
+seperti `publish.tebar.app/login`, konten disesuaikan FlowCBT.
+
+### Acuan yang diamati langsung dari referensi (Playwright)
+Split `_1.1fr_1fr_`; panel kiri charcoal `oklch(0.18 0.004 286)` dengan
+surface-texture 30% + judul 44px + mock percakapan produk (bubble user
+rounded-2xl/rounded-br-md + kartu jawaban + strip ikon) + animasi rise
+bertingkat; kanan TANPA card — formulir terbuka max-w-sm, input kompak
+rounded-lg, toggle mata password, tombol utama penuh.
+
+### Implementasi
+- **styles.css**: `.auth-visual` diganti tekstur dot-matrix samar (mengganti
+  grid blueprint), animasi `@keyframes rise` + `.animate-rise/.rise-1/2/3`
+  (hormati `prefers-reduced-motion`), `.auth-input` (h-40px rounded-lg,
+  focus ring lembut), `.auth-alt` (tombol sekunder full), `.auth-divider`
+  (garis + teks "atau").
+- **AuthShell**: pola tebar — panel kiri = eyebrow + headline 46px
+  "Ujian sekolah, rapi terkendali." + paragraf + **mock percakapan
+  FlowCBT** (permintaan guru → jawaban sistem: paket siap, jadwal 84
+  peserta, kartu PDF) + 2 kartu statistik mini (pantauan live 28/84,
+  sisa waktu) + strip fitur; kanan = logo + ThemeToggle, judul 28px,
+  formulir tanpa card, footnote keamanan. Register/forgot/reset ikut
+  naik kelas (auth-input/auth-label/tombol h-10).
+- **Login**: tombol "Coba cepat — akun demo guru" ala tombol Google
+  referensi → pembatas "atau masuk manual" → email/password (toggle mata
+  kanan, Caps Lock, alert berikon, spinner) → "Belum punya akun? Daftar
+  sekolah" + klausul kecil.
+
+### Verifikasi (Playwright)
+- Struktur terukur: aside tampil ≥lg; h1 kiri 46px; judul kanan 28px
+  "Selamat datang kembali"; input 40px; bubble mock 422×58 /
+  kartu 480×128; form TANPA card; toggle → `type=text`; demo fill;
+  login salah → alert; login benar → Dashboard; mobile 375 tanpa
+  overflow; dark mode hijau.
+- Audit regresi 15 halaman guru + mobile + peserta: **0 error konsol,
+  0 HTTP >=400**; `tsc` + `npm run build` hijau.
+
 ## Remaining backlog (P1/P2, tidak memblokir MVP)
 
 - E2E PWA offline di browser nyata (Playwright), uji beban k6.
