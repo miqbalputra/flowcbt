@@ -21,7 +21,7 @@ const CARD = {
   exam: 'Tryout Numerasi #1',
   code: 'DEMO01',
   token: 'L4EJXB',
-  no: 'TA-26-03-10-0028-0001-2',
+  no: 'TS26-7K4Q-9',
   name: 'Bunga Lestari · XI IPA 1',
 }
 

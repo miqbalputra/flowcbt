@@ -942,6 +942,50 @@ kartu ujian) dalam satu halaman.
   tanpa overflow ✓; audit 15 halaman + peserta: **0 error, 0 HTTP
   >=400**; `tsc` + build hijau.
 
+## Tambahan 2026-11-23 (putaran 24 — nomor peserta pendek tapi aman)
+
+**Masukan pengguna**: nomor peserta terlalu panjang; buat lebih sederhana
+namun tetap aman.
+
+### Format lama → baru
+- **Lama**: `TA-26-03-10-0028-0001-2` (22 char) — wilayah+sekolah+urutan
+  sekuensial 4 digit; kartu tercetak memanjang dan urutan nomor mudah
+  ditebak antar peserta.
+- **Baru**: **`TS26-NWY0-G`** (11 char) — `TS<yy>` tahun + **4 karakter
+  ACAK** alfabet Crockford base32 (tanpa I/L/O/U anti salah baca;
+  32⁴ ≈ 1,05 juta kombinasi, tidak sekuensial) + **1 karakter cek**
+  Luhn-32 berbobot ganjil [1,3,5,7,9,11,13,15] — bobot koprima dengan
+  32 sehingga substitusi satu karakter PASTI terdeteksi (dibuktikan
+  unit test tamper; implementasi awal berbobot 2/1 lolos delta ±16
+  pada posisi berbobot 2 — ditemukan oleh test, lalu diperbaiki).
+- Keamanan berlapis tetap utuh: token ujian (rahasia per-ujian) +
+  rate-limit lookup + nomor acak + pencocokan eksak di DB. Karakter
+  cek hanya UX (pesan typo jelas), bukan satu-satunya pengaman.
+- **Kompabilitas**: nomor lama `TA-…` tetap sah (exact-match di DB);
+  input siswa tetap bebas strip/spasi/kapital (`normalizeCardNumber`).
+
+### Perubahan kode
+- `cards/data.go`: buildNumber baru (crypto/rand), `checkChar32`,
+  `ValidateParticipantNumber` (exported), `ensureNumbers` tanpa sekuens
+  (retry 16× bila tabrakan acak), legacy sequence/luhn tetap utk nomor
+  lama yang sudah tersimpan.
+- `students/auth_student.go`: cardLookup & guestLogin memberi pesan
+  spesifik `CARD_TYPO` ("Periksa penulisan nomor peserta — satu
+  karakter salah") bila check char tidak cocok — sebelum "tidak
+  terdaftar" (membingungkan).
+- `cards/number_test.go` (baru): format 2000 sampel + validitas check,
+  tamper semua substitusi tertangkap, nomor lama ditolak validator TS.
+- FE: placeholder & mock kartu contoh `TS26-7K4Q-9`.
+- DEMO01 **renumber** → 30 kartu baru (Ahmad Fauzi = TS26-NWY0-G, dst).
+
+### Verifikasi
+- `go test ./internal/cards` PASS (3/3). Lookup API e2e: nomor baru ✓;
+  input tanpa strip ✓; typo check → CARD_TYPO ✓; PDF kartu 200 (121KB)
+  ✓; UI /s/login (tab kartu default) → "Kartu valid — identitas
+  otomatis: Ahmad Fauzi" ✓; pesan typo tampil di UI ✓.
+- Audit 15 halaman + peserta: **0 error, 0 HTTP >=400**; tsc + build
+  FE + build Go hijau; API direstart.
+
 ## Remaining backlog (P1/P2, tidak memblokir MVP)
 
 - E2E PWA offline di browser nyata (Playwright), uji beban k6.

@@ -108,7 +108,7 @@ export function GuestForm() {
         mono
         value={card}
         onChange={e => setCard(e.target.value.toUpperCase())}
-        placeholder="TA-26-03-10-0028-0001-2"
+        placeholder="mis. TS26-7K4Q-9"
         autoComplete="off"
         hint={looking ? 'Memeriksa kartu…' : undefined}
       />

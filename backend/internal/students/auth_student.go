@@ -3,6 +3,7 @@ package students
 import (
 	"context"
 	"errors"
+	"flowcbt/backend/internal/cards"
 	"net/http"
 	"strings"
 	"time"
@@ -220,6 +221,10 @@ func (m *Module) studentGuest(w http.ResponseWriter, r *http.Request) {
 	// (nomor peserta pada kartu = kunci). Tidak perlu nama/NIS manual.
 	var cardStudent *studentLoginRow
 	if cardNumber != "" {
+		if participantNumberMalformed(cardNumber) {
+			httpx.Error(w, httpx.NewErr(400, "CARD_TYPO", "Periksa penulisan nomor peserta — satu karakter salah"))
+			return
+		}
 		cardStudent, err = m.findCardStudent(r.Context(), examID, examTenantID, cardNumber)
 		if err != nil {
 			httpx.Error(w, err)
@@ -345,6 +350,16 @@ func (m *Module) studentGuest(w http.ResponseWriter, r *http.Request) {
 
 // findCardStudent — cari siswa dari nomor kartu ujian (exam_cards.exam_id + number).
 // Mengembalikan nil bila nomor tidak ada pada ujian tsb.
+// participantNumberMalformed — nomor generasi baru ("TS…") yang karakter
+// ceknya tidak cocok menandakan salah ketik; beri pesan spesifik agar
+// peserta tidak bingung antara "salah tulis" dan "kartu tidak terdaftar".
+func participantNumberMalformed(cardNumber string) bool {
+	if len(cardNumber) < 2 || cardNumber[0] != 'T' || cardNumber[1] != 'S' {
+		return false // nomor lama "TA…" / bebas — divalidasi lewat pencocokan DB
+	}
+	return !cards.ValidateParticipantNumber(cardNumber)
+}
+
 func (m *Module) findCardStudent(ctx context.Context, examID, tenantID, cardNumber string) (*studentLoginRow, error) {
 	rows, err := m.a.DB.Admin.Query(ctx, `
 		SELECT s.id::text, s.tenant_id::text, s.name, COALESCE(s.nis,''), s.gender,
@@ -411,6 +426,10 @@ func (m *Module) cardLookup(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		httpx.Error(w, err)
+		return
+	}
+	if participantNumberMalformed(cardNumber) {
+		httpx.Error(w, httpx.NewErr(400, "CARD_TYPO", "Periksa penulisan nomor peserta — satu karakter salah"))
 		return
 	}
 	s, err := m.findCardStudent(r.Context(), examID, tenantID, cardNumber)

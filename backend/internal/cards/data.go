@@ -2,6 +2,8 @@ package cards
 
 import (
 	"context"
+	crand "crypto/rand"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"net/http"
@@ -177,19 +179,104 @@ func tenantSchoolDigits(tenantID string) string {
 	return digits[len(digits)-4:]
 }
 
-// buildNumber menyusun nomor peserta gaya TKA:
-// TA-<yy>-<kode wilayah>-<kode sekolah>-<urut 4 digit>-<check digit>.
+// --- nomor peserta generasi baru: pendek, unik, sulit ditebak ---
+//
+// Format: TS<yy>-XXXX-C  → contoh "TS26-7K4Q-9" (11 huruf + 2 strip).
+// - "TS" + 2 digit tahun: panitia mudah melihat tahun kartu.
+// - XXXX: 4 karakter ACAK dari alfabet Crockford base32 (tanpa I/L/O/U,
+//   tak ambigu) = 32^4 ≈ 1,05 juta kombinasi — tidak bisa ditebak
+//   berurutan seperti nomor lama (0001, 0002, ...); keamanan berlapis
+//   dengan token ujian (rahasia) + rate-limit lookup.
+// - C: satu karakter cek (Luhn-32) untuk menangkap salah ketik.
+// Nomor lama "TA-…" (Luhn-10) tetap sah: lookup memakai pencocokan eksak.
+
+// cfAlphabet — Crockford base32 tanpa I, L, O, U (hindari salah baca).
+const cfAlphabet = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
+
+// cfValue32 mengembalikan nilai 0-31 sebuah karakter alfabet Crockford,
+// atau -1 bila di luar alfabet.
+func cfValue32(c byte) int {
+	return strings.IndexByte(cfAlphabet, c)
+}
+
+// checkChar32 — karakter cek (Luhn-32): jumlah berbobot [1,3,5,7,9,11,13,15]
+// dari kanan ke kiri, dimodul 32. Bobot seluruhnya GANJIL dan koprima
+// dengan 32, sehingga SUBSTITUSI SATU KARAKTER APA PUN pasti mengubah
+// hasil (delta maksimum 31, dan w·delta ≡ 0 (mod 32) hanya bila delta=0).
+func checkChar32(payload string) byte {
+	weights := [8]int{1, 3, 5, 7, 9, 11, 13, 15}
+	sum, k := 0, 0
+	for i := len(payload) - 1; i >= 0; i-- {
+		v := cfValue32(payload[i])
+		if v < 0 {
+			v = int(payload[i]) % 32
+		}
+		sum += v * weights[k%len(weights)]
+		k++
+	}
+	return cfAlphabet[sum%32]
+}
+
+// randChars32 — n karakter acak (crypto/rand) dari alfabet Crockford.
+func randChars32(n int) string {
+	b := make([]byte, n)
+	for i := range b {
+		b[i] = cfAlphabet[randIntN(len(cfAlphabet))]
+	}
+	return string(b)
+}
+
+func randIntN(n int) int {
+	if n <= 1 {
+		return 0
+	}
+	max := ^uint64(0) - (^uint64(0) % uint64(n))
+	var v uint64
+	for {
+		if err := binary.Read(crand.Reader, binary.BigEndian, &v); err == nil {
+			if v < max {
+				return int(v % uint64(n))
+			}
+		} else {
+			// fallback deterministik lemah bila rand gagal (nyaris tak terjadi)
+			return int(time.Now().UnixNano()>>8) % n
+		}
+	}
+}
+
+// buildNumber menyusun NOMOR PESERTA generasi baru: TS<yy>-XXXX-C.
+// (p dan seq tidak terpakai lagi; dipertahankan untuk kompatibilitas
+// penanda di tanda tangan lama bila ada pemanggil lain.)
 func buildNumber(p *schoolProfile, tenantID string, year int, seq int) string {
-	region := strings.TrimSpace(p.RegionCode)
-	if digitsOnly(region) == "" {
-		region = "00-00"
+	payload := fmt.Sprintf("TS%02d%s", year%100, randChars32(4))
+	ck := checkChar32(payload)
+	return fmt.Sprintf("%s-%s-%c", payload[:4], payload[4:], ck)
+}
+
+// ValidateParticipantNumber memeriksa nomor generasi baru "TS..": panjang
+// dan karakter cek. Nomor lama "TA.." bukan tanggung jawab fungsi ini.
+func ValidateParticipantNumber(number string) bool {
+	s := normalizeAlnum(number)
+	if len(s) != 9 || s[0] != 'T' || s[1] != 'S' {
+		return false
 	}
-	school := strings.TrimSpace(p.SchoolCode)
-	if digitsOnly(school) == "" {
-		school = tenantSchoolDigits(tenantID)
+	for i := 2; i < 9; i++ {
+		if cfValue32(s[i]) < 0 {
+			return false
+		}
 	}
-	base := fmt.Sprintf("TA-%02d-%s-%s-%04d", year%100, region, school, seq)
-	return base + "-" + luhnDigit(base)
+	return s[8] == checkChar32(s[:8])
+}
+
+// normalizeAlnum — huruf besar + hanya alfanumerik (untuk validasi).
+func normalizeAlnum(s string) string {
+	var b strings.Builder
+	for _, r := range strings.ToUpper(s) {
+		if (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
 }
 
 // sequenceOf mengambil nomor urut dari nomor peserta (grup "0001").
@@ -220,7 +307,6 @@ func ensureNumbers(ctx context.Context, tx pgx.Tx, tenantID, examID string, meta
 	}
 
 	existing := map[string]string{}
-	nextSeq := 0
 	crows, err := tx.Query(ctx, `SELECT student_id::text, number FROM exam_cards WHERE exam_id=$1`, examID)
 	if err != nil {
 		return err
@@ -232,9 +318,6 @@ func ensureNumbers(ctx context.Context, tx pgx.Tx, tenantID, examID string, meta
 			return err
 		}
 		existing[sid] = number
-		if s := sequenceOf(number); s > nextSeq {
-			nextSeq = s
-		}
 	}
 	crows.Close()
 	if err := crows.Err(); err != nil {
@@ -247,23 +330,24 @@ func ensureNumbers(ctx context.Context, tx pgx.Tx, tenantID, examID string, meta
 			rows[i].Number = n
 			continue
 		}
-		for attempt := 0; attempt < 8; attempt++ {
-			nextSeq++
-			number := buildNumber(profile, tenantID, year, nextSeq)
+		placed := false
+		for attempt := 0; attempt < 16 && !placed; attempt++ {
+			number := buildNumber(profile, tenantID, year, 0)
 			_, err := tx.Exec(ctx,
 				`INSERT INTO exam_cards(tenant_id, exam_id, student_id, number) VALUES ($1,$2,$3,$4)`,
 				tenantID, examID, rows[i].StudentID, number)
 			if err == nil {
 				rows[i].Number = number
 				existing[rows[i].StudentID] = number
+				placed = true
 				break
 			}
 			if !isUniqueViolation(err) {
 				return err
 			}
-			// tabrakan nomor (data lama) → lanjut ke urutan berikutnya
+			// tabrakan acak (sangat jarang) → coba nomor baru
 		}
-		if rows[i].Number == "" {
+		if !placed {
 			return fmt.Errorf("gagal mengalokasikan nomor peserta untuk %s", rows[i].StudentID)
 		}
 	}
