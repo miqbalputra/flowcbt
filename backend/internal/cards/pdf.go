@@ -2,7 +2,6 @@ package cards
 
 import (
 	"bytes"
-	_ "embed"
 	"fmt"
 	"image"
 	_ "image/gif"
@@ -30,7 +29,7 @@ import (
 //   - foto 82×109 di (11,157); teks bawah x=102.78 (baseline 167/179/253/265)
 //   - QR 60×60 di (322,205)
 const (
-	pageU = 869.0 // lebar halaman dalam unit template
+	pageU  = 869.0 // lebar halaman dalam unit template
 	cardWU = 393.0
 	cardHU = 278.0
 	fontU  = 11.0 // ukuran font template (unit)
@@ -41,9 +40,6 @@ func u(x float64) float64 { return x * 210.0 / pageU }
 
 // pt mengonversi ukuran font dari unit template ke pt (fpdf bekerja dalam pt).
 func pt(sizeU float64) float64 { return u(sizeU) * 72.0 / 25.4 }
-
-//go:embed assets/emblem.png
-var emblemPNG []byte
 
 // renderCardsPDF — dokumen PDF kartu peserta: 3 peserta per halaman, tiap peserta
 // 2 salinan (PANITIA kiri, PESERTA kanan), meniru template kartu TKA.

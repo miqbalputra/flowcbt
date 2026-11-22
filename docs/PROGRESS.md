@@ -367,8 +367,10 @@ halaman 869×1229 unit (1u = 0,2417 mm), font 11u (≈7,5pt) dengan baseline per
   **hanya pada baris pertama** — itulah kotak PANITIA/PESERTA (dulu salah: label
   peran menempel di kepala kartu).
 - Lambang **Tut Wuri Handayani** diekstrak dari template (`pdfimages`) lalu
-  di-embed (`go:embed assets/emblem.png`) dan digambar 40×40u di (6,6) —
-  menggantikan lingkaran inisial lama.
+  disimpan sebagai **base64 di `internal/cards/emblem.go`** (tool push GitHub
+  hanya bisa mengirim teks — PNG biner rusak bila dikirim mentah, karena itu
+  tidak lagi memakai `go:embed assets/emblem.png`), di-decode saat init dan
+  digambar 40×40u di (6,6) — menggantikan lingkaran inisial lama.
 - Judul kartu 3 baris bold dipusatkan (baseline 19/31/43u).
 - Tabel: label x=5,78u, kolon x=133,69u, nilai x=146,75u, baseline baris+16u,
   **tanpa garis vertikal antar kolom** (ciri khas template); nilai teks biasa
