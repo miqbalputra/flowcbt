@@ -562,6 +562,60 @@ pembahasan selalu terbuka). Guru merasa pembuatan soal membingungkan.
   Form" (`.gf-card`, `.gf-q`, `.gf-type`, `.gf-opt`, `.gf-line`, `.gf-add`,
   `.gf-more`).
 
+## Tambahan 2026-11-22 (putaran 14 — bank soal + builder naik kelas "enterprise")
+
+### Bank Soal (daftar paket) — dari tabel ke kartu
+- Tabel datar diganti **kartu** gaya daftar Google Form/GDrive (`article.qcard`):
+  badge status, waktu relatif ("3 jam lalu"), judul 2 baris + deskripsi 1 baris,
+  chip meta (mapel · kode · jumlah soal), tombol "Buka editor" + aksi ikon
+  (duplikat / export / arsip) di footer kartu.
+- **Urutkan**: Terbaru diperbarui / Judul A–Z (seleksi di toolbar).
+- Tab status, pencarian, KPI ringkasan, empty state, skeleton tetap dipertahankan.
+
+### Editor (builder) — informasi yang membantu, tetap gaya Google Form
+- KPI bertambah jadi 5: Jumlah soal, Total poin, **Estimasi waktu** (PG 1,5 ·
+  PG kompleks 2,5 · menjodohkan 2 · isian 1 · uraian 5 menit), Wacana,
+  Siap publikasi.
+- **Status simpan enterprise**: lencana kuning "Belum disimpan" muncul begitu
+  isi berubah (signature kanonik = proyeksi payload server, jadi hasil
+  muat-ulang dihitung sama), **Ctrl/Cmd+S** menyimpan cepat, setelah sukses
+  tampil "Tersimpan HH:MM", dan `beforeunload` menjaga saat tab ditutup
+  dengan perubahan belum tersimpan.
+- **Daftar masalah bisa diklik**: setiap item ("#3 Kunci jawaban PG belum
+  dipilih") menggulir + menyorot kartu soal terkait (ring biru `gf-flash`).
+- **Wacana kini bisa ditempelkan per soal** lewat Pengaturan lanjutan
+  (select "Wacana / stimulus"), tampil di kartu dengan label kecil "WACANA",
+  dan tetap ada penjelasan kecil untuk guru.
+- Kartu soal memakai `.gf-card` (aksen kiri biru ala Google Form) — sebelumnya
+  masih memakai `.panel` tanpa aksen.
+
+### Bug diperbaiki
+- `addStimulus` menyimpan wacana dengan id `local-…` → soal yang menempel
+  wacana BARU gagal divalidasi server (`stimulus_id` harus UUID). Kini id
+  ASLI hasil `POST /stimuli` yang dipakai (verifikasi: tempel → simpan →
+  reload → label WACANA + isi teks + select terisi UUID).
+- `question.stimuli_id` vs `stimulus_id` tidak konsisten (wacana dari server
+  tidak pernah tampil di kartu). Keduanya dinormalisasi saat muat.
+- Signature kotor membandingkan mentahan objek → form tampak "belum
+  disimpan" padahal tidak; kini membandingkan proyeksi kanonik + baseline
+  di-reset saat data termuat.
+
+### Verifikasi (Playwright)
+- Bank soal: kartu termuat, chip meta 3/kartu, urut judul vs terbaru mengubah
+  urutan, klik judul → editor, tanpa overflow 375 px.
+- Editor: toast ramah "Soal 1: pilih kunci jawaban…" tanpa HTTP ≥400 (divalidasi
+  klien); klik masalah → kartu disorot; pilih kunci → "Belum disimpan" muncul →
+  Ctrl+S → hilang + "Tersimpan 21:52"; wacana ditempel → simpan → reload:
+  label WACANA + teks stimulus + select terisi UUID.
+- Alur 5 tipe (buat → isi → simpan → reload) tetap hijau; audit guru 1280/375
+  0 error konsol, 0 HTTP ≥400; `tsc -b`, `npm run build` hijau.
+
+### Berkas
+- `frontend/src/guru/qsets.tsx` — grid kartu, sort, waktu relatif.
+- `frontend/src/guru/qsets/editor.tsx` — KPI estimasi, status simpan (sigRef),
+  Ctrl+S, beforeunload, lompat masalah, wacana per soal, gf-card.
+- `frontend/src/styles.css` — `.qcard`, `.dirty-dot`, `.qsaved`, `.gf-flash`.
+
 ## Remaining backlog (P1/P2, tidak memblokir MVP)
 
 - E2E PWA offline di browser nyata (Playwright), uji beban k6.

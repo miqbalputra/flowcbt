@@ -6,7 +6,7 @@
 // v3 "Portal Ujian": kepala halaman + aksi, panel info/wacana/publikasi, daftar soal
 //     yang bisa diurutkan (seret pegangan atau tombol naik/turun), tiap soal = panel
 //     editor dengan field berlabel + chip tipe soal.
-import { useMemo, useState, type ChangeEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
 import { flushSync } from 'react-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams } from 'react-router-dom'
@@ -26,9 +26,12 @@ import {
 import { autoCapitalize, escapeHtml, htmlToText, renderInline, renderRich } from '@/lib/sanitize'
 import { RichEditor } from '@/components/RichEditor'
 import {
-  IconBank, IconBook, IconCheck, IconChevronDown, IconChevronUp, IconClipboard, IconCopy, IconEye,
+  IconBank, IconBook, IconCheck, IconChevronDown, IconChevronUp, IconClipboard, IconClock, IconCopy, IconEye,
   IconMenu, IconPlus, IconTrash, IconWarn, IconX,
 } from '@/components/icons'
+
+/** Estimasi waktu pengerjaan per tipe (menit) — informasi bantu guru. */
+const EST_MIN: Record<string, number> = { pg: 1.5, pg_kompleks: 2.5, menjodohkan: 2, isian: 1, uraian: 5 }
 
 let uid = 0
 function newQuestion(type: QType): Dict {
@@ -94,6 +97,12 @@ function fromServerQuestion(raw: Dict): Dict {
   const type = FROM_SERVER[String(q.type ?? '')] ?? 'pg'
   const key = asDict(q.answer_key)
   q.type = type
+  // wacana: backend memakai stimulus_id; editor membaca keduanya (aman)
+  const sid = String(q.stimulus_id ?? q.stimuli_id ?? '')
+  if (sid) {
+    q.stimulus_id = sid
+    q.stimuli_id = sid
+  }
   // Badan soal masuk kotak berformat: teks lama tanpa tag dirapikan jadi
   // paragraf/daftar sungguhan, HTML lama disanitasi (allowlist) — tanpa tag terlihat.
   q.body = renderRich(String(q.body ?? ''))
@@ -139,6 +148,13 @@ export default function QsetEditor() {
   const [dragOver, setDragOver] = useState<number | null>(null)
   // panel "Pengaturan lanjutan" per soal (default tertutup → kartu tetap ringkas)
   const [adv, setAdv] = useState<Record<string, boolean>>({})
+  // status simpan: tanda "belum disimpan" + waktu simpan terakhir (enterprise)
+  const [savedAt, setSavedAt] = useState<Date | null>(null)
+  const [dirty, setDirty] = useState(false)
+  const sigRef = useRef('')
+  const savedSigRef = useRef<string | null>(null)
+  // kartu soal yang sedang ditonjolkan dari daftar masalah
+  const [focusCard, setFocusCard] = useState<number | null>(null)
 
   const detail = useQuery({
     queryKey: ['question-set', id],
@@ -185,6 +201,46 @@ export default function QsetEditor() {
   }
   if (detail.isError && filled) { /* biarkan ErrorBox tampil */ }
 
+  // tanda "Belum disimpan": signature = proyeksi kanonik (payload yang akan
+  // dikirim ke server), bukan mentahan objek — supaya hasil muat-ulang dari
+  // server dan keadaan lokal yang sama dihitung SAMA (id/_uid diabaikan).
+  useEffect(() => {
+    const ready = isNew || filled
+    if (!ready) return
+    const sig = JSON.stringify({
+      i: {
+        s: String(info.subject_name ?? '').trim(),
+        t: String(info.title ?? '').trim(),
+        d: String(info.description ?? '').trim(),
+        g: asList(info.level_tags).map(String).filter(Boolean).join(','),
+      },
+      q: questions.map(q => {
+        const p = { ...questionPayload({ ...asDict(q), id: undefined }) }
+        delete p.id
+        return p
+      }),
+    })
+    sigRef.current = sig
+    if (savedSigRef.current === null) {
+      savedSigRef.current = sig
+      setDirty(false)
+      return
+    }
+    setDirty(savedSigRef.current !== sig)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [info, questions, filled])
+
+  // jangan hilang begitu: penjaga saat menutup tab dengan perubahan belum tersimpan
+  useEffect(() => {
+    if (!dirty) return
+    const onLeave = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', onLeave)
+    return () => window.removeEventListener('beforeunload', onLeave)
+  }, [dirty])
+
   function patchQuestion(i: number, patch: Dict) {
     setQuestions(qs => qs.map((q, j) => (j === i ? { ...q, ...patch } : q)))
   }
@@ -214,6 +270,14 @@ export default function QsetEditor() {
     )
   }
 
+  /** Tonjolkan kartu soal bermasalah: gulir + sorot ring biru sesaat. */
+  function jumpTo(no: number) {
+    const idx = no - 1
+    setFocusCard(idx)
+    document.getElementById(`qcard-${idx}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    window.setTimeout(() => setFocusCard(null), 1400)
+  }
+
   function move(i: number, dir: -1 | 1) {
     setQuestions(qs => {
       const j = i + dir
@@ -240,14 +304,14 @@ export default function QsetEditor() {
   async function addStimulus() {
     if (!stimOpen || isNew) return
     try {
-      await send(`/question-sets/${id}/stimuli`, { title: stimOpen.title, content: stimOpen.content }, 'POST')
+      const created = unwrap(await send(`/question-sets/${id}/stimuli`, { title: stimOpen.title, content: stimOpen.content }, 'POST'))
       toast('Wacana ditambahkan', 'success')
       setStimOpen(null)
       void qc.invalidateQueries({ queryKey: ['question-set', id] })
-      if (detail.data) {
-        // deretan lokal tetap diperbarui agar instan
-        setStimuli(prev => [...prev, { id: `local-${Date.now()}`, title: stimOpen.title, content: stimOpen.content }])
-      }
+      // deretan lokal tetap diperbarui agar instan — pakai ID ASLI hasil POST
+      // (dulu `local-N` sehingga soal yang menempel wacana baru gagal validasi uuid).
+      const realId = String(asDict(created).id ?? '')
+      setStimuli(prev => [...prev, { id: realId || `local-${Date.now()}`, title: stimOpen.title, content: stimOpen.content }])
     } catch (err) {
       toast(errMessage(err), 'error')
     }
@@ -295,7 +359,7 @@ export default function QsetEditor() {
       points: Number(q.points) || 1,
       explanation: String(q.explanation ?? ''),
     }
-    if (q.stimulus_id) payload.stimulus_id = q.stimulus_id
+    if (q.stimulus_id ?? q.stimuli_id) payload.stimulus_id = String(q.stimulus_id ?? q.stimuli_id)
     if (type === 'pg' || type === 'pg_kompleks') {
       const { options, relabel } = compactOptions(q)
       payload.options = options
@@ -425,6 +489,10 @@ export default function QsetEditor() {
       return setId
     },
     onSuccess: (setId, vars) => {
+      // signature form sekarang = tersimpan (hapus tanda "belum disimpan")
+      savedSigRef.current = sigRef.current
+      setDirty(false)
+      setSavedAt(new Date())
       toast(vars?.publish ? 'Paket soal dipublish' : 'Draft tersimpan', 'success')
       void qc.invalidateQueries({ queryKey: ['question-sets'] })
       void qc.invalidateQueries({ queryKey: ['question-set', setId] })
@@ -445,6 +513,19 @@ export default function QsetEditor() {
   }
 
   const busy = save.isPending
+
+  // Ctrl/Cmd+S = simpan draft cepat (tanpa perlu cari tombol)
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault()
+        if (!busy) save.mutate({})
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [busy])
 
   if (!isNew && detail.isLoading) {
     return (
@@ -479,6 +560,7 @@ export default function QsetEditor() {
     .filter(p => p.message !== '')
   const readyCount = questions.length - problemList.length
   const totalPoints = questions.reduce((n, q) => n + (Number(q.points) || 1), 0)
+  const estMinutes = Math.round(questions.reduce((n, q) => n + (EST_MIN[String(q.type)] ?? 2), 0))
   const infoWarning = infoProblem()
 
   return (
@@ -486,10 +568,19 @@ export default function QsetEditor() {
       <PageHeader
         eyebrow={isNew ? 'Bank Soal · Paket Baru' : 'Bank Soal · Editor Paket'}
         title={isNew ? 'Paket Soal Baru' : 'Editor Paket Soal'}
-        desc={isNew ? 'Susun soal AKM: PG, PG kompleks, menjodohkan, isian, uraian.' : `Kode ujian: ${existing?.exam_code ?? '—'}`}
+        desc={isNew ? 'Susun soal AKM: PG, PG kompleks, menjodohkan, isian, uraian · Ctrl+S menyimpan cepat.' : `Kode ujian: ${existing?.exam_code ?? '—'} · Ctrl+S menyimpan cepat.`}
         icon={<IconBank size={18} />}
         action={
           <>
+            {dirty ? (
+              <span className="dirty-dot" role="status">
+                <IconWarn size={11} /> Belum disimpan
+              </span>
+            ) : savedAt ? (
+              <span className="qsaved">
+                <IconCheck size={12} /> Tersimpan {savedAt.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+              </span>
+            ) : null}
             {!isNew && (
               <span className="hidden sm:inline-flex">
                 <StatusBadge status={loadedStatus} />
@@ -515,9 +606,10 @@ export default function QsetEditor() {
       />
 
       {/* ---- KPI paket ---- */}
-      <div className="grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-3 xl:grid-cols-5">
         <StatCard label="Jumlah soal" value={String(questions.length)} hint="butir dalam paket" tone="primary" icon={<IconClipboard size={14} />} />
         <StatCard label="Total poin" value={String(totalPoints)} hint="bobot seluruh soal" icon={<IconCheck size={14} />} />
+        <StatCard label="Estimasi waktu" value={`${estMinutes} mnt`} hint="PG 1,5 · kompleks 2,5 · uraian 5 mnt" icon={<IconClock size={14} />} />
         <StatCard label="Wacana" value={String(stimuli.length)} hint="stimulus dibagikan" icon={<IconBook size={14} />} />
         <StatCard
           label="Siap publikasi"
@@ -673,13 +765,19 @@ export default function QsetEditor() {
               {problemList.length > 0 ? (
                 <Callout tone="warn" title={`${problemList.length} soal belum siap terbit`}>
                   <ul className="mt-1 space-y-0.5">
-                    {problemList.slice(0, 3).map(p => (
+                    {problemList.slice(0, 5).map(p => (
                       <li key={p.no}>
-                        <span className="mono font-semibold">#{p.no}</span> {p.message}
+                        <button
+                          type="button"
+                          className="text-left font-semibold underline decoration-primary/40 underline-offset-2 hover:!text-primary"
+                          onClick={() => jumpTo(p.no)}
+                        >
+                          <span className="mono">#{p.no}</span> {p.message}
+                        </button>
                       </li>
                     ))}
-                    {problemList.length > 3 && (
-                      <li className="text-muted">dan {problemList.length - 3} soal lainnya…</li>
+                    {problemList.length > 5 && (
+                      <li className="text-muted">dan {problemList.length - 5} soal lainnya…</li>
                     )}
                   </ul>
                 </Callout>
@@ -754,8 +852,9 @@ export default function QsetEditor() {
           return (
             <section
               key={String(question._uid ?? qi)}
+              id={`qcard-${qi}`}
               aria-label={`Soal ${qi + 1} — ${qtypeLabel(type)}`}
-              className={`panel ${dragging ? 'opacity-60' : ''} ${dragOver === qi && dragFrom !== null && dragFrom !== qi ? 'border-primary' : ''}`}
+              className={`gf-card ${dragging ? 'opacity-60' : ''} ${focusCard === qi ? 'gf-flash' : ''} ${dragOver === qi && dragFrom !== null && dragFrom !== qi ? '!border-primary' : ''}`}
               onDragOver={e => {
                 if (dragFrom === null) return
                 e.preventDefault()
@@ -821,10 +920,15 @@ export default function QsetEditor() {
               {/* isi kartu: pertanyaan → tipe → jawaban → pengaturan */}
               <div className="px-2.5 pb-2 sm:px-4 sm:pb-3">
                 {stimulus && (
-                  <div
-                    className="rich-text mb-2 rounded border border-border bg-canvas px-2 py-1.5 text-[12px] leading-relaxed"
-                    dangerouslySetInnerHTML={{ __html: stimulus }}
-                  />
+                  <div className="mb-2 rounded border border-border bg-canvas px-2 py-1.5">
+                    <span className="mb-1 flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-muted">
+                      <IconBook size={11} /> Wacana
+                    </span>
+                    <div
+                      className="rich-text text-[12px] leading-relaxed"
+                      dangerouslySetInnerHTML={{ __html: stimulus }}
+                    />
+                  </div>
                 )}
 
                 <div className="gf-q">
@@ -1041,6 +1145,26 @@ export default function QsetEditor() {
                 {/* pengaturan lanjutan (tertutup default supaya kartu ringkas) */}
                 {Boolean(adv[String(question._uid ?? qi)]) && (
                   <div className="mt-2 grid grid-cols-1 gap-2 border-t border-border pt-2 sm:grid-cols-2">
+                    <div className="sm:col-span-2">
+                      <label className="label" htmlFor={`stim-${qi}`}>Wacana / stimulus</label>
+                      <select
+                        id={`stim-${qi}`} className="input !min-h-9"
+                        value={String(question.stimuli_id ?? '')}
+                        aria-label={`Wacana soal ${qi + 1}`}
+                        onChange={e =>
+                          patchQuestion(qi, { stimuli_id: e.target.value || undefined, stimulus_id: e.target.value || undefined })}
+                      >
+                        <option value="">Tanpa wacana — soal berdiri sendiri</option>
+                        {stimuli.map((st, si) => (
+                          <option key={String(st.id ?? si)} value={String(st.id ?? '')}>{String(st.title ?? 'Wacana')}</option>
+                        ))}
+                      </select>
+                      <p className="hint mt-1">
+                        {stimuli.length
+                          ? 'Teks wacana tampil di atas soal saat ujian. Kelola daftarnya di panel Wacana (kiri).'
+                          : 'Belum ada wacana — tambahkan lewat panel Wacana di kiri.'}
+                      </p>
+                    </div>
                       <div>
                         <label className="label" htmlFor={`pts-${qi}`}>Poin soal</label>
                         <input

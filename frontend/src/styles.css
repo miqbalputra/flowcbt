@@ -698,6 +698,40 @@ input[type="checkbox"], input[type="radio"] {
 .gf-more { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.75rem; font-weight: 600; color: var(--c-muted); }
 .gf-more:hover { color: var(--c-text); }
 
+
+/* ============================================================
+   BANK SOAL — kartu paket (gaya daftar Google Form/GDrive)
+   ============================================================ */
+.qcard {
+  display: flex;
+  flex-direction: column;
+  padding: 0.875rem 1rem 0.75rem;
+  border: 1px solid var(--c-border);
+  border-radius: 10px;
+  background: var(--c-surface);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.qcard:hover { border-color: var(--c-primary-line); box-shadow: 0 1px 3px rgb(60 64 67 / 14%); }
+.qcard:focus-within { border-color: var(--c-primary); }
+
+/* Lencana "belum disimpan" + waktu simpan terakhir */
+.dirty-dot {
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  padding: 0.15rem 0.5rem; border-radius: 999px;
+  border: 1px solid var(--c-warn-line, #f0d78c);
+  background: color-mix(in oklab, var(--c-warn, #b45309) 12%, transparent);
+  color: var(--c-warn, #b45309);
+  font-size: 0.6875rem; font-weight: 700;
+}
+.qsaved { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.6875rem; color: var(--c-muted); }
+
+/* ring saat kartu soal dititip dari daftar masalah */
+.gf-flash { animation: gf-flash 1.2s ease-out; }
+@keyframes gf-flash {
+  0% { box-shadow: 0 0 0 3px color-mix(in oklab, var(--c-primary) 45%, transparent); }
+  100% { box-shadow: 0 0 0 3px transparent; }
+}
+
 /* pangkat pada tampilan soal siswa */
 .rich-text sup, .rich-text sub { font-size: 0.75em; }
 
