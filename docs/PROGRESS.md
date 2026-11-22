@@ -728,6 +728,35 @@ per siswa di tabel terlihat rusak.
 - Audit regresi 15 halaman guru + 4 halaman mobile + alur peserta: 0 error,
   0 HTTP ≥400, tanpa 404/overflow; `tsc -b` + `npm run build` hijau.
 
+## Tambahan 2026-11-23 (putaran 17 — menu "Anti-Curang" + ringkasan lintas ujian)
+
+**Masukan pengguna**: fitur anti-curang sudah ada tapi tidak terlihat di menu
+(hanya bisa diakses lewat Detail Ujian). Diminta menu tersendiri.
+
+### Yang dibuat
+- **Backend** `GET /exams/cheating-summary` (`handlers_cheating_summary.go`):
+  satu endpoint ringkas per ujian (peserta, pelanggar, pelanggaran, warned,
+  flagged, poin penalti, flag anti-cheat aktif) + agregat jenis pelanggaran
+  (tab_hidden/blur/fullscreen_exit/camera_off/...) + totals. Route statis
+  chi didaftarkan sebelum `/{examID}` sehingga tidak bentrok.
+- **Halaman baru** `/cheating` (`frontend/src/guru/cheating.tsx`): kartu totals
+  (dilaporkan curang / diperingatkan / peristiwa / poin penalti — tone
+  berubah hanya saat nilainya > 0), tabel "Perlu ditindak" per ujian dengan
+  tombol ke laporan per-ujian, panel jenis pelanggaran (bar proporsional),
+  daftar "Ujian tanpa temuan" + chip anti-curang aktif/mati.
+- **Menu**: grup ANALITIK sidebar → "Anti-Curang" (IconShield); muncul juga
+  di sheet "Lainnya" mobile; breadcrumb titleFor `Anti-Curang`; route
+  `/cheating` di App.tsx.
+
+### Verifikasi (Playwright, data demo DEMO01)
+- Sidebar menampilkan menu Anti-Curang; klik → `/cheating` h1 "Anti-Curang";
+  data live: 1 diperingatkan, 1 peristiwa, 5 penalti, "Tryout Numerasi #1"
+  DEMO01 di tabel perlu-ditindak; klik "Laporan →" → halaman
+  "Laporan Kecurangan" per ujian.
+- Mobile 375px: tanpa overflow; sheet Lainnya menampilkan Anti-Curang.
+- `go build` + `go vet` hijau; tsc hijau; audit regresi 15 halaman guru +
+  mobile + peserta: 0 error konsol, 0 HTTP >=400.
+
 ## Remaining backlog (P1/P2, tidak memblokir MVP)
 
 - E2E PWA offline di browser nyata (Playwright), uji beban k6.

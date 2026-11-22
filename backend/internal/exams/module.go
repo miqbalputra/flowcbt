@@ -53,6 +53,7 @@ func (m *Module) Routes(r chi.Router) {
 
 		r.Get("/", m.listExams)
 		r.Post("/", m.createExam)
+		r.Get("/cheating-summary", m.cheatingSummary) // static > /{examID} (chi)
 
 		r.Route("/{examID}", func(r chi.Router) {
 			r.Get("/", m.getExam)

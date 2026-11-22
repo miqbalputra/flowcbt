@@ -11,7 +11,8 @@ import { ThemeToggle } from '@/components/ThemeToggle'
 import { Modal } from '@/components/modal'
 import {
   LogoMark, IconBank, IconChart2, IconClass, IconCredit, IconDashboard,
-  IconDots, IconExam, IconLogout, IconSettings, IconStudents, IconChevronDown,
+  IconDots, IconExam, IconLogout, IconSettings, IconShield, IconStudents,
+  IconChevronDown,
 } from '@/components/icons'
 import { asDict, unwrap } from './types'
 
@@ -35,7 +36,10 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
   },
   {
     label: 'Analitik',
-    items: [{ to: '/reports', label: 'Laporan', Ico: IconChart2 }],
+    items: [
+      { to: '/reports', label: 'Laporan', Ico: IconChart2 },
+      { to: '/cheating', label: 'Anti-Curang', Ico: IconShield },
+    ],
   },
   {
     label: 'Akun',
@@ -55,10 +59,11 @@ const MOBILE_NAV = [
   { to: '/exams', label: 'Ujian', Ico: IconExam },
   { to: '/reports', label: 'Laporan', Ico: IconChart2 },
 ]
-const MORE_KEYS = ['/classes', '/question-sets', '/billing', '/settings']
+const MORE_KEYS = ['/classes', '/question-sets', '/cheating', '/billing', '/settings']
 
 function titleFor(pathname: string): string {
   const rules: [RegExp, string][] = [
+    [/^\/cheating/, 'Anti-Curang'],
     [/^\/dashboard/, 'Dashboard'],
     [/^\/classes/, 'Kelas'],
     [/^\/students\/[^/]+/, 'Profil Siswa'],
