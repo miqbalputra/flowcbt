@@ -1,19 +1,19 @@
 // Pantauan live per ujian (FR-9.2..9.5) — polling 10 detik via TanStack Query refetchInterval.
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { api } from '@/lib/api'
 import { useLiveStream, type LiveStreamStatus } from '@/lib/useLiveStream'
 import { send } from '../rpc'
 import { toast } from '@/components/toast'
 import { ConfirmDialog, Modal } from '@/components/modal'
 import {
-  Callout, Donut, EmptyState, ErrorBox, PageHeader, Panel, ProgressBar, SearchBox,
+  Callout, EmptyState, ErrorBox, PageHeader, Panel, ProgressBar, SearchBox,
   SkeletonRows, StatCard, TableToolbar,
 } from '../ui'
 import { asDict, asList, attemptStatus, errMessage, unwrap } from '../types'
 import {
-  IconChart2, IconCheck, IconClock, IconLeft, IconRefresh, IconShield,
+  IconChart2, IconCheck, IconClock, IconHistory, IconLeft, IconRefresh, IconShield,
   IconStudents, IconWifi, IconWifiOff,
 } from '@/components/icons'
 
@@ -55,10 +55,135 @@ function LivePill({ status, fetching }: { status: LiveStreamStatus; fetching: bo
   )
 }
 
+/* ---------------------------------------------------------------------------
+ * Grafik progres peserta — histogram distribusi + batang status + per kelas.
+ * Tanpa pustaka eksternal: cukup div + CSS agar tetap responsif & tajam.
+ * ------------------------------------------------------------------------- */
+
+/** Persen progres satu peserta (0 bila total soal belum diketahui). */
+function progressPct(s: Record<string, any>): number {
+  const total = Number(s.total ?? 0)
+  const answered = Number(s.answered ?? 0)
+  if (total <= 0 || answered <= 0) return 0
+  return Math.min(100, Math.round((answered / total) * 100))
+}
+
+const PROGRESS_BUCKETS: { label: string; from: number; to: number; color: string }[] = [
+  { label: '0%', from: 0, to: 0, color: 'var(--c-border-strong)' },
+  { label: '1–25%', from: 1, to: 25, color: 'var(--c-primary)' },
+  { label: '26–50%', from: 26, to: 50, color: 'var(--c-primary)' },
+  { label: '51–75%', from: 51, to: 75, color: 'var(--c-primary)' },
+  { label: '76–99%', from: 76, to: 99, color: 'var(--c-primary)' },
+  { label: '100%', from: 100, to: 100, color: 'var(--c-success)' },
+]
+
+/** Histogram: sebaran progres seluruh peserta yang tampil. */
+function ProgressHistogram({ students }: { students: Record<string, any>[] }) {
+  const pcts = students.map(progressPct)
+  const counts = PROGRESS_BUCKETS.map(b => pcts.filter(p => p >= b.from && p <= b.to).length)
+  const max = Math.max(1, ...counts)
+  return (
+    <div>
+      <div
+        className="flex h-32 items-end gap-1.5 sm:gap-2"
+        role="img"
+        aria-label={`Sebaran progres: ${PROGRESS_BUCKETS.map((b, i) => `${b.label} ${counts[i]} peserta`).join(', ')}`}
+      >
+        {PROGRESS_BUCKETS.map((b, i) => (
+          <div key={b.label} className="flex h-full flex-1 flex-col items-center justify-end gap-1">
+            <span className={`mono text-[11px] font-bold ${counts[i] ? 'text-text' : 'text-muted'}`}>
+              {counts[i]}
+            </span>
+            <div
+              className="w-full max-w-12 rounded-t-[4px] transition-[height] duration-300"
+              style={{
+                height: `${Math.max(counts[i] ? 4 : 2, (counts[i] / max) * 100)}%`,
+                background: b.color,
+                opacity: counts[i] ? 1 : 0.35,
+              }}
+              title={`${b.label}: ${counts[i]} peserta`}
+            />
+          </div>
+        ))}
+      </div>
+      <div className="mt-1.5 flex gap-1.5 border-t border-border pt-1.5 sm:gap-2">
+        {PROGRESS_BUCKETS.map(b => (
+          <span key={b.label} className="flex-1 text-center text-[10px] font-semibold text-muted">
+            {b.label}
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/** Batang status bertumpuk (selesai / mengerjakan / belum mulai). */
+function StatusStack({
+  working, done, notStarted, participants,
+}: { working: number; done: number; notStarted: number; participants: number }) {
+  const pct = (n: number) => (participants > 0 ? (n / participants) * 100 : 0)
+  const parts = [
+    { label: 'Selesai', n: done, color: 'var(--c-success)', w: pct(done) },
+    { label: 'Mengerjakan', n: working, color: 'var(--c-primary)', w: pct(working) },
+    { label: 'Belum mulai', n: notStarted, color: 'var(--c-border-strong)', w: pct(notStarted) },
+  ]
+  return (
+    <div>
+      <div className="flex h-3.5 w-full overflow-hidden rounded-full border border-border bg-canvas" role="img"
+        aria-label={`Komposisi peserta: ${parts.map(p => `${p.label} ${p.n}`).join(', ')}`}>
+        {parts.map(p => (
+          <div key={p.label} style={{ width: `${p.w}%`, background: p.color }} title={`${p.label}: ${p.n}`} />
+        ))}
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+        {parts.map(p => (
+          <span key={p.label} className="inline-flex items-center gap-1.5">
+            <span aria-hidden className="h-2.5 w-2.5 rounded-sm" style={{ background: p.color }} />
+            {p.label}
+            <b className="mono">{p.n}</b>
+            <span className="text-muted">({Math.round(p.w)}%)</span>
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/** Rata-rata progres per kelas — baris ringkas dengan bar mini. */
+function ClassProgress({ students }: { students: Record<string, any>[] }) {
+  const map = new Map<string, { label: string; n: number; sum: number }>()
+  for (const s of students) {
+    const cid = String(s.class_id ?? '')
+    const label = String(s.class ?? s.class_id ?? '—')
+    const cur = map.get(cid) ?? { label, n: 0, sum: 0 }
+    cur.n += 1
+    cur.sum += progressPct(s)
+    map.set(cid, cur)
+  }
+  const rows = [...map.entries()]
+    .map(([cid, v]) => ({ cid, ...v, avg: v.n ? Math.round(v.sum / v.n) : 0 }))
+    .sort((a, b) => b.avg - a.avg || a.label.localeCompare(b.label))
+  if (rows.length === 0) return null
+  return (
+    <ul className="space-y-1.5">
+      {rows.map(r => (
+        <li key={r.cid} className="flex items-center gap-2">
+          <span className="w-20 shrink-0 truncate text-xs font-semibold">{r.label}</span>
+          <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-canvas">
+            <div className="h-full rounded-full transition-[width] duration-300"
+              style={{ width: `${r.avg}%`, background: r.avg >= 75 ? 'var(--c-success)' : r.avg > 0 ? 'var(--c-primary)' : 'var(--c-border-strong)' }} />
+          </div>
+          <span className="mono w-10 shrink-0 text-right text-[11px] font-bold">{r.avg}%</span>
+          <span className="w-14 shrink-0 text-right text-[10px] text-muted">{r.n} peserta</span>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
 export default function ReportLiveExam() {
   const { examId } = useParams()
   const qc = useQueryClient()
-  const nav = useNavigate()
   const [busy, setBusy] = useState(false)
   const [search, setSearch] = useState('')
   const [classId, setClassId] = useState('')
@@ -92,6 +217,7 @@ export default function ReportLiveExam() {
     row.class = s.class ?? s.student_class ?? ''
     row.class_id = s.class_id ?? s.class ?? s.student_class ?? ''
     row.total = s.total ?? s.total_questions ?? 0
+    row.attempt_no = Number(s.attempt_no ?? 1) || 1
     row.cheating = s.cheating ?? s.cheating_status ?? 'none'
     row.flagged = !['', 'none', '0', 'false', 'undefined', 'null'].includes(String(row.cheating ?? 'none'))
     return row
@@ -214,23 +340,64 @@ export default function ReportLiveExam() {
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {/* ringkasan komposisi status (FR-9.2) */}
-        <Panel title="Progres Peserta" icon={<IconChart2 size={15} />}>
+        {/* grafik progres: komposisi + histogram + per kelas (FR-9.2) */}
+        <Panel title="Grafik Progres Peserta" icon={<IconChart2 size={15} />}>
           {live.isLoading ? (
-            <SkeletonRows rows={2} cols={2} />
+            <SkeletonRows rows={4} cols={4} />
           ) : (
-            <>
-              <Donut
-                parts={[
-                  { value: working, color: 'var(--c-primary)', label: 'Mengerjakan' },
-                  { value: done, color: 'var(--c-success)', label: 'Selesai' },
-                  { value: notStarted, color: 'var(--c-border)', label: 'Belum mulai' },
-                ]}
-              />
-              <p className="mt-2 text-sm text-muted">
-                Total peserta: <span className="mono font-semibold text-text">{participants}</span>
+            <div className="space-y-4">
+              <StatusStack working={working} done={done} notStarted={notStarted} participants={participants} />
+
+              <div>
+                <div className="section-label mb-1.5">Sebaran progres jawaban</div>
+                <ProgressHistogram students={students} />
+              </div>
+
+              {(() => {
+                const pcts = students.map(progressPct)
+                const avg = pcts.length ? Math.round(pcts.reduce((a, b) => a + b, 0) / pcts.length) : 0
+                const fastest = students.reduce<Record<string, any> | null>((best, s) => {
+                  if (progressPct(s) <= 0) return best
+                  return !best || progressPct(s) > progressPct(best) ? s : best
+                }, null)
+                return (
+                  <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+                    <div className="card !p-2.5">
+                      <div className="section-label">Rata-rata progres</div>
+                      <div className="mono text-lg font-bold leading-none">{avg}<span className="text-xs">%</span></div>
+                      <div className="mt-1.5"><ProgressBar value={avg} /></div>
+                    </div>
+                    <div className="card !p-2.5">
+                      <div className="section-label">Sudah 100%</div>
+                      <div className="mono text-lg font-bold leading-none">
+                        {pcts.filter(p => p >= 100).length}
+                        <span className="text-xs">/{students.length}</span>
+                      </div>
+                      <p className="mt-1 text-[11px] text-muted">peserta menuntaskan semua soal</p>
+                    </div>
+                    <div className="card !p-2.5 sm:col-span-1 col-span-2">
+                      <div className="section-label">Progres tercepat</div>
+                      <div className="truncate text-sm font-bold">{String(fastest?.name ?? '—')}</div>
+                      <p className="mt-0.5 text-[11px] text-muted">
+                        {fastest ? `${String(fastest.answered)} dari ${String(fastest.total)} soal terjawab` : 'menunggu peserta mulai'}
+                      </p>
+                    </div>
+                  </div>
+                )
+              })()}
+
+              {classOptions.length > 1 && (
+                <div>
+                  <div className="section-label mb-1.5">Rata-rata progres per kelas</div>
+                  <ClassProgress students={students} />
+                </div>
+              )}
+
+              <p className="hint">
+                Grafik mengikuti filter kelas &middot; pencarian aktif — total peserta tampil{' '}
+                <span className="mono font-semibold text-text">{students.length}</span>.
               </p>
-            </>
+            </div>
           )}
         </Panel>
 
@@ -345,14 +512,19 @@ export default function ReportLiveExam() {
                       <td data-th="Nama">
                         <div className="min-w-0">
                           <span className="block font-semibold">{String(s.name ?? '—')}</span>
+                          {Number(s.attempt_no ?? 1) > 1 && (
+                            <span className="mt-0.5 inline-flex badge border border-border bg-canvas text-muted">
+                              percobaan {String(s.attempt_no)}
+                            </span>
+                          )}
                           {String(s.student_id ?? '') !== '' && (
-                            <button
-                              type="button"
-                              className="btn-quiet btn-sm !px-0"
-                              onClick={() => nav(`/students/${s.student_id}`)}
+                            <Link
+                              className="btn-ghost btn-sm mt-1"
+                              to={`/students/${String(s.student_id)}`}
+                              title={`Buka track record ${String(s.name ?? '')}`}
                             >
-                              track record →
-                            </button>
+                              <IconHistory size={13} /> Track record
+                            </Link>
                           )}
                         </div>
                       </td>

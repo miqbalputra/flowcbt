@@ -644,6 +644,90 @@ pada kartu pilihan (choice) aktif, dan strip atas panel `rule-accent`.
   tanpa overflow; alur builder 5 tipe tetap hijau (simpan + reload); pratinjau
   modal jalan; `tsc -b` + `npm run build` hijau.
 
+## Tambahan 2026-11-22 (putaran 16 — grafik progres peserta baru + tombol Track record asli)
+
+**Masukan pengguna**: di `/reports` → Ujian Berjalan → detail live, panel
+"Grafik Progres Peserta" jelek/kurang informatif, dan tombol "track record"
+per siswa di tabel terlihat rusak.
+
+### Grafik progres baru (`frontend/src/guru/reports/live-detail.tsx`)
+- Donut tunggal diganti panel informasi bertumpuk:
+  - `StatusStack` — bar horizontal selesai/mengerjakan/belum-mulai bersegmen
+    per jumlah peserta (aria-label "Komposisi peserta").
+  - `ProgressHistogram` — histogram 6 bucket progres (0, 1–25, 26–50, 51–75,
+    76–99, 100%) dengan label jumlah per bucket, bar proporsional, baseline
+    pudar untuk bucket kosong, `title` per bucket, transisi height 300ms.
+  - Kartu mini di bawahnya: rata-rata progres, jumlah peserta sudah 100%,
+    peserta progres tercepat; plus rata-rata progres per kelas
+    (`ClassProgress`, tampil bila >1 kelas) — semua mengikuti filter kelas.
+- Semua CSS murni (tanpa lib chart), `role="img"` + aria-label, warna dari
+  token palet slate/blue/amber/green yang sudah ada.
+
+### Housekeeping sinkronisasi remote (putaran 16)
+
+- `backend/internal/cards/emblem.go`: const base64 emblem (91.760 char, awalnya
+  satu baris 92KB) dipecah jadi 12 baris concat @8000 char — baris tunggal
+  raksasa itulah penyebab emblem versi "geometri template TKA" tidak pernah
+  berhasil di-push ke GitHub via API teks (read/push tool terpotong); decode
+  PNG identik byte-for-byte (diverifikasi), `go build` + `go vet` hijau.
+
+### Tombol Track record per siswa
+- Diganti dari teks `btn-quiet !px-0` (tampak rusak) menjadi `Link` ghost
+  dengan ikon riwayat + label "Track record" ke `/students/{student_id}`;
+  badge "percobaan ke-n" bila attempt > 1; `attempt_no` dinormalisasi.
+- `useNavigate` dihapus dari halaman (tinggal `Link` + `useParams`).
+
+### Verifikasi (Playwright, data demo DEMO01)
+- 30 link "Track record" di tabel; klik pertama → `/students/{id}`
+  render "Profil Siswa"; 0 error konsol, 0 HTTP ≥400.
+- Histogram terukur proporsional: 28 peserta → bar 108px, 2 peserta → 9px,
+  bucket kosong → baseline 3px (opacity 0.35). StatusStack 2/3/25 = 7/10/83%.
+- Mobile 375px: tanpa overflow horizontal; SSE live stream tetap jalan.
+- Audit regresi 15 halaman guru + 4 halaman mobile + alur peserta: 0 error,
+  0 HTTP ≥400, tanpa 404/overflow; `tsc -b` + `npm run build` hijau.
+
+## Tambahan 2026-11-22 (putaran 16 — grafik progres peserta baru + tombol Track record asli)
+
+**Masukan pengguna**: di `/reports` → Ujian Berjalan → detail live, panel
+"Grafik Progres Peserta" jelek/kurang informatif, dan tombol "track record"
+per siswa di tabel terlihat rusak.
+
+### Grafik progres baru (`frontend/src/guru/reports/live-detail.tsx`)
+- Donut tunggal diganti panel informasi bertumpuk:
+  - `StatusStack` — bar horizontal selesai/mengerjakan/belum-mulai bersegmen
+    per jumlah peserta (aria-label "Komposisi peserta").
+  - `ProgressHistogram` — histogram 6 bucket progres (0, 1–25, 26–50, 51–75,
+    76–99, 100%) dengan label jumlah per bucket, bar proporsional, baseline
+    pudar untuk bucket kosong, `title` per bucket, transisi height 300ms.
+  - Kartu mini di bawahnya: rata-rata progres, jumlah peserta sudah 100%,
+    peserta progres tercepat; plus rata-rata progres per kelas
+    (`ClassProgress`, tampil bila >1 kelas) — semua mengikuti filter kelas.
+- Semua CSS murni (tanpa lib chart), `role="img"` + aria-label, warna dari
+  token palet slate/blue/amber/green yang sudah ada.
+
+### Housekeeping sinkronisasi remote (putaran 16)
+
+- `backend/internal/cards/emblem.go`: const base64 emblem (91.760 char, awalnya
+  satu baris 92KB) dipecah jadi 12 baris concat @8000 char — baris tunggal
+  raksasa itulah penyebab emblem versi "geometri template TKA" tidak pernah
+  berhasil di-push ke GitHub via API teks (read/push tool terpotong); decode
+  PNG identik byte-for-byte (diverifikasi), `go build` + `go vet` hijau.
+
+### Tombol Track record per siswa
+- Diganti dari teks `btn-quiet !px-0` (tampak rusak) menjadi `Link` ghost
+  dengan ikon riwayat + label "Track record" ke `/students/{student_id}`;
+  badge "percobaan ke-n" bila attempt > 1; `attempt_no` dinormalisasi.
+- `useNavigate` dihapus dari halaman (tinggal `Link` + `useParams`).
+
+### Verifikasi (Playwright, data demo DEMO01)
+- 30 link "Track record" di tabel; klik pertama → `/students/{id}`
+  render "Profil Siswa"; 0 error konsol, 0 HTTP ≥400.
+- Histogram terukur proporsional: 28 peserta → bar 108px, 2 peserta → 9px,
+  bucket kosong → baseline 3px (opacity 0.35). StatusStack 2/3/25 = 7/10/83%.
+- Mobile 375px: tanpa overflow horizontal; SSE live stream tetap jalan.
+- Audit regresi 15 halaman guru + 4 halaman mobile + alur peserta: 0 error,
+  0 HTTP ≥400, tanpa 404/overflow; `tsc -b` + `npm run build` hijau.
+
 ## Remaining backlog (P1/P2, tidak memblokir MVP)
 
 - E2E PWA offline di browser nyata (Playwright), uji beban k6.
