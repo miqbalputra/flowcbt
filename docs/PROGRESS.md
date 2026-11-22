@@ -616,6 +616,34 @@ pembahasan selalu terbuka). Guru merasa pembuatan soal membingungkan.
   Ctrl+S, beforeunload, lompat masalah, wacana per soal, gf-card.
 - `frontend/src/styles.css` — `.qcard`, `.dirty-dot`, `.qsaved`, `.gf-flash`.
 
+## Tambahan 2026-11-22 (putaran 15 — de-slop: hapus aksen "garis tebal", rapikan kelas desain)
+
+### Masalah
+Beberapa aksen bergaris tebal membuat tampilan terlihat "template AI":
+strip biru 3px di puncak app bar, aksen kiri 4px pada kartu soal, bar kiri 3px
+pada kartu pilihan (choice) aktif, dan strip atas panel `rule-accent`.
+
+### Perubahan (semua di `frontend/src/styles.css`, tanpa logika)
+- **App bar**: strip biru 3px di atas dihapus — tinggal ink slate + hairline
+  (`.appbar::before` dihapus).
+- **Kartu soal (`.gf-card`)**: aksen kiri 4px dihapus → hairline seragam
+  1px, radius 10px, `--shadow-xs` sehari-hari, `--shadow-sm` saat hover/fokus
+  (fokus diberi `--c-primary-line` supaya posisi kursor tetap jelas).
+- **Kartu pilihan (`.choice` aktif)**: bar kiri `inset 3px` dihapus → border
+  `--c-primary-line` + latar `--c-primary-soft`.
+- **`.rule-accent`** (header halaman Selesai peserta): tanpa strip warna.
+- Radius kartu/panel diseragamkan 8px → **10px** (`.card`, `.panel`).
+- Tab underline (`border-b-2`) & garis atas nav mobile dipertahankan — itu
+  pola standar tab bar, bukan aksen dekoratif.
+
+### Verifikasi
+- Screenshot sebelum/sesudah: dashboard (strip atas hilang), builder 7 kartu
+  (semua kartu tepi rata tanpa bar kiri), billing/kartu aktif (tanpa bar kiri),
+  wizard ujian, kartu ujian, pengaturan, portal peserta.
+- Playwright audit guru 1280/375 → 0 error konsol, 0 HTTP ≥400, tanpa 404,
+  tanpa overflow; alur builder 5 tipe tetap hijau (simpan + reload); pratinjau
+  modal jalan; `tsc -b` + `npm run build` hijau.
+
 ## Remaining backlog (P1/P2, tidak memblokir MVP)
 
 - E2E PWA offline di browser nyata (Playwright), uji beban k6.

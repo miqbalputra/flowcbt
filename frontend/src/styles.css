@@ -170,13 +170,6 @@ html, body {
   border-bottom: 1px solid var(--c-ink-line);
   position: relative;
 }
-.appbar::before {
-  content: "";
-  position: absolute;
-  inset: 0 0 auto 0;
-  height: 3px;
-  background: var(--c-primary);
-}
 .appbar a, .appbar button { color: inherit; }
 .appbar-sub {
   background: var(--c-ink-2);
@@ -184,8 +177,8 @@ html, body {
   color: var(--c-ink-muted);
 }
 
-/* garis aksen tipis di atas panel */
-.rule-accent { box-shadow: inset 0 3px 0 0 var(--c-primary); }
+/* aksen panel: hairline netral (tanpa strip warna) */
+.rule-accent { box-shadow: none; }
 
 /* ============================================================
    PANEL / KARTU
@@ -193,14 +186,14 @@ html, body {
 .card {
   background: var(--c-surface);
   border: 1px solid var(--c-border);
-  border-radius: 8px;
+  border-radius: 10px;
   padding: 1rem;
   box-shadow: var(--shadow-xs);
 }
 .panel {
   background: var(--c-surface);
   border: 1px solid var(--c-border);
-  border-radius: 8px;
+  border-radius: 10px;
   box-shadow: var(--shadow-xs);
   overflow: hidden;
 }
@@ -370,7 +363,7 @@ input[type="checkbox"], input[type="radio"] {
   transition: border-color 0.15s, background-color 0.15s;
 }
 .choice:hover { border-color: var(--c-primary); background: var(--c-primary-soft); }
-.choice[data-active="true"] { border-color: var(--c-primary); background: var(--c-primary-soft); box-shadow: inset 3px 0 0 var(--c-primary); }
+.choice[data-active="true"] { border-color: var(--c-primary-line); background: var(--c-primary-soft); box-shadow: none; }
 
 /* ============================================================
    BADGE / CHIP
@@ -613,12 +606,12 @@ input[type="checkbox"], input[type="radio"] {
 .gf-card {
   background: var(--c-surface);
   border: 1px solid var(--c-border);
-  border-left: 4px solid var(--c-primary);
-  border-radius: 8px;
+  border-radius: 10px;
+  box-shadow: var(--shadow-xs);
   transition: box-shadow 0.15s, border-color 0.15s;
 }
-.gf-card:hover { border-color: var(--c-border-strong); border-left-color: var(--c-primary); }
-.gf-card:focus-within { box-shadow: 0 1px 3px rgb(60 64 67 / 18%); }
+.gf-card:hover { border-color: var(--c-border-strong); box-shadow: var(--shadow-sm); }
+.gf-card:focus-within { border-color: var(--c-primary-line); box-shadow: var(--shadow-sm); }
 
 .gf-grip { color: var(--c-muted); cursor: grab; }
 .gf-grip:active { cursor: grabbing; }
