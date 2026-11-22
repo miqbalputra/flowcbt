@@ -36,12 +36,12 @@ export default function Login() {
   return (
     <AuthPortal
       title="Masuk sebagai peserta"
-      subtitle="Gunakan akun yang diberikan sekolah."
+      subtitle="Jalur 1 — pakai username, NIS, atau kode siswa sekolah Anda beserta kata sandi."
       guestLink={
         <>
-          Ikut ujian tanpa akun?{' '}
+          Hanya punya kartu ujian (tanpa akun)?{' '}
           <Link className="font-semibold text-primary underline decoration-primary/40 underline-offset-2" to="/s/guest">
-            Masuk sebagai tamu
+            Masuk sebagai tamu — kode ujian + token + nomor peserta
           </Link>
         </>
       }
@@ -49,12 +49,13 @@ export default function Login() {
       <form onSubmit={submit} className="space-y-3.5">
         <TextField
           id="id"
-          label="Username / NIS / kode siswa"
+          label="Username / NIS / Kode siswa"
           icon={<IconStudents size={17} />}
           value={id}
           onChange={e => setId(e.target.value)}
           autoComplete="username"
-          placeholder="mis. siswa2001"
+          placeholder="mis. siswa2001 / NIS: 2001"
+          hint="Diberikan sekolah — bukan nomor peserta kartu ujian."
           required
         />
         <TextField
@@ -78,7 +79,8 @@ export default function Login() {
           {busy ? 'Memproses…' : 'Masuk ke ruang ujian'}
         </button>
         <p className="text-center text-[11px] leading-relaxed text-muted">
-          Lupa kata sandi? Hubungi guru atau pengawas untuk direset.
+          Lupa kata sandi? Hubungi guru atau pengawas untuk direset. Nomor peserta kartu ujian
+          dipakai di jalur tamu.
         </p>
       </form>
     </AuthPortal>

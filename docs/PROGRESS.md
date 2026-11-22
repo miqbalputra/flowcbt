@@ -857,6 +857,39 @@ login guru bergaya tebar.app.
 - Audit regresi 15 halaman guru + mobile + peserta: **0 error konsol,
   0 HTTP >=400**; `tsc` + `npm run build` hijau.
 
+## Tambahan 2026-11-23 (putaran 21 — narasi login peserta diselaraskan dengan kartu ujian)
+
+**Masukan pengguna**: panduan panel menyebut "kode dari kartu ujian atau
+akun sekolah" sementara form meminta Username/NIS/Kode siswa + Kata sandi
+— membingungkan; pastikan sesuai isi kartu ujian.
+
+**Fakta sistem (dilacak ke backend & PDF kartu):** kartu ujian mencetak
+Nomor Peserta, Nama, TTL, Sekolah + footer Kode ujian & Token + petunjuk
+jalur tamu; KARTU TIDAK mencetak username/password. Backend login akun
+siswa menerima username ATAU student_code ATAU NIS + kata sandi
+(auth_student.go findStudentCandidates); jalur kartu = kode ujian +
+token + nomor peserta (/s/guest).
+
+### Perbaikan salinan (tanpa logika)
+- **Panel AuthPortal**: paragraf campur-aduk diganti dua jalur bernomor:
+  ① *Akun sekolah* — username, NIS, atau kode siswa + kata sandi.
+  ② *Kartu ujian* — kode ujian + token + nomor peserta (masuk tamu).
+  Mock kartu diberi label "JALUR KARTU UJIAN".
+- **/s/login**: subtitle "Jalur 1 — pakai username, NIS, atau kode siswa…";
+  label "Username / NIS / Kode siswa" + hint "Diberikan sekolah — bukan
+  nomor peserta kartu ujian."; catatan lupa sandi + "Nomor peserta kartu
+  ujian dipakai di jalur tamu"; tautan tamu: "Hanya punya kartu ujian
+  (tanpa akun)? Masuk sebagai tamu — kode ujian + token + nomor peserta".
+- **/s/guest**: subtitle "Jalur 2 — isi kode ujian, token, dan nomor
+  peserta yang tercetak di kartu; identitas terisi otomatis"; tautan
+  balik "Punya akun sekolah (username / NIS / kode siswa)?".
+
+### Verifikasi (Playwright)
+- Narasi panel & kedua halaman terbaca tepat dua jalur; mock kartu
+  "JALUR KARTU UJIAN" (KODE/DEMO01 · TOKEN/L4EJXB · NOMOR PESERTA).
+- Alur tamu e2e tetap hijau ("identitas otomatis: Ahmad Fauzi · X-1");
+  audit 15 halaman + mobile: 0 error, 0 HTTP >=400; tsc + build hijau.
+
 ## Remaining backlog (P1/P2, tidak memblokir MVP)
 
 - E2E PWA offline di browser nyata (Playwright), uji beban k6.

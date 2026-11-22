@@ -59,10 +59,16 @@ export function AuthPortal({
                 <h1 className="mt-3 max-w-[14ch] text-[42px] font-bold leading-[1.04] tracking-tight xl:text-[46px]">
                   Duduk, tenang, kerjakan.
                 </h1>
-                <p className="mt-3 max-w-[44ch] text-[15px] leading-relaxed text-ink-muted">
-                  Masukkan kode dari kartu ujian atau akun sekolah — jawaban
-                  tersimpan otomatis, bahkan saat internet sekolah sedang sulit.
-                </p>
+                <div className="mt-3 grid max-w-[46ch] gap-2 text-[13px] leading-relaxed">
+                  <p className="flex items-start gap-2 text-ink-muted">
+                    <span className="mono mt-px flex h-5 w-5 shrink-0 items-center justify-center rounded border border-ink-line bg-white/5 text-[10px] font-bold text-ink-fg" aria-hidden>1</span>
+                    <span><span className="font-semibold text-ink-fg">Akun sekolah</span> — username, NIS, atau kode siswa + kata sandi.</span>
+                  </p>
+                  <p className="flex items-start gap-2 text-ink-muted">
+                    <span className="mono mt-px flex h-5 w-5 shrink-0 items-center justify-center rounded border border-ink-line bg-white/5 text-[10px] font-bold text-ink-fg" aria-hidden>2</span>
+                    <span><span className="font-semibold text-ink-fg">Kartu ujian</span> — kode ujian + token + nomor peserta (masuk sebagai tamu).</span>
+                  </p>
+                </div>
               </div>
 
               {/* mock kartu ujian */}
@@ -76,7 +82,7 @@ export function AuthPortal({
                       <span className="text-[13px] font-semibold">{CARD.exam}</span>
                     </div>
                     <span className="rounded border border-ink-line px-1.5 py-px text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
-                      kartu peserta
+                      jalur kartu ujian
                     </span>
                   </div>
                   <div className="mt-3 grid grid-cols-3 gap-2">

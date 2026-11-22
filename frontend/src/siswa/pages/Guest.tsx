@@ -79,10 +79,10 @@ export default function Guest() {
   return (
     <AuthPortal
       title="Masuk sebagai peserta tamu"
-      subtitle="Isi kode ujian, token, dan nomor peserta dari kartu ujian — identitas terisi otomatis."
+      subtitle="Jalur 2 — isi kode ujian, token, dan nomor peserta yang tercetak di kartu ujian; identitas terisi otomatis."
       footer={
         <>
-          Punya akun sekolah?{' '}
+          Punya akun sekolah (username / NIS / kode siswa)?{' '}
           <Link className="font-semibold text-primary underline decoration-primary/40 underline-offset-2" to="/s/login">
             Masuk dengan akun
           </Link>
