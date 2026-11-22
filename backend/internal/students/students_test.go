@@ -264,3 +264,18 @@ func TestStudentDetailSelectFifteenColumns(t *testing.T) {
 		t.Fatalf("studentDetailSelect memilih %d kolom, mau 15: %q", cols, studentDetailSelect)
 	}
 }
+
+func TestNormalizeCardNumber(t *testing.T) {
+	cases := map[string]string{
+		"TA-26-03-10-0028-0001-2":   "TA260310002800012",
+		"ta-26-03-10-0028-0001-2":   "TA260310002800012",
+		" ta-26-03-10-0028-0001-2 ": "TA260310002800012",
+		"TA 26 03 10 0028 0001 2":   "TA260310002800012",
+		"":                          "",
+	}
+	for in, want := range cases {
+		if got := normalizeCardNumber(in); got != want {
+			t.Errorf("normalizeCardNumber(%q) = %q, mau %q", in, got, want)
+		}
+	}
+}

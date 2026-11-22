@@ -32,11 +32,14 @@ export async function studentLogin(username: string, password: string): Promise<
   return r
 }
 
-/** Login tanpa akun (peserta tamu): data diri + kode ujian + token. */
+/** Login tanpa akun (peserta tamu): data diri + kode ujian + token.
+ * Bila `card_number` (nomor peserta pada kartu ujian) diisi, identitas diambil
+ * otomatis dari kartu — nama/JK/kelas/NIS tak perlu diisi manual. */
 export async function guestLogin(input: {
   exam_code: string
   token: string
-  name: string
+  card_number?: string
+  name?: string
   gender?: string
   class_name?: string
   nis?: string
@@ -44,6 +47,26 @@ export async function guestLogin(input: {
   const r = await api<LoginResponse>('/student/auth/guest', { method: 'POST', body: input })
   persistSession(r)
   return r
+}
+
+export interface CardLookup {
+  matched: boolean
+  card_number: string
+  name: string
+  nis: string
+  gender: string
+  class_name: string
+  student_code: string
+}
+
+/** Lookup nomor kartu ujian: POST /student/auth/card-lookup — untuk mengisi
+ * form login otomatis (identitas terdeteksi dari nomor peserta). */
+export async function cardLookup(examCode: string, token: string, cardNumber: string): Promise<CardLookup> {
+  const r = await api<{ data: CardLookup }>('/student/auth/card-lookup', {
+    method: 'POST',
+    body: { exam_code: examCode, token, card_number: cardNumber },
+  })
+  return (r as { data: CardLookup }).data
 }
 
 /** Daftar ujian siswa: GET /student/me/exams. */

@@ -67,6 +67,7 @@ func (m *Module) renderCardsPDF(meta *examMeta, profile *schoolProfile, rows []c
 		}
 		pdf.AddPage()
 		pageHeader(pdf, meta, profile, year)
+		pageFooter(pdf, meta, baseURL)
 		for i, c := range rows[start:end] {
 			y := cardY[i]
 			for col, role := range [2]string{"PANITIA", "PESERTA"} {
@@ -101,6 +102,20 @@ func pageHeader(pdf *fpdf.Fpdf, meta *examMeta, profile *schoolProfile, year int
 	textC(pdf, cx, u(53), "KARTU PESERTA "+strings.ToUpper(pdfgenSafe(meta.Name)))
 	textC(pdf, cx, u(65), strings.ToUpper(pdfgenSafe(profile.Name)))
 	textC(pdf, cx, u(77), fmt.Sprintf("TAHUN PELAJARAN %d", year))
+}
+
+// pageFooter — catatan kecil di bawah kartu: kode ujian + token agar kartu
+// bisa dipakai login (form tamu mengisi kode ujian, token, dan nomor peserta).
+func pageFooter(pdf *fpdf.Fpdf, meta *examMeta, baseURL string) {
+	pdf.SetTextColor(0, 0, 0)
+	pdf.SetFont("Helvetica", "B", pt(9))
+	textC(pdf, u(pageU/2), u(950), fmt.Sprintf("Kode ujian: %s    Token: %s", meta.ExamCode, meta.Token))
+	pdf.SetFont("Helvetica", "", pt(9))
+	login := "Masuk sebagai tamu: /s/guest"
+	if baseURL != "" {
+		login = "Masuk sebagai tamu: " + strings.TrimRight(baseURL, "/") + "/s/guest"
+	}
+	textC(pdf, u(pageU/2), u(962), pdfgenSafe(login+" — isi kode ujian, token, dan nomor peserta dari kartu"))
 }
 
 // drawCard — satu kartu peserta, geometri persis seperti template TKA.

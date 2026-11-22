@@ -42,6 +42,7 @@ func (m *Module) Routes(r chi.Router) {
 	r.Route("/student/auth", func(r chi.Router) {
 		r.Post("/login", m.studentLogin)
 		r.Post("/guest", m.studentGuest)
+		r.Post("/card-lookup", m.cardLookup)
 		r.Post("/refresh", m.studentRefresh)
 	})
 

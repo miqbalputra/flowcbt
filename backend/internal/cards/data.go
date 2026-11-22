@@ -299,8 +299,14 @@ func waText(meta *examMeta, profile *schoolProfile, c cardRow, baseURL string) s
 	b.WriteString("Ujian: " + meta.Name + "\n")
 	b.WriteString("Jadwal: " + jadwal + "\n")
 	b.WriteString("Durasi: " + fmt.Sprintf("%d menit", meta.Duration) + "\n")
+	if meta.ExamCode != "" {
+		b.WriteString("Kode ujian: " + meta.ExamCode + "\n")
+	}
 	if meta.Token != "" {
 		b.WriteString("Token: " + meta.Token + "\n")
+	}
+	if baseURL != "" {
+		b.WriteString("Masuk: " + strings.TrimRight(baseURL, "/") + "/s/guest (isi kode ujian, token, dan nomor peserta)\n")
 	}
 	if baseURL != "" && c.StudentID != "" {
 		b.WriteString("\nUnduh kartu PDF:\n" + strings.TrimRight(baseURL, "/") +

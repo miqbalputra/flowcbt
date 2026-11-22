@@ -114,13 +114,26 @@ func (m *Module) findStudentCandidates(ctx context.Context, ident string) ([]*st
 }
 
 type guestLoginReq struct {
-	ExamCode  string  `json:"exam_code" validate:"required"`
-	Token     string  `json:"token" validate:"required"`
-	Name      string  `json:"name" validate:"required,min=2"`
-	Gender    string  `json:"gender" validate:"required"`
-	ClassID   *string `json:"class_id"`
-	ClassName *string `json:"class_name"`
-	NIS       *string `json:"nis"`
+	ExamCode   string  `json:"exam_code" validate:"required"`
+	Token      string  `json:"token" validate:"required"`
+	Name       *string `json:"name"`
+	Gender     *string `json:"gender"`
+	ClassID    *string `json:"class_id"`
+	ClassName  *string `json:"class_name"`
+	NIS        *string `json:"nis"`
+	CardNumber *string `json:"card_number"` // nomor peserta pada kartu ujian (mis. TA-26-03-10-0028-0001-2)
+}
+
+// normalizeCardNumber — samakan nomor kartu agar bisa diketik dengan/tanpa tanda hubung:
+// huruf besar, hanya alfanumerik (mis. "ta 26-03..." → "TA2603...").
+func normalizeCardNumber(s string) string {
+	var b strings.Builder
+	for _, r := range strings.ToUpper(s) {
+		if (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
 }
 
 // POST /student/auth/guest — masuk tanpa akun lewat kode ujian + token (FR-1.3).
@@ -133,22 +146,37 @@ func (m *Module) studentGuest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := m.a.V.Struct(req); err != nil {
-		httpx.Error(w, httpx.NewErr(400, "VALIDATION", "Nama, kode ujian, token, dan jenis kelamin wajib diisi"))
+		httpx.Error(w, httpx.NewErr(400, "VALIDATION", "Kode ujian dan token wajib diisi"))
 		return
 	}
 	ip := httpx.ClientIP(r)
 	examCode := strings.TrimSpace(req.ExamCode)
+	cardNumber := ""
+	if req.CardNumber != nil {
+		cardNumber = normalizeCardNumber(*req.CardNumber)
+	}
 	// Rate limit ketat anti tebak-tebakan: 20/menit per ip+kode ujian.
-	if !m.a.RL.Allow("sguest:"+ip+":"+examCode, 20) {
+	limiter := "sguest:" + ip + ":" + examCode
+	if cardNumber != "" {
+		limiter += ":card"
+	}
+	if !m.a.RL.Allow(limiter, 20) {
 		httpx.Error(w, httpx.ErrRateLimited)
 		return
 	}
-	gender, ok := normalizeGender(req.Gender)
-	if !ok {
-		httpx.Error(w, httpx.NewErr(400, "VALIDATION", "Jenis kelamin harus L atau P"))
+	name := ""
+	if req.Name != nil {
+		name = strings.TrimSpace(*req.Name)
+	}
+	genderStr := ""
+	if req.Gender != nil {
+		genderStr = strings.TrimSpace(*req.Gender)
+	}
+	// Tanpa nomor kartu, nama + jenis kelamin wajib (perilaku lama).
+	if cardNumber == "" && (len(name) < 2 || genderStr == "") {
+		httpx.Error(w, httpx.NewErr(400, "VALIDATION", "Nama, kode ujian, token, dan jenis kelamin wajib diisi"))
 		return
 	}
-	name := strings.TrimSpace(req.Name)
 	nis := ""
 	if req.NIS != nil {
 		nis = strings.TrimSpace(*req.NIS)
@@ -183,8 +211,31 @@ func (m *Module) studentGuest(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, httpx.NewErr(403, "GUEST_NOT_ALLOWED", "Ujian ini hanya untuk siswa dengan akun"))
 		return
 	}
-	if guestNISRequired && nis == "" {
+	if guestNISRequired && nis == "" && cardNumber == "" {
 		httpx.Error(w, httpx.NewErr(400, "VALIDATION", "NIS wajib diisi untuk ujian ini"))
+		return
+	}
+
+	// 1b) Bila nomor kartu diisi: identitas diambil OTOMATIS dari exam_cards
+	// (nomor peserta pada kartu = kunci). Tidak perlu nama/NIS manual.
+	var cardStudent *studentLoginRow
+	if cardNumber != "" {
+		cardStudent, err = m.findCardStudent(r.Context(), examID, examTenantID, cardNumber)
+		if err != nil {
+			httpx.Error(w, err)
+			return
+		}
+		if cardStudent == nil {
+			httpx.Error(w, httpx.NewErr(404, "CARD_NOT_FOUND", "Nomor peserta tidak terdaftar pada ujian ini"))
+			return
+		}
+		name = cardStudent.Name
+		nis = cardStudent.NIS
+		genderStr = cardStudent.Gender
+	}
+	gender, ok := normalizeGender(genderStr)
+	if !ok {
+		httpx.Error(w, httpx.NewErr(400, "VALIDATION", "Jenis kelamin harus L atau P"))
 		return
 	}
 
@@ -224,7 +275,13 @@ func (m *Module) studentGuest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 3) Cocokkan ke siswa terdaftar: NIS exact, atau nama+kelas ternormalisasi.
-	matched, err := m.matchRegisteredStudent(r.Context(), examTenantID, nis, name, classID)
+	// Bila dari kartu ujian, langsung pakai siswa pada kartu (sudah pasti).
+	var matched *studentLoginRow
+	if cardStudent != nil {
+		matched = cardStudent
+	} else {
+		matched, err = m.matchRegisteredStudent(r.Context(), examTenantID, nis, name, classID)
+	}
 	if err != nil {
 		httpx.Error(w, err)
 		return
@@ -256,8 +313,12 @@ func (m *Module) studentGuest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	resp["is_guest_matched"] = isGuestMatched
+	if cardNumber != "" {
+		resp["card_number"] = cardNumber
+	}
 	resp["student"] = map[string]any{
 		"id": studentID, "name": studentName, "class_name": studentClassName, "is_guest": !isGuestMatched,
+		"nis": nis,
 	}
 
 	// 5) Cookie perangkat "fdev" (httpOnly, SameSite=Lax) untuk sesi tamu offline.
@@ -280,6 +341,96 @@ func (m *Module) studentGuest(w http.ResponseWriter, r *http.Request) {
 		SameSite: http.SameSiteLaxMode,
 	})
 	httpx.OK(w, resp)
+}
+
+// findCardStudent — cari siswa dari nomor kartu ujian (exam_cards.exam_id + number).
+// Mengembalikan nil bila nomor tidak ada pada ujian tsb.
+func (m *Module) findCardStudent(ctx context.Context, examID, tenantID, cardNumber string) (*studentLoginRow, error) {
+	rows, err := m.a.DB.Admin.Query(ctx, `
+		SELECT s.id::text, s.tenant_id::text, s.name, COALESCE(s.nis,''), s.gender,
+		  COALESCE(s.username,''), COALESCE(s.class_id::text,''), s.student_code, '',
+		  COALESCE(c.name,'')
+		FROM exam_cards ec
+		JOIN students s ON s.id = ec.student_id
+		LEFT JOIN classes c ON c.id = s.class_id
+		WHERE ec.exam_id=$1::uuid AND regexp_replace(upper(ec.number), '[^A-Z0-9]', '', 'g') = $2
+		  AND s.tenant_id=$3::uuid AND s.status='active' AND s.merged_into_id IS NULL
+		LIMIT 1`, examID, cardNumber, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var s studentLoginRow
+		if err := rows.Scan(&s.ID, &s.TenantID, &s.Name, &s.NIS, &s.Gender,
+			&s.Username, &s.ClassID, &s.StudentCode, &s.PasswordHash, &s.ClassName); err != nil {
+			return nil, err
+		}
+		return &s, nil
+	}
+	return nil, rows.Err()
+}
+
+type cardLookupReq struct {
+	ExamCode   string `json:"exam_code" validate:"required"`
+	Token      string `json:"token" validate:"required"`
+	CardNumber string `json:"card_number" validate:"required"`
+}
+
+// POST /student/auth/card-lookup {exam_code, token, card_number}
+// Lookup publik untuk form login: bila nomor kartu valid, identitas siswa
+// (nama, NIS, kelas, jenis kelamin) dikembalikan agar form terisi otomatis.
+func (m *Module) cardLookup(w http.ResponseWriter, r *http.Request) {
+	var req cardLookupReq
+	if err := httpx.Decode(r, &req); err != nil {
+		httpx.Error(w, err)
+		return
+	}
+	if err := m.a.V.Struct(req); err != nil {
+		httpx.Error(w, httpx.NewErr(400, "VALIDATION", "Kode ujian, token, dan nomor peserta wajib diisi"))
+		return
+	}
+	ip := httpx.ClientIP(r)
+	examCode := strings.TrimSpace(req.ExamCode)
+	if !m.a.RL.Allow("slookup:"+ip+":"+examCode, 30) {
+		httpx.Error(w, httpx.ErrRateLimited)
+		return
+	}
+	cardNumber := normalizeCardNumber(req.CardNumber)
+
+	var examID, tenantID string
+	err := m.a.DB.Admin.QueryRow(r.Context(), `
+		SELECT id::text, tenant_id::text FROM exams
+		WHERE lower(exam_code)=lower($1) AND lower(token)=lower($2)
+		  AND status='published' AND token_active AND NOT paused
+		  AND now() >= open_at AND now() <= close_at
+		ORDER BY created_at DESC LIMIT 1`, examCode, strings.TrimSpace(req.Token)).Scan(&examID, &tenantID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			httpx.Error(w, httpx.NewErr(401, "TOKEN_INVALID", "Kode ujian/token salah atau ujian tidak sedang buka"))
+			return
+		}
+		httpx.Error(w, err)
+		return
+	}
+	s, err := m.findCardStudent(r.Context(), examID, tenantID, cardNumber)
+	if err != nil {
+		httpx.Error(w, err)
+		return
+	}
+	if s == nil {
+		httpx.Error(w, httpx.NewErr(404, "CARD_NOT_FOUND", "Nomor peserta tidak terdaftar pada ujian ini"))
+		return
+	}
+	httpx.OK(w, map[string]any{"data": map[string]any{
+		"matched":      true,
+		"card_number":  cardNumber,
+		"name":         s.Name,
+		"nis":          s.NIS,
+		"gender":       s.Gender,
+		"class_name":   s.ClassName,
+		"student_code": s.StudentCode,
+	}})
 }
 
 // matchRegisteredStudent: cari siswa terdaftar aktif milik tenant ujian.

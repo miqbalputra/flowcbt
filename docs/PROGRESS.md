@@ -387,6 +387,47 @@ halaman 869×1229 unit (1u = 0,2417 mm), font 11u (≈7,5pt) dengan baseline per
   dibandingkan berdampingan dengan template: posisi kotak, garis, lambang, peran
   PANITIA/PESERTA, dan QR sama.
 
+## Tambahan 2026-11-22 (putaran 11 — login dari kartu: kode ujian + token + nomor peserta)
+
+Pertanyaan user: "diberikan kartu ujian, login pakai apa? ada token? nomor pesertanya?
+apakah nomor peserta otomatis terdeteksi?" Jawabannya kini: **ya**.
+
+### Alur login dengan kartu
+- Kartu kini juga memuat **kode ujian + token** (footer kecil di bawah kartu pada PDF,
+  plus baris baru pada pesan WhatsApp: kode ujian, token, dan tautan masuk `/s/guest`).
+- Form `/s/guest` (peserta tamu) kini punya field **Nomor peserta (dari kartu ujian)**.
+  Setelah kode ujian + token + nomor terisi, frontend memanggil
+  `POST /student/auth/card-lookup` (debounce 450ms) — bila kartu valid, identitas
+  (nama, kelas, NIS, jenis kelamin) **terisi otomatis** dan field dikunci (readOnly)
+  dengan lencana "Kartu valid". Nomor boleh diketik tanpa tanda hubung/spasi
+  (`normalizeCardNumber` + `regexp_replace` di SQL menyamakan keduanya).
+- Submit mengirim `card_number` ke `POST /student/auth/guest`; backend resolve
+  siswa dari `exam_cards` (exam + nomor) — tanpa nama/JK manual pun tetap masuk dan
+  `is_guest_matched=true` (sesi tetap dibuat sebagai siswa terdaftar pada kartu).
+- Validasi lama dipertahankan: tanpa nomor kartu, nama + jenis kelamin tetap wajib.
+  Nomor kartu salah → 404 `CARD_NOT_FOUND`; kode/token salah → 401 `TOKEN_INVALID`.
+  Rate limit: lookup 30/menit per ip+kode, guest 20/menit (plus varian ":card").
+- Bug lama ikut diperbaiki: form tamu dulu tidak mengirim `gender` padahal backend
+  mewajibkannya → login tamu manual selalu 400. Kini ada select jenis kelamin.
+
+### Berkas
+- Backend: `internal/students/auth_student.go` (card-lookup, card_number di guest,
+  findCardStudent, normalizeCardNumber + test), `students.go` (route baru),
+  `internal/cards/data.go` (pesan WA memuat kode ujian + token + tautan masuk),
+  `internal/cards/pdf.go` (footer halaman: kode ujian, token, alamat masuk).
+- Frontend: `siswa/pages/Guest.tsx` (field nomor peserta + auto-lookup + JK),
+  `siswa/lib/student-api.ts` (cardLookup, card_number di guestLogin).
+
+### Verifikasi
+- `go vet`/`go test ./...` (termasuk `TestNormalizeCardNumber`), `tsc -b --noEmit`,
+  `npm run build` hijau.
+- API: lookup valid (dengan/ tanpa tanda hubung) → 200 berisi nama/kelas/NIS/JK;
+  nomor salah → 404; token salah → 401; guest login via kartu saja → sesi + identitas
+  benar (mis. Bunga Lestari, NIS 2002, X-1).
+- Playwright 375px: isi kode+token+nomor (huruf kecil, spasi) → nama/kelas/JK terisi
+  otomatis, lencana "Kartu valid", submit → masuk ke `/s/exams` dan ujian DEMO01
+  muncul; nomor salah → pesan "tidak terdaftar"; 0 error konsol (kecuali 404 uji sengaja).
+
 ## Remaining backlog (P1/P2, tidak memblokir MVP)
 
 - E2E PWA offline di browser nyata (Playwright), uji beban k6.
