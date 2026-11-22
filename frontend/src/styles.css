@@ -164,6 +164,48 @@ html, body {
 /* ============================================================
    KEPALA INSTITUSIONAL
    ============================================================ */
+/* ---------- Auth shell (login/register/forgot/reset) ---------- */
+.auth-visual {
+  background: var(--c-ink);
+  position: relative;
+  overflow: hidden;
+}
+.auth-visual::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(color-mix(in oklab, #fff 4%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in oklab, #fff 4%, transparent) 1px, transparent 1px);
+  background-size: 44px 44px;
+  -webkit-mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.2) 72%, transparent);
+  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.2) 72%, transparent);
+  pointer-events: none;
+}
+.auth-visual::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(46% 42% at 16% 4%, color-mix(in oklab, var(--c-primary) 20%, transparent), transparent 72%);
+  pointer-events: none;
+}
+.auth-glow {
+  position: relative;
+  z-index: 1;
+}
+
+.spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid color-mix(in oklab, #fff 45%, transparent);
+  border-top-color: #fff;
+  border-radius: 9999px;
+  animation: spin 0.7s linear infinite;
+  display: inline-block;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
 .appbar {
   background: var(--c-ink);
   color: var(--c-ink-fg);

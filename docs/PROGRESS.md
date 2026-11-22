@@ -757,6 +757,37 @@ per siswa di tabel terlihat rusak.
 - `go build` + `go vet` hijau; tsc hijau; audit regresi 15 halaman guru +
   mobile + peserta: 0 error konsol, 0 HTTP >=400.
 
+## Tambahan 2026-11-23 (putaran 18 — halaman login estetik-profesional)
+
+**Masukan pengguna**: halaman `/login` diminta estetik dan professional.
+
+### Yang diubah
+- **AuthShell** (dipakai login/register/forgot/reset): panel brand kini
+  `auth-visual` — tekstur grid blueprint sangat halus (hairline 4%, masked
+  fade) + glow biru lembut di pojok, eyebrow "CBT modern untuk sekolah
+  unggulan", headline lebih besar, 4 poin produk jadi grid 2x2, footer
+  tagline + toggle tema. Sisi formulir: card radius 10px + shadow-sm,
+  eyebrow "Ruang Kerja Staf", heading 22px, footnote "Sesi dienkripsi ·
+  Data terisolasi per sekolah".
+- **Login**: input email/password dengan ikon mail/lock inline, toggle
+  lihat/sembunyikan password (IconEye/IconEyeOff baru di icons.tsx),
+  deteksi Caps Lock (hint warna amber), error jadi alert box berikon
+  (danger-soft/line) + `aria-invalid`, tombol dengan spinner saat
+  memproses, link lupa/daftar dipisah hairline, tombol "Isi akun demo
+  guru" (border-dashed; blok ditandai agar mudah dihapus untuk produksi).
+- styles.css: token `.auth-visual` (grid + glow) & `.spinner` — tanpa
+  aksen tebal; semua warna dari token sistem.
+
+### Verifikasi (Playwright)
+- Toggle password → `type=text` ✓; demo fill mengisi kredensial ✓;
+  login salah → alert `role=alert` muncul ✓; login benar → `/dashboard`
+  h1 "Dashboard" ✓.
+- `/register` & `/forgot-password` tetap render dengan shell baru ✓.
+- Mobile 375px tanpa overflow; dark mode render (`html.dark`,
+  grid pattern aktif) ✓.
+- Audit regresi 15 halaman guru + mobile + peserta: **0 error konsol,
+  0 HTTP >=400**; `tsc` + `npm run build` hijau.
+
 ## Remaining backlog (P1/P2, tidak memblokir MVP)
 
 - E2E PWA offline di browser nyata (Playwright), uji beban k6.
