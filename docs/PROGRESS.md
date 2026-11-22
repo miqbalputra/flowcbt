@@ -354,6 +354,37 @@ unduh PDF semua/per siswa, dan kirim otomatis lewat WhatsApp.
   per siswa (`kartu-TA-26-….pdf`), simpan identitas sekolah 200, form siswa
   simpan→muat ulang bertahan, 375 px tanpa overflow, 0 error konsol.
 
+## Tambahan 2026-11-22 (putaran 10 — kartu PDF dirapikan, identik dengan template TKA)
+
+Template TKA dianalisis langsung dari PDF-nya (stream konten + `pdftotext -bbox`):
+halaman 869×1229 unit (1u = 0,2417 mm), font 11u (≈7,5pt) dengan baseline persis.
+
+### Geometri yang kini ditiru apa adanya (`internal/cards/pdf.go`)
+- Kepala halaman: 3 baris bold dipusatkan, baseline 53/65/77u —
+  "KARTU PESERTA {ujian}" / "{sekolah}" / "TAHUN PELAJARAN {tahun}".
+- Kartu 393×278u di x=42/443u dan y=88/374/660u (3 peserta × 2 salinan per halaman).
+- Kotak kartu dengan garis horizontal di y=53/76/99/123/147u; garis vertikal x=339u
+  **hanya pada baris pertama** — itulah kotak PANITIA/PESERTA (dulu salah: label
+  peran menempel di kepala kartu).
+- Lambang **Tut Wuri Handayani** diekstrak dari template (`pdfimages`) lalu
+  di-embed (`go:embed assets/emblem.png`) dan digambar 40×40u di (6,6) —
+  menggantikan lingkaran inisial lama.
+- Judul kartu 3 baris bold dipusatkan (baseline 19/31/43u).
+- Tabel: label x=5,78u, kolon x=133,69u, nilai x=146,75u, baseline baris+16u,
+  **tanpa garis vertikal antar kolom** (ciri khas template); nilai teks biasa
+  (bukan bold) dan menjorok bila terlalu panjang.
+- Bagian bawah: kotak foto 82×109u di (11,157); teks x=102,78u dengan baseline
+  167 ("Purbalingga, 22 November 2026"), 179 ("Kepala Satuan Pendidikan,"),
+  253 (nama kepala), 265 ("NIP. …"); QR 60×60u di (322,205).
+- Area stempel/tanda tangan dibiarkan kosong (data per sekolah, tidak ada di
+  template generik); foto tampil bila siswa mengunggah, selain itu kotak
+  berlabel "FOTO 3x4".
+
+### Verifikasi
+- `go vet`/`go test ./...` hijau; PDF 30 peserta → 10 halaman; render PNG halaman 1
+  dibandingkan berdampingan dengan template: posisi kotak, garis, lambang, peran
+  PANITIA/PESERTA, dan QR sama.
+
 ## Remaining backlog (P1/P2, tidak memblokir MVP)
 
 - E2E PWA offline di browser nyata (Playwright), uji beban k6.
