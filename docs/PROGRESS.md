@@ -890,6 +890,38 @@ token + nomor peserta (/s/guest).
 - Alur tamu e2e tetap hijau ("identitas otomatis: Ahmad Fauzi · X-1");
   audit 15 halaman + mobile: 0 error, 0 HTTP >=400; tsc + build hijau.
 
+## Tambahan 2026-11-23 (putaran 22 — dua jalur peserta jadi TAB berdampingan)
+
+**Masukan pengguna**: harus klik dulu baru pindah ke halaman lain untuk
+masuk pakai kartu — membingungkan; sediakan 2 tab berjejeran (akun vs
+kartu ujian) dalam satu halaman.
+
+### Yang dibuat
+- **`/s/login`** kini satu halaman dengan **segmented tab** (role=tab,
+  aria-selected, dua kolom berdampingan): tab **"Akun sekolah"** (form
+  username/NIS/kode siswa + kata sandi) dan tab **"Kartu ujian"** (form
+  kode ujian + token + nomor peserta dengan identitas-otomatis).
+  Pilihan tab tersinkron ke URL (`?jalur=kartu`) agar bisa di-share,
+  back/forward tetap benar; subtitle berubah mengikuti tab.
+- **`GuestForm.tsx`** (baru): seluruh logika form tamu (lookup kartu
+  debounced 450 dtk, auto-identitas, submit guest-login) diekstrak dari
+  halaman Guest agar dipakai ulang di tab kartu.
+- **`/s/guest` menjadi redirect** ke `/s/login?jalur=kartu` — kartu ujian
+  PDF lama yang mencetak `/s/guest` tetap sampai tujuan.
+- **Footer kartu PDF + teks WhatsApp** (cards/pdf.go, cards/data.go)
+  diperbarui: "Masuk dengan Kartu Ujian: /s/login?jalur=kartu" (API
+  Go di-rebuild & direstart; PDF digenerasi on-demand jadi otomatis
+  memakai teks baru).
+
+### Verifikasi (Playwright)
+- Default `/s/login` → tab Akun aktif (form kartu tak dirender); klik
+  tab Kartu → URL `?jalur=kartu` + form kartu; lookup e2e DEMO01 +
+  L4EJXB + TA-26-…-0001-2 → "Kartu valid — identitas otomatis: Ahmad
+  Fauzi · X-1 · NIS 2001" ✓; deep-link `?jalur=kartu` langsung tab
+  kartu ✓; `/s/guest` → redirect ✓; akun salah → alert ✓; mobile 375
+  tanpa overflow ✓; audit 15 halaman + peserta: **0 error konsol,
+  0 HTTP >=400**; `tsc` + build FE + build Go hijau.
+
 ## Remaining backlog (P1/P2, tidak memblokir MVP)
 
 - E2E PWA offline di browser nyata (Playwright), uji beban k6.

@@ -111,9 +111,9 @@ func pageFooter(pdf *fpdf.Fpdf, meta *examMeta, baseURL string) {
 	pdf.SetFont("Helvetica", "B", pt(9))
 	textC(pdf, u(pageU/2), u(950), fmt.Sprintf("Kode ujian: %s    Token: %s", meta.ExamCode, meta.Token))
 	pdf.SetFont("Helvetica", "", pt(9))
-	login := "Masuk sebagai tamu: /s/guest"
+	login := "Masuk dengan Kartu Ujian: /s/login?jalur=kartu"
 	if baseURL != "" {
-		login = "Masuk sebagai tamu: " + strings.TrimRight(baseURL, "/") + "/s/guest"
+		login = "Masuk dengan Kartu Ujian: " + strings.TrimRight(baseURL, "/") + "/s/login?jalur=kartu"
 	}
 	textC(pdf, u(pageU/2), u(962), pdfgenSafe(login+" — isi kode ujian, token, dan nomor peserta dari kartu"))
 }

@@ -1,7 +1,8 @@
 // Kerangka halaman masuk Area Siswa — mengikuti pola halaman guru:
 // panel gelap bercerita (dot texture + glow, mock kartu ujian, statistik
 // sesi, strip fitur) + formulir terbuka tanpa card (kanan).
-// Dipakai Login akun (/s/login) & Login tamu (/s/guest). Tanpa emoji.
+// Dipakai /s/login (tab Akun & tab Kartu ujian). /s/guest redirect ke sana.
+// Tanpa emoji.
 import type { ReactNode } from 'react'
 import { LogoMark, IconClock, IconExam, IconInfo, IconShield } from '@/components/icons'
 import { ThemeToggle } from '@/components/ThemeToggle'
