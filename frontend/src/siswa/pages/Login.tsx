@@ -1,7 +1,7 @@
-// Login peserta dengan dua JALUR berdampingan (tab) — PRD FR-1.3:
-// Jalur 1: AKUN SEKOLAH (username / NIS / kode siswa + kata sandi).
-// Jalur 2: KARTU UJIAN (kode ujian + token + nomor peserta — identitas otomatis).
-// /s/guest kini redirect ke sini (tab kartu) — kartu ujian lama tetap nyambung.
+// Login peserta dengan dua JALUR berdampingan (tab) — PRD FR-1.3.
+// Default: KARTU UJIAN (kiri) — cara masuk utama peserta; identitas otomatis.
+// Tab kanan: AKUN SEKOLAH (username / NIS / kode siswa + kata sandi).
+// /s/guest redirect ke sini; pilihan akun tersinkron via ?jalur=akun.
 import { useState, type FormEvent } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { studentLogin } from '../lib/student-api'
@@ -15,11 +15,11 @@ type Jalur = 'akun' | 'kartu'
 
 export default function Login() {
   const [params, setParams] = useSearchParams()
-  const start: Jalur = params.get('jalur') === 'kartu' ? 'kartu' : 'akun'
+  const start: Jalur = params.get('jalur') === 'akun' ? 'akun' : 'kartu'
   const [jalur, setJalur] = useState<Jalur>(start)
   const pick = (j: Jalur) => {
     setJalur(j)
-    setParams(j === 'kartu' ? { jalur: 'kartu' } : {}, { replace: true })
+    setParams(j === 'akun' ? { jalur: 'akun' } : {}, { replace: true })
   }
 
   return (
@@ -31,28 +31,12 @@ export default function Login() {
           : 'Gunakan kartu ujian Anda — kode ujian, token, dan nomor peserta; identitas terisi otomatis.'
       }
     >
-      {/* ---- dua opsi berdampingan ---- */}
+      {/* ---- dua opsi berdampingan: KARTU (default) di kiri ---- */}
       <div
         role="tablist"
         aria-label="Pilih cara masuk"
         className="mb-5 grid grid-cols-2 gap-1.5 rounded-lg border border-border bg-canvas p-1.5"
       >
-        <button
-          type="button"
-          role="tab"
-          id="tab-akun"
-          aria-selected={jalur === 'akun'}
-          aria-controls="panel-masuk"
-          onClick={() => pick('akun')}
-          className={`flex h-9 items-center justify-center gap-1.5 rounded-md border text-[13px] font-semibold transition-colors ${
-            jalur === 'akun'
-              ? 'border-primary-line bg-surface text-text shadow-xs'
-              : 'border-transparent text-muted hover:text-text'
-          }`}
-        >
-          <IconStudents size={15} />
-          Akun sekolah
-        </button>
         <button
           type="button"
           role="tab"
@@ -68,6 +52,22 @@ export default function Login() {
         >
           <IconCredit size={15} />
           Kartu ujian
+        </button>
+        <button
+          type="button"
+          role="tab"
+          id="tab-akun"
+          aria-selected={jalur === 'akun'}
+          aria-controls="panel-masuk"
+          onClick={() => pick('akun')}
+          className={`flex h-9 items-center justify-center gap-1.5 rounded-md border text-[13px] font-semibold transition-colors ${
+            jalur === 'akun'
+              ? 'border-primary-line bg-surface text-text shadow-xs'
+              : 'border-transparent text-muted hover:text-text'
+          }`}
+        >
+          <IconStudents size={15} />
+          Akun sekolah
         </button>
       </div>
 

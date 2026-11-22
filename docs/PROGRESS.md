@@ -922,6 +922,26 @@ kartu ujian) dalam satu halaman.
   tanpa overflow ✓; audit 15 halaman + peserta: **0 error konsol,
   0 HTTP >=400**; `tsc` + build FE + build Go hijau.
 
+## Tambahan 2026-11-23 (putaran 23 — Kartu Ujian jadi tab default sebelah kiri)
+
+**Masukan pengguna**: kartu ujian jadikan tab default dan posisinya di kiri.
+
+### Yang diubah
+- `/s/login`: urutan tab dibalik — **"Kartu ujian" di kiri & aktif
+  secara default** (tanpa parameter URL); "Akun sekolah" di kanan dan
+  tersinkron lewat `?jalur=akun`. `?jalur=kartu` tetap dihormati agar
+  kartu PDF lama (footer mencetak URL tersebut) tidak rusak.
+- `/s/guest` cukup redirect ke `/s/login` (tab default sudah kartu).
+
+### Verifikasi (Playwright)
+- Default: tab pertama = "Kartu ujian", aria-selected true, form kartu
+  langsung tersedia; lookup e2e DEMO01+L4EJXB+TA-26-…-0001-2 →
+  "Kartu valid — identitas otomatis: Ahmad Fauzi" ✓.
+- `?jalur=akun` → tab akun ✓; `?jalur=kartu` → tab kartu (backward
+  compat) ✓; `/s/guest` → `/s/login` default kartu ✓; mobile 375
+  tanpa overflow ✓; audit 15 halaman + peserta: **0 error, 0 HTTP
+  >=400**; `tsc` + build hijau.
+
 ## Remaining backlog (P1/P2, tidak memblokir MVP)
 
 - E2E PWA offline di browser nyata (Playwright), uji beban k6.
