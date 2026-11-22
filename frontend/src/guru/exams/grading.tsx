@@ -53,7 +53,7 @@ export default function GradingPage() {
   async function load() {
     setLoading(true)
     try {
-      const e = await send(`/exams/${id}`)
+      const e = await api(`/exams/${id}`)
       setExam((e as { data?: Record<string, unknown> }).data ?? asDict(e))
       const r = await api(`/exams/${id}/attempts`)
       const rows = asList((r as { data?: unknown }).data)

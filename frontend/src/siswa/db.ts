@@ -24,8 +24,10 @@ let dbp: Promise<IDBPDatabase<FlowDB>> | null = null
 
 export function openDb(): Promise<IDBPDatabase<FlowDB>> {
   if (!dbp) {
-    dbp = openDB<FlowDB>(DB_NAME, 1, {
-      upgrade(db) {
+    // v2: index queue.by_attempt — di v1 index ini terlewat dibuat sehingga
+    // getQueueFor() gagal ("index not found") dan sync jawaban tak pernah jalan.
+    dbp = openDB<FlowDB>(DB_NAME, 2, {
+      upgrade(db, _oldV, _newV, tx) {
         if (!db.objectStoreNames.contains('attempts')) db.createObjectStore('attempts', { keyPath: 'attempt_id' })
         if (!db.objectStoreNames.contains('answers')) {
           const s = db.createObjectStore('answers', { keyPath: ['attempt_id', 'question_id'] })
@@ -34,6 +36,13 @@ export function openDb(): Promise<IDBPDatabase<FlowDB>> {
         if (!db.objectStoreNames.contains('queue')) db.createObjectStore('queue', { keyPath: 'client_event_id' })
         if (!db.objectStoreNames.contains('photos')) db.createObjectStore('photos', { keyPath: 'id' })
         if (!db.objectStoreNames.contains('meta')) db.createObjectStore('meta')
+        // migrasi v1 → v2 (idempoten bila sudah ada)
+        const q = tx.objectStore('queue') as unknown as IDBObjectStore
+        try {
+          q.createIndex('by_attempt', 'attempt_id')
+        } catch {
+          /* index sudah ada (DB baru) — abaikan */
+        }
       },
     }).catch(err => {
       dbp = null
@@ -97,7 +106,13 @@ export async function dequeue(clientEventId: string): Promise<void> {
 
 export async function getQueueFor(attemptId: string): Promise<QueueRow[]> {
   const db = await openDb()
-  return db.getAllFromIndex('queue', 'by_attempt', attemptId)
+  try {
+    return await db.getAllFromIndex('queue', 'by_attempt', attemptId)
+  } catch {
+    // jaring pengaman: DB lama tanpa index → filter manual
+    const all = await db.getAll('queue')
+    return all.filter(r => r.attempt_id === attemptId)
+  }
 }
 
 /* ---------- photos (snapshot proktor offline→online) ---------- */

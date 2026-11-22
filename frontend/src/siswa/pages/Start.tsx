@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { saveAttempt } from '../db'
 import { examDetail, startExam } from '../lib/student-api'
-import { errMessage, fmtDateTime, getProfile } from '../lib/util'
+import { errMessage, fmtDateTime, getProfile, lastExamToken } from '../lib/util'
 import { SiswaLayout, Panel, MetaRow, TextField } from '../components/SiswaLayout'
 import { toast } from '@/components/toast'
 import {
@@ -39,7 +39,7 @@ export default function Start() {
   const nav = useNavigate()
   const [detail, setDetail] = useState<Record<string, unknown> | null>(null)
   const [detailErr, setDetailErr] = useState(false)
-  const [token, setToken] = useState('')
+  const [token, setToken] = useState(() => lastExamToken())
   const [agree, setAgree] = useState(false)
   const [camOk, setCamOk] = useState(false)
   const [err, setErr] = useState('')
@@ -70,8 +70,14 @@ export default function Start() {
   const attemptsUsed = Number(detail?.attempts_used ?? 0)
   const maxAttempts = Number(detail?.max_attempts ?? 0)
 
+  const tokenOk = token.trim().length >= 4
+
   async function submit() {
     if (!agree) return
+    if (!tokenOk) {
+      setErr('Masukkan token ujian yang diberikan pengawas (4–12 karakter).')
+      return
+    }
     if (cameraRequired && cameraOn && !camOk) {
       setErr('Kamera wajib diizinkan untuk ujian ini. Centang persetujuan kamera terlebih dahulu.')
       return
@@ -99,7 +105,12 @@ export default function Start() {
       setStage('done')
       nav(`/s/attempt/${res.attempt_id}`)
     } catch (er) {
-      setErr(errMessage(er))
+      const msg = errMessage(er)
+      setErr(
+        /validasi|validation|required/i.test(msg)
+          ? 'Token tidak valid atau belum diisi. Periksa kembali token dari pengawas.'
+          : msg,
+      )
       setStage('idle')
       setBusy(false)
     }
@@ -174,7 +185,11 @@ export default function Start() {
               autoComplete="off"
               autoCapitalize="characters"
               required
-              hint="6 karakter alfanumerik, tidak peka huruf besar/kecil."
+              hint={
+                tokenOk
+                  ? 'Token diterima. Tidak peka huruf besar/kecil.'
+                  : 'Wajib diisi — 4–12 karakter, tidak peka huruf besar/kecil.'
+              }
             />
             {detailErr && (
               <p role="alert" className="mt-2 flex items-start gap-1.5 text-[13px] text-warn">
@@ -241,7 +256,7 @@ export default function Start() {
               <button
                 type="button"
                 className="btn btn-primary btn-block btn-lg"
-                disabled={busy || !agree || (cameraRequired && cameraOn && !camOk)}
+                disabled={busy || !agree || !tokenOk || (cameraRequired && cameraOn && !camOk)}
                 onClick={submit}
               >
                 <IconCheck size={18} />

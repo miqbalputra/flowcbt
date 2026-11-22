@@ -49,6 +49,9 @@ export const IconExam = (p: IconProps) => (
 export const IconChart = (p: IconProps) => (
   <I {...p}><path d="M3 3v18h18" /><path d="M7 15l3.5-4 3 3L21 7" /></I>
 )
+export const IconHistory = (p: IconProps) => (
+  <I {...p}><path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5" /><path d="M12 7v5l3 2" /></I>
+)
 export const IconChart2 = (p: IconProps) => (
   <I {...p}><path d="M18 20V10" /><path d="M12 20V4" /><path d="M6 20v-6" /></I>
 )

@@ -22,8 +22,13 @@ export async function appendEvent(evt: QueueEvent): Promise<void> {
 /** Semua event antrean milik satu attempt, urut seq naik. */
 export async function eventsForAttempt(attemptId: string): Promise<QueueEvent[]> {
   const db = await openDb()
-  const rows = await db.getAllFromIndex('queue', 'by_attempt', attemptId)
-  return (rows as QueueEvent[]).sort((a, b) => a.seq - b.seq)
+  let rows: QueueEvent[]
+  try {
+    rows = (await db.getAllFromIndex('queue', 'by_attempt', attemptId)) as QueueEvent[]
+  } catch {
+    rows = (await db.getAll('queue')).filter((r: QueueEvent) => r.attempt_id === attemptId)
+  }
+  return rows.sort((a, b) => a.seq - b.seq)
 }
 
 /** Hapus baris antrean yang sudah di-ACK server. */

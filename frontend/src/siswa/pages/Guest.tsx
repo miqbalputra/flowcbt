@@ -4,7 +4,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { cardLookup, guestLogin, type CardLookup } from '../lib/student-api'
-import { errMessage, saveLocalProfile } from '../lib/util'
+import { errMessage, rememberExamToken, saveLocalProfile } from '../lib/util'
 import { AuthPortal } from '../components/AuthPortal'
 import { TextField } from '../components/SiswaLayout'
 import { IconAlertCircle, IconCheck, IconClass, IconCredit, IconExam, IconKey, IconStudents } from '@/components/icons'
@@ -68,6 +68,7 @@ export default function Guest() {
         class_name: cls.trim() || undefined,
       })
       saveLocalProfile({ name: r.student?.name || name.trim(), isGuest: true })
+      rememberExamToken(token)
       nav('/s/exams', { replace: true })
     } catch (er) {
       setErr(errMessage(er))

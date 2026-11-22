@@ -428,6 +428,84 @@ apakah nomor peserta otomatis terdeteksi?" Jawabannya kini: **ya**.
   otomatis, lencana "Kartu valid", submit → masuk ke `/s/exams` dan ujian DEMO01
   muncul; nomor salah → pesan "tidak terdaftar"; 0 error konsol (kecuali 404 uji sengaja).
 
+## Tambahan 2026-11-22 (putaran 12 — /reports rusak, audit menyeluruh, insiden RCE dev server)
+
+### 1. `/reports` tidak bisa diakses → halaman indeks dibuat
+Route `/reports` memang belum pernah ada (hanya `/reports/live`,
+`/reports/history`, `/reports/exams/:id`) sehingga publik melihat 404 SPA.
+Kini ada hub **Laporan** (`frontend/src/guru/reports/index.tsx`): ringkasan
+statistik, kartu **Pantauan Live** + **Riwayat Ujian**, daftar ujian berjalan
+(attendance bar) dan arsip terbaru. Route ditambahkan di `App.tsx`
+(`/reports` → `ReportsHome`), ikon `IconHistory` ditambahkan.
+
+### 2. Bug hasil audit (ditemukan & diperbaiki)
+- `guru/exams/grading.tsx`: memuat detail ujian dengan `send()` (default POST)
+  → 405 Method Not Allowed. Diganti `api()` (GET).
+- `siswa/db.ts`: store `queue` di IndexedDB **tidak pernah punya index
+  `by_attempt`** padahal semua kode sync memakai `getAllFromIndex('queue',
+  'by_attempt', …)` → `NotFoundError: index not found`, antrean jawaban tidak
+  pernah terkirim dan sinkronisasi diam-diam gagal. DB dinaikkan ke **v2**
+  dengan migrasi `upgrade(db, old, new, tx)` yang membuat index tersebut, plus
+  jaring pengaman `getQueueFor()`/`eventsForAttempt()` (fallback `getAll` +
+  filter) untuk DB lama. Diuji: DB v1 lama → otomatis jadi v2 + index dibuat,
+  0 error.
+- `siswa/pages/Start.tsx`: tombol **Mulai Ujian** aktif walau token kosong →
+  server membalas `VALIDATION` mentah. Kini tombol nonaktif sampai token
+  terisi (4–12 karakter), hint berubah sesuai keadaan, dan pesan validasi
+  diterjemahkan ("Token tidak valid atau belum diisi…").
+- Token kini **terisi otomatis** di halaman Mulai: `rememberExamToken()` di
+  `lib/util.ts` menyimpan token yang berhasil dipakai login tamu (sessionStorage)
+  dan `Start.tsx` membacanya lewat `lastExamToken()` — peserta tidak perlu
+  mengetik token dua kali.
+
+### 3. Insiden keamanan: Vite dev server terbuka ke publik
+Selama audit, Vite 5.4.0 (dev server) yang dijalankan `--host 0.0.0.0:5173`
+menerima percobaan **RCE** lewat injeksi `import.meta.glob` (payload
+`RCE_B64:QzA=` + `globalThis._oc=…`); overlay error-nya muncul di semua klien
+(membuat uji Playwright gagal intermiten). Pemeriksaan sistem: tidak ada
+persistensi (`authorized_keys` kosong, crontab normal, tidak ada proses/berkas
+aneh, tidak ada koneksi keluar mencurigakan).
+Mitigasi:
+- dev server dimatikan; Vite di-upgrade `5.4.0` → **5.4.21**;
+- `vite.config.ts` → `host: '127.0.0.1'` + `strictPort`, dengan komentar
+  peringatan agar tidak diekspos;
+- akses publik dilayani **server statis Go** baru `backend/cmd/webserve`
+  (`-addr 0.0.0.0:5173 -dist frontend/dist -api http://127.0.0.1:8080`):
+  menyajikan SPA + proxy `/api` (flush SSE untuk `/reports/live/stream`),
+  `/healthz`, dan security headers (X-Content-Type-Options, Referrer-Policy,
+  X-Frame-Options, CSP dasar).
+
+### 4. Hasil audit (hijau)
+- Playwright guru 1280 & 375: dashboard, kelas, siswa, bank soal, ujian, detail
+  ujian, kartu, kecurangan, penilaian, **/reports + 3 sub-halaman**, billing,
+  pengaturan → 0 error konsol, 0 HTTP ≥400, tidak ada halaman 404,
+  tidak ada overflow horizontal.
+- API smoke: auth/me, dashboard, classes, students(+detail/track-record/export/
+  template), teachers, question-sets(+detail), exams(+detail/attempts/cheating/
+  cards/cards-pdf), reports live/history/exam/item-analysis/export, billing,
+  `/plans`, school-profile → 200; SSE live mengirim snapshot.
+- **Alur peserta E2E** (Playwright, publik): login tamu (kode `DEMO01`, token
+  `L4EJXB`, kartu `TA-26-03-10-0028-0004-9`) → identitas terisi otomatis →
+  halaman Mulai (token sudah prefill, tombol terkunci sampai setuju) → runner →
+  jawab 7 soal → review → **Selesai & Kirim** → `/done` "Jawaban berhasil
+  diserahkan", nilai sementara 15. Di sisi guru, attempt muncul sebagai
+  `submitted` dengan skor 3 (PG) dan uraian menunggu penilaian.
+  0 error konsol, 0 HTTP ≥400.
+- `go vet ./...`, `go test ./...`, `npx tsc -b --noEmit`, `npm run build` hijau.
+
+### Berkas
+- Baru: `frontend/src/guru/reports/index.tsx`, `backend/cmd/webserve/main.go`.
+- Ubah: `App.tsx`, `components/icons.tsx`, `guru/exams/grading.tsx`,
+  `siswa/db.ts`, `siswa/lib/queue.ts`, `siswa/lib/util.ts`,
+  `siswa/pages/Guest.tsx`, `siswa/pages/Start.tsx`, `frontend/vite.config.ts`,
+  `frontend/package.json` + lock (vite 5.4.21).
+
+### Catatan operasional
+- **Jangan** mengekspos `npm run dev` ke internet. Untuk publik:
+  `cd frontend && npm run build`, lalu
+  `go run ./cmd/webserve -addr 0.0.0.0:5173 -dist ../frontend/dist -api http://127.0.0.1:8080`.
+- Vite dev tetap bisa dipakai lokal di `http://127.0.0.1:5173` (host default).
+
 ## Remaining backlog (P1/P2, tidak memblokir MVP)
 
 - E2E PWA offline di browser nyata (Playwright), uji beban k6.

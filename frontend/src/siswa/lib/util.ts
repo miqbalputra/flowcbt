@@ -63,3 +63,22 @@ export function unwrap<T>(r: unknown): T | null {
   }
   return (r ?? null) as T | null
 }
+
+/** Simpan token ujian terakhir (per sesi peramban) agar halaman Mulai bisa
+ *  terisi otomatis — peserta tamu sudah mengetik token saat login. */
+const TOKEN_KEY = 'cbt.last_exam_token'
+export function rememberExamToken(t: string): void {
+  try {
+    const v = t.trim().toUpperCase()
+    if (v) sessionStorage.setItem(TOKEN_KEY, v)
+  } catch {
+    /* storage penuh/diblokir — abaikan */
+  }
+}
+export function lastExamToken(): string {
+  try {
+    return sessionStorage.getItem(TOKEN_KEY) ?? ''
+  } catch {
+    return ''
+  }
+}

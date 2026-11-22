@@ -42,7 +42,12 @@ export default defineConfig({
     }),
   ],
   server: {
+    // Dev server HANYA untuk lokal: endpoint transform/HMR-nya berbahaya bila
+    // terbuka ke internet (pernah kena percobaan RCE lewat injeksi glob option).
+    // Untuk akses publik pakai build statis: `go run ./cmd/webserve` di backend.
+    host: '127.0.0.1',
     port: 5173,
+    strictPort: true,
     proxy: {
       '/api': { target: 'http://127.0.0.1:8080', changeOrigin: true },
     },
