@@ -1,14 +1,28 @@
-// Kerangka halaman masuk Area Siswa — panel identitas institusi (kiri, gelap)
-// + formulir (kanan, terang). Dipakai Login akun & Login tamu.
+// Kerangka halaman masuk Area Siswa — mengikuti pola halaman guru:
+// panel gelap bercerita (dot texture + glow, mock kartu ujian, statistik
+// sesi, strip fitur) + formulir terbuka tanpa card (kanan).
+// Dipakai Login akun (/s/login) & Login tamu (/s/guest). Tanpa emoji.
 import type { ReactNode } from 'react'
-import { LogoMark, IconCheck, IconClipboard, IconShield, IconStudents } from '@/components/icons'
+import { LogoMark, IconClock, IconExam, IconInfo, IconShield } from '@/components/icons'
 import { ThemeToggle } from '@/components/ThemeToggle'
 
-const STEPS = [
-  { icon: <IconClipboard size={15} />, title: 'Masuk ruang ujian', body: 'Gunakan akun sekolah atau data diri + kode ujian.' },
-  { icon: <IconShield size={15} />, title: 'Baca tata tertib', body: 'Setujui ketentuan dan masukkan token dari pengawas.' },
-  { icon: <IconCheck size={15} />, title: 'Kerjakan dengan tenang', body: 'Jawaban tersimpan otomatis, tetap aman saat offline.' },
+const FEATURES = [
+  'Tanpa instal',
+  'Offline-first',
+  'Auto-save jawaban',
+  'Tata tertib',
+  'Anti-curang',
+  'Hasil cepat',
 ]
+
+/** mock kartu peserta — meniru kartu ujian TKA yang dipegang peserta */
+const CARD = {
+  exam: 'Tryout Numerasi #1',
+  code: 'DEMO01',
+  token: 'L4EJXB',
+  no: 'TA-26-03-10-0028-0001-2',
+  name: 'Bunga Lestari · XI IPA 1',
+}
 
 export function AuthPortal({
   title,
@@ -25,66 +39,127 @@ export function AuthPortal({
 }) {
   return (
     <div className="min-h-dvh bg-bg text-text">
-      <div className="flex min-h-dvh w-full flex-col lg:flex-row">
-        {/* ---------------- panel identitas ---------------- */}
-        <aside className="appbar flex flex-col justify-between px-5 py-5 sm:px-7 lg:w-[46%] lg:py-8">
-          <div>
+      <div className="grid min-h-dvh lg:grid-cols-[1.1fr_1fr]">
+        {/* ===== panel cerita (desktop) ===== */}
+        <aside className="auth-visual text-ink-fg relative hidden overflow-hidden lg:flex lg:flex-col">
+          <div className="auth-layer flex h-full flex-col px-8 py-7 xl:px-10">
             <div className="flex items-center gap-2.5">
               <LogoMark size={30} />
               <div>
                 <div className="text-[15px] font-bold leading-tight tracking-tight">FlowCBT</div>
-                <div className="text-[10px] uppercase tracking-[0.14em] text-ink-muted">Sistem Ujian Berbasis Komputer</div>
+                <div className="text-[10px] uppercase tracking-[0.14em] text-ink-muted">Portal Peserta Ujian</div>
               </div>
             </div>
 
-            <h1 className="mt-6 hidden text-xl font-bold leading-snug lg:block">
-              Ruang ujian peserta —<br />tenang, jelas, dan terpercaya.
-            </h1>
-            <p className="mt-2 hidden max-w-sm text-[13px] leading-relaxed text-ink-muted lg:block">
-              Masuk untuk melihat jadwal ujian, mengerjakan soal, dan melihat hasilmu. Tidak perlu instal aplikasi.
-            </p>
+            <div className="mx-auto flex w-full max-w-[480px] flex-1 flex-col justify-center py-8">
+              <div className="animate-rise">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-muted">
+                  Ruang ujian peserta
+                </p>
+                <h1 className="mt-3 max-w-[14ch] text-[42px] font-bold leading-[1.04] tracking-tight xl:text-[46px]">
+                  Duduk, tenang, kerjakan.
+                </h1>
+                <p className="mt-3 max-w-[44ch] text-[15px] leading-relaxed text-ink-muted">
+                  Masukkan kode dari kartu ujian atau akun sekolah — jawaban
+                  tersimpan otomatis, bahkan saat internet sekolah sedang sulit.
+                </p>
+              </div>
 
-            <ol className="mt-5 hidden space-y-3 lg:block">
-              {STEPS.map((s, i) => (
-                <li key={s.title} className="flex items-start gap-2.5">
-                  <span className="mono mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded border border-ink-line bg-white/5 text-[11px] font-bold text-ink-fg">
-                    {i + 1}
-                  </span>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5 text-[13px] font-semibold">
-                      <span className="text-ink-muted" aria-hidden>{s.icon}</span>
-                      {s.title}
+              {/* mock kartu ujian */}
+              <div className="mt-8 animate-rise rise-1" aria-hidden>
+                <div className="rounded-2xl border border-ink-line bg-ink-2 p-3.5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <span className="flex h-6 w-6 items-center justify-center rounded-md bg-ink-fg/10">
+                        <IconExam size={13} />
+                      </span>
+                      <span className="text-[13px] font-semibold">{CARD.exam}</span>
                     </div>
-                    <p className="text-[12px] leading-snug text-ink-muted">{s.body}</p>
+                    <span className="rounded border border-ink-line px-1.5 py-px text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
+                      kartu peserta
+                    </span>
                   </div>
-                </li>
-              ))}
-            </ol>
-          </div>
+                  <div className="mt-3 grid grid-cols-3 gap-2">
+                    {[
+                      ['Kode', CARD.code],
+                      ['Token', CARD.token],
+                      ['Nomor peserta', CARD.no],
+                    ].map(([l, v]) => (
+                      <div key={l} className="rounded-lg border border-ink-line bg-ink px-2.5 py-1.5">
+                        <div className="text-[9.5px] font-semibold uppercase tracking-wide text-ink-muted">{l}</div>
+                        <div className="mono mt-0.5 truncate text-[11.5px] font-bold">{v}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-2.5 flex items-center gap-1.5 text-[11px] text-ink-muted">
+                    <IconShield size={12} />
+                    {CARD.name}
+                  </div>
+                </div>
+              </div>
 
-          <div className="mt-4 flex items-center justify-between gap-3 border-t border-ink-line pt-3">
-            <span className="inline-flex items-center gap-1.5 text-[11px] text-ink-muted">
-              <IconStudents size={13} /> Butuh bantuan? Hubungi pengawas.
-            </span>
-            <ThemeToggle tone="inverse" />
+              {/* dua kartu kecil: suasana sesi */}
+              <div className="mt-3 grid grid-cols-2 gap-3 animate-rise rise-2" aria-hidden>
+                <div className="rounded-xl border border-ink-line bg-ink-2/60 px-3.5 py-3">
+                  <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-ink-muted">
+                    <IconClock size={12} /> sisa waktu
+                  </div>
+                  <div className="mono mt-1.5 text-[19px] font-bold leading-none">43:12</div>
+                  <div className="mt-1 text-[11px] text-ink-muted">soal 12/20 · tersimpan otomatis</div>
+                </div>
+                <div className="rounded-xl border border-ink-line bg-ink-2/60 px-3.5 py-3">
+                  <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-ink-muted">
+                    <IconShield size={12} /> tata tertib
+                  </div>
+                  <div className="mt-1.5 text-[19px] font-bold leading-none">02 langkah</div>
+                  <div className="mt-1 text-[11px] text-ink-muted">layar penuh · tetap fokus</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 border-t border-ink-line pt-4">
+              <ul className="flex flex-1 flex-wrap items-center gap-x-4 gap-y-2">
+                {FEATURES.map(f => (
+                  <li key={f} className="text-[11px] text-ink-muted">
+                    {f}
+                  </li>
+                ))}
+              </ul>
+            </div>
           </div>
         </aside>
 
-        {/* ---------------- formulir ---------------- */}
-        <main className="flex flex-1 items-start justify-center px-4 py-6 sm:px-6 lg:items-center lg:py-8">
-          <div className="w-full max-w-md">
-            <div className="mb-4 lg:mb-5">
-              <h2 className="text-lg font-bold tracking-tight sm:text-xl">{title}</h2>
-              {subtitle && <p className="mt-1 text-sm text-muted">{subtitle}</p>}
+        {/* ===== formulir (terbuka, tanpa card) ===== */}
+        <section className="flex flex-col px-5 py-6 sm:px-10 lg:py-10">
+          <div className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center">
+            <div className="mb-6 flex items-center justify-between animate-rise">
+              <span className="inline-flex items-center gap-2">
+                <LogoMark size={22} />
+                <span className="text-[17px] font-bold tracking-tight">FlowCBT</span>
+              </span>
+              <ThemeToggle />
             </div>
-            <div className="rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">{children}</div>
-            {footer && <div className="mt-3 text-center text-[13px] text-muted">{footer}</div>}
-            {guestLink && <div className="mt-2 text-center text-[13px] text-muted">{guestLink}</div>}
-            <p className="mt-5 text-center text-[11px] leading-relaxed text-muted">
-              Dengan masuk, kamu menyetujui ketentuan penggunaan dan kebijakan privasi FlowCBT.
+
+            <div className="animate-rise rise-1">
+              <h2 className="text-[26px] font-bold leading-tight tracking-tight sm:text-[28px]">{title}</h2>
+              {subtitle && <p className="mt-1.5 text-[14px] leading-relaxed text-muted">{subtitle}</p>}
+            </div>
+
+            <div className="mt-6 animate-rise rise-2">{children}</div>
+
+            {guestLink && (
+              <p className="mt-5 text-center text-sm text-muted animate-rise rise-3">{guestLink}</p>
+            )}
+            {footer && (
+              <p className="mt-5 text-center text-sm text-muted animate-rise rise-3">{footer}</p>
+            )}
+
+            <p className="mt-8 flex items-center gap-1.5 text-[11px] text-muted">
+              <IconInfo size={13} />
+              Butuh bantuan? Angkat tangan — pengawas siap membantu.
             </p>
           </div>
-        </main>
+        </section>
       </div>
     </div>
   )

@@ -827,6 +827,36 @@ rounded-lg, toggle mata password, tombol utama penuh.
 - Audit regresi 15 halaman guru + mobile + peserta: **0 error konsol,
   0 HTTP >=400**; `tsc` + `npm run build` hijau.
 
+## Tambahan 2026-11-23 (putaran 20 — portal peserta disamakan ke pola login guru)
+
+**Masukan pengguna**: `/s/login` (dan turunannya) disamakan ke tampilan
+login guru bergaya tebar.app.
+
+### Yang diubah
+- **AuthPortal** (`frontend/src/siswa/components/AuthPortal.tsx`) ditulis
+  ulang mengikuti AuthShell guru: split `1.1fr_1fr`, panel kiri
+  `.auth-visual` (dot-texture + glow reuse dari styles.css), eyebrow
+  "Portal Peserta Ujian", headline 46px **"Duduk, tenang, kerjakan."**,
+  **mock kartu peserta ala TKA** (Tryout Numerasi #1 · chips kode/token/
+  nomor peserta · nama+kelas), 2 kartu mini (sisa waktu 43:12 · tata
+  tertib), strip fitur peserta; kanan formulir terbuka TANPA card
+  (logo + judul 28px + children + link footer + catatan pengawas).
+  API komponen tetap: title/subtitle/children/footer/guestLink —
+  Login & Guest tanpa perombakan besar.
+- **TextField** (`SiswaLayout.tsx`): `input .label` → `auth-input
+  auth-label` (kompak 40px rounded-lg, ikon pl-10) — konsisten dengan
+  guru; berdampak baik juga ke Start & Guest.
+
+### Verifikasi (Playwright)
+- Struktur terukur: h1 46px, input 40px, mock kartu "DEMO01" tampil,
+  form tanpa card; `/s/login` & `/s/guest` 0 error, tanpa overflow
+  (desktop & mobile 375).
+- Alur tamu end-to-end: DEMO01 + L4EJXB + TA-26-03-10-0028-0001-2 →
+  **"Kartu valid — identitas otomatis: Ahmad Fauzi · kelas X-1 ·
+  NIS 2001"**; lanjut konfirmasi jalan; 0 page error.
+- Audit regresi 15 halaman guru + mobile + peserta: **0 error konsol,
+  0 HTTP >=400**; `tsc` + `npm run build` hijau.
+
 ## Remaining backlog (P1/P2, tidak memblokir MVP)
 
 - E2E PWA offline di browser nyata (Playwright), uji beban k6.

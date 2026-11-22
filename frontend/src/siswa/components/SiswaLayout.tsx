@@ -121,7 +121,7 @@ export function TextField({
   const { id, className, ...others } = rest
   return (
     <div>
-      <label className="label" htmlFor={id}>{label}</label>
+      <label className="auth-label" htmlFor={id}>{label}</label>
       <div className="relative">
         {icon && (
           <span
@@ -133,7 +133,7 @@ export function TextField({
         )}
         <input
           id={id}
-          className={`input ${icon ? 'pl-9' : ''} ${mono ? 'mono tracking-[0.18em] uppercase' : ''} ${className ?? ''}`}
+          className={`auth-input ${icon ? 'pl-10' : ''} ${mono ? 'mono tracking-[0.18em] uppercase' : ''} ${className ?? ''}`}
           spellCheck={mono ? false : others.spellCheck}
           {...others}
         />
