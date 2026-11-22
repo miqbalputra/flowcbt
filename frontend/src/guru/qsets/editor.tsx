@@ -35,11 +35,11 @@ function newQuestion(type: QType): Dict {
   uid += 1
   const base: Dict = { _uid: `q${uid}`, type, body: '', points: 1 }
   if (type === 'pg') {
-    base.options = LETTERS.slice(0, 5).map(l => ({ label: l, text: '' }))
+    base.options = LETTERS.slice(0, 2).map(l => ({ label: l, text: '' }))
     base.key = ''
     base.shuffle_options = false
   } else if (type === 'pg_kompleks') {
-    base.options = LETTERS.slice(0, 4).map(l => ({ label: l, text: '' }))
+    base.options = LETTERS.slice(0, 2).map(l => ({ label: l, text: '' }))
     base.correct = [] as string[]
     base.scoring = 'all'
     base.shuffle_options = false

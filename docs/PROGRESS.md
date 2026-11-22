@@ -537,13 +537,16 @@ pembahasan selalu terbuka). Guru merasa pembuatan soal membingungkan.
 - **Validasi ramah sebelum kirim** (`payloadProblem`): "Soal 2: isi minimal 2
   pilihan jawaban", "Soal 1: pilih kunci jawaban…", "Soal 3: isi minimal 2
   pasangan…", dst. Semua soal diperiksa dulu supaya tidak ada simpan separuh.
-- Soal menjodohkan baru langsung berisi 2 pasangan (syarat minimum backend).
+- Soal PG/PG Kompleks baru langsung berisi **2 opsi** (seperti Google Form) dengan
+  tautan "Tambah opsi" sampai 5; soal menjodohkan baru langsung 2 pasangan
+  (syarat minimum backend).
 - Perbaikan bug: soal Isian baru tidak menampilkan baris kunci (karena
   `strArr([''])` menyaring string kosong) — kini selalu ada satu baris kunci.
 
 ### Hasil
-- Tinggi kartu: **536–764 px → 229–375 px** (≈50–60% lebih ringkas); contoh
-  PG 3 opsi = 263 px, isian = 229 px, uraian = 189–240 px.
+- Tinggi kartu: **536–764 px → 229–331 px** (≈55–65% lebih ringkas); kartu PG
+  baru yang masih kosong = **278 px**, PG 2 opsi = 263 px, isian = 229 px,
+  uraian = 189 px (pengaturan tertutup).
 - Playwright: kelima tipe dibuat lewat modal, diisi, disimpan, halaman di-reload
   → tipe & kunci (PG A, PG kompleks A+C, pasangan Indonesia–Jakarta/Jepang–Tokyo,
   kunci isian 15, rubrik uraian) semuanya tersimpan; pratinjau siswa terbuka;
