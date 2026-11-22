@@ -506,6 +506,59 @@ Mitigasi:
   `go run ./cmd/webserve -addr 0.0.0.0:5173 -dist ../frontend/dist -api http://127.0.0.1:8080`.
 - Vite dev tetap bisa dipakai lokal di `http://127.0.0.1:5173` (host default).
 
+## Tambahan 2026-11-22 (putaran 13 — builder soal gaya Google Form)
+
+### Masalah
+Kartu soal di editor paket soal terlalu besar dan berlapis-lapis: tiap soal
+setinggi **536–764 px** (header chip tipe + poin + status, kotak teks berbingkai
+tebal dengan hint panjang, kotak opsi berbingkai per baris, field poin &
+pembahasan selalu terbuka). Guru merasa pembuatan soal membingungkan.
+
+### Perubahan (frontend saja)
+- **Kartu soal baru gaya Google Form** (`guru/qsets/editor.tsx` + `styles.css`,
+  kelas `.gf-*`): kartu putih bergaris tipis dengan aksen kiri biru, padding
+  rapat, tanpa label "TEKS SOAL"/"OPSI JAWABAN".
+  - Pertanyaan = kolom bergaris bawah (bukan kotak), placeholder "Pertanyaan",
+    font 15 px; toolbar B/I/U/daftar/pangkat tetap ada tapi kecil (26 px).
+  - **Dropdown tipe soal** di bawah pertanyaan (Pilihan Ganda, PG Kompleks,
+    Menjodohkan, Isian Singkat, Uraian) — tipe bisa diganti tanpa kehilangan
+    teks/poin/pembahasan; opsi ikut terbawa saat pindah PG ↔ PG Kompleks.
+  - Opsi jawaban = bulatan/kotak centang + teks bergaris bawah, "Tambah opsi"
+    berupa tautan, tombol hapus muncul saat hover; petunjuk kecil
+    "Bulatan kiri = kunci jawaban" / "Centang = jawaban benar".
+  - Menjodohkan: dua kolom bergaris (kiri ↔ kanan) langsung 2 baris.
+  - Isian: baris kunci jawaban bergaris + "Tambah kunci".
+  - Uraian: satu baris keterangan; rubrik pindah ke pengaturan.
+  - **Pengaturan lanjutan** (poin, pembahasan, acak opsi, skoring, rubrik)
+    dilipat per soal dan dibuka lewat tautan "Pengaturan" di baris tipe.
+- **Payload lebih toleran** (`questionPayload`): baris opsi/pasangan/kunci yang
+  kosong dibuang dan label A–E dirapatkan (perilaku Google Form), sehingga draft
+  tidak lagi ditolak server dengan pesan mentah "opsi C: teks kosong".
+- **Validasi ramah sebelum kirim** (`payloadProblem`): "Soal 2: isi minimal 2
+  pilihan jawaban", "Soal 1: pilih kunci jawaban…", "Soal 3: isi minimal 2
+  pasangan…", dst. Semua soal diperiksa dulu supaya tidak ada simpan separuh.
+- Soal menjodohkan baru langsung berisi 2 pasangan (syarat minimum backend).
+- Perbaikan bug: soal Isian baru tidak menampilkan baris kunci (karena
+  `strArr([''])` menyaring string kosong) — kini selalu ada satu baris kunci.
+
+### Hasil
+- Tinggi kartu: **536–764 px → 229–375 px** (≈50–60% lebih ringkas); contoh
+  PG 3 opsi = 263 px, isian = 229 px, uraian = 189–240 px.
+- Playwright: kelima tipe dibuat lewat modal, diisi, disimpan, halaman di-reload
+  → tipe & kunci (PG A, PG kompleks A+C, pasangan Indonesia–Jakarta/Jepang–Tokyo,
+  kunci isian 15, rubrik uraian) semuanya tersimpan; pratinjau siswa terbuka;
+  0 error konsol, 0 HTTP ≥400; tanpa overflow di 375 px.
+- Ganti tipe lewat dropdown (PG → Isian) mempertahankan teks soal, lalu tersimpan
+  sebagai `short_answer` setelah reload.
+- Audit guru 1280/375 tetap hijau; `tsc -b --noEmit` + `npm run build` hijau.
+
+### Berkas
+- `frontend/src/guru/qsets/editor.tsx` — kartu soal baru, `changeType`,
+  `compactOptions`, `payloadProblem`.
+- `frontend/src/styles.css` — blok CSS "BUILDER SOAL — kartu ringkas gaya Google
+  Form" (`.gf-card`, `.gf-q`, `.gf-type`, `.gf-opt`, `.gf-line`, `.gf-add`,
+  `.gf-more`).
+
 ## Remaining backlog (P1/P2, tidak memblokir MVP)
 
 - E2E PWA offline di browser nyata (Playwright), uji beban k6.

@@ -44,7 +44,7 @@ function newQuestion(type: QType): Dict {
     base.scoring = 'all'
     base.shuffle_options = false
   } else if (type === 'menjodohkan') {
-    base.pairs = [{ left: '', right: '' }]
+    base.pairs = [{ left: '', right: '' }, { left: '', right: '' }]
     base.scoring = 'all'
   } else if (type === 'isian') {
     base.keys = ['']
@@ -137,6 +137,8 @@ export default function QsetEditor() {
   // status seret-lepas untuk urutan soal (murni UI, tidak mengubah data)
   const [dragFrom, setDragFrom] = useState<number | null>(null)
   const [dragOver, setDragOver] = useState<number | null>(null)
+  // panel "Pengaturan lanjutan" per soal (default tertutup → kartu tetap ringkas)
+  const [adv, setAdv] = useState<Record<string, boolean>>({})
 
   const detail = useQuery({
     queryKey: ['question-set', id],
@@ -186,6 +188,32 @@ export default function QsetEditor() {
   function patchQuestion(i: number, patch: Dict) {
     setQuestions(qs => qs.map((q, j) => (j === i ? { ...q, ...patch } : q)))
   }
+  /** Ganti tipe soal di kartu (dropdown gaya Google Form).
+   *  Teks, poin, pembahasan, wacana, dan opsi PG dipertahankan. */
+  function changeType(i: number, type: QType) {
+    setQuestions(qs =>
+      qs.map((q, j) => {
+        if (j !== i || String(q.type) === type) return q
+        const prevType = String(q.type)
+        const next: Dict = newQuestion(type)
+        const keep: Dict = {
+          _uid: q._uid,
+          type,
+          body: q.body ?? '',
+          points: q.points ?? 1,
+          explanation: q.explanation ?? '',
+        }
+        if (q.stimulus_id ?? q.stimuli_id) keep.stimulus_id = q.stimulus_id ?? q.stimuli_id
+        if (typeof q.id === 'string' && q.id) keep.id = q.id
+        const wasPg = prevType === 'pg' || prevType === 'pg_kompleks'
+        if (wasPg && (type === 'pg' || type === 'pg_kompleks') && asList(q.options).length) {
+          keep.options = asList(q.options)
+        }
+        return { ...next, ...keep }
+      }),
+    )
+  }
+
   function move(i: number, dir: -1 | 1) {
     setQuestions(qs => {
       const j = i + dir
@@ -241,6 +269,23 @@ export default function QsetEditor() {
   const published = loadedStatus === 'published' && !isNew
 
   // payload soal sesuai kontrak endpoint /question-sets/{id}/questions & /questions/{id}
+  /** Opsi terisi saja (baris kosong diabaikan seperti Google Form) + label A-E
+   *  dirapatkan. Mengembalikan peta label lama → label baru untuk kunci. */
+  function compactOptions(q: Dict): { options: { id: string; text: string }[]; relabel: Record<string, string> } {
+    const raw = asList(q.options).map((o, i) => ({
+      id: String(o.label ?? LETTERS[i] ?? ''),
+      text: String(o.text ?? '').trim(),
+    }))
+    const kept = raw.filter(o => o.text)
+    const relabel: Record<string, string> = {}
+    const options = kept.map((o, i) => {
+      const id = LETTERS[i] ?? o.id
+      relabel[o.id] = id
+      return { id, text: o.text }
+    })
+    return { options, relabel }
+  }
+
   function questionPayload(q: Dict): Dict {
     const type = String(q.type ?? 'pg')
     const key: Dict = {}
@@ -251,24 +296,24 @@ export default function QsetEditor() {
       explanation: String(q.explanation ?? ''),
     }
     if (q.stimulus_id) payload.stimulus_id = q.stimulus_id
-    if (type === 'pg') {
-      payload.options = asList(q.options).map((o, i) => ({ id: String(o.label ?? LETTERS[i] ?? ''), text: String(o.text ?? '') }))
-      key.correct = String(q.key ?? '')
+    if (type === 'pg' || type === 'pg_kompleks') {
+      const { options, relabel } = compactOptions(q)
+      payload.options = options
       payload.shuffle_options = Boolean(q.shuffle_options)
-    }
-    if (type === 'pg_kompleks') {
-      payload.options = asList(q.options).map((o, i) => ({ id: String(o.label ?? LETTERS[i] ?? ''), text: String(o.text ?? '') }))
-      key.correct = strArr(q.correct)
-      payload.shuffle_options = Boolean(q.shuffle_options)
+      if (type === 'pg') key.correct = relabel[String(q.key ?? '')] ?? ''
+      else key.correct = strArr(q.correct).map(l => relabel[l]).filter(Boolean)
     }
     if (type === 'menjodohkan') {
-      key.pairs = asList(q.pairs).map(p => ({ left: String(p.left ?? ''), right: String(p.right ?? '') }))
+      const pairs = asList(q.pairs)
+        .map(pr => ({ left: String(pr.left ?? '').trim(), right: String(pr.right ?? '').trim() }))
+        .filter(pr => pr.left && pr.right)
+      key.pairs = pairs
       payload.options = {
-        left: (key.pairs as Dict[]).map(p => p.left),
-        right: (key.pairs as Dict[]).map(p => p.right),
+        left: pairs.map(pr => pr.left),
+        right: pairs.map(pr => pr.right),
       }
     }
-    if (type === 'isian') key.answers = strArr(q.keys)
+    if (type === 'isian') key.answers = strArr(q.keys).map(v => v.trim()).filter(Boolean)
     if (type === 'uraian') key.rubric = String(q.rubric ?? '')
     payload.answer_key = key
     payload.scoring_mode = type === 'pg_kompleks' || type === 'menjodohkan'
@@ -276,6 +321,28 @@ export default function QsetEditor() {
       : 'all_or_nothing'
     if (typeof q.id === 'string' && q.id) payload.id = q.id
     return payload
+  }
+
+  /** Pesan ramah sebelum kirim ke server: cegah 400 VALIDATION mentah.
+   *  Aturan mengikuti validasi backend (2–5 opsi, kunci wajib, ≥2 pasangan). */
+  function payloadProblem(q: Dict, index: number): string {
+    const n = index + 1
+    const type = String(q.type ?? 'pg')
+    if (!htmlToText(String(q.body ?? '')).trim()) return `Soal ${n}: teks soal masih kosong.`
+    if (type === 'pg' || type === 'pg_kompleks') {
+      const filled = asList(q.options).filter(o => String(o.text ?? '').trim()).length
+      if (filled < 2) return `Soal ${n}: isi minimal 2 pilihan jawaban.`
+      if (type === 'pg' && !String(q.key ?? '')) return `Soal ${n}: pilih kunci jawaban (klik bulatan di kiri opsi).`
+      if (type === 'pg_kompleks' && strArr(q.correct).length === 0) return `Soal ${n}: centang minimal satu jawaban benar.`
+    }
+    if (type === 'menjodohkan') {
+      const pairs = asList(q.pairs).filter(pr => String(pr.left ?? '').trim() && String(pr.right ?? '').trim())
+      if (pairs.length < 2) return `Soal ${n}: isi minimal 2 pasangan (kiri dan kanan).`
+    }
+    if (type === 'isian' && strArr(q.keys).filter(k => k.trim()).length === 0) {
+      return `Soal ${n}: isi minimal satu kunci jawaban.`
+    }
+    return ''
   }
 
   /* ------------------------------------------------------------------
@@ -326,6 +393,8 @@ export default function QsetEditor() {
         description: String(info.description ?? '').trim(),
         level_tag: asList(info.level_tags).map(String).filter(Boolean).join(', '),
       }
+      const firstProblem = questions.map((q, i) => payloadProblem(q, i)).find(Boolean)
+      if (firstProblem) throw new Error(firstProblem)
       let setId = id ?? ''
       if (isNew) {
         const created = unwrap(await send('/question-sets', meta, 'POST'))
@@ -666,7 +735,7 @@ export default function QsetEditor() {
       <div className="space-y-3">
         <SectionHeading
           title={`Daftar soal (${questions.length})`}
-          desc="Seret pegangan di kiri kartu atau pakai tombol naik/turun untuk mengubah urutan."
+          desc="Kartu ringkas gaya Google Form — klik pertanyaan untuk menulis, ganti tipe lewat dropdown, seret pegangan kiri untuk mengurutkan."
           icon={<IconClipboard size={15} />}
           action={
             <button type="button" className="btn-primary btn-sm" onClick={() => setAddOpen(true)}>
@@ -699,8 +768,8 @@ export default function QsetEditor() {
                 setDragOver(null)
               }}
             >
-              {/* kepala soal: pegangan, nomor, chip tipe, status kelengkapan, aksi */}
-              <div className="flex flex-wrap items-center gap-1.5 border-b border-border bg-surface px-2 py-2">
+              {/* baris atas: pegangan urut, nomor, status, aksi */}
+              <div className="flex items-center gap-1.5 px-2.5 pt-2 sm:px-4">
                 <button
                   type="button"
                   draggable
@@ -710,122 +779,126 @@ export default function QsetEditor() {
                     e.dataTransfer.setData('text/plain', String(qi))
                   }}
                   onDragEnd={() => { setDragFrom(null); setDragOver(null) }}
-                  className="btn-quiet touch-target cursor-grab !p-0 active:cursor-grabbing"
+                  className="gf-grip -ml-1 rounded p-0.5"
                   title="Geser untuk mengubah urutan"
                   aria-label={`Geser soal ${qi + 1} untuk mengubah urutan`}
                 >
-                  <IconMenu size={16} />
+                  <IconMenu size={15} />
                 </button>
-                <span className="mono rounded border border-border bg-canvas px-1.5 py-0.5 text-[11px] font-bold">#{qi + 1}</span>
-                <span className="chip">
-                  <TypeIco size={12} /> {qtypeLabel(type)}
+                <span className="mono text-[11px] text-muted">#{qi + 1}</span>
+                <span className={`text-[11px] font-semibold ${problem ? 'text-warn' : 'text-success'}`}>
+                  {problem ? 'Belum lengkap' : 'Lengkap'}
                 </span>
-                <span className="chip mono">{Number(question.points) || 1} poin</span>
-                {problem ? (
-                  <span className="badge border border-warn-line bg-warn-soft text-warn">
-                    <IconWarn size={11} /> Belum lengkap
-                  </span>
-                ) : (
-                  <span className="badge border border-success-line bg-success-soft text-success">
-                    <IconCheck size={11} /> Lengkap
-                  </span>
-                )}
 
-                <div className="ml-auto flex items-center gap-1">
+                <div className="ml-auto flex items-center gap-0.5">
                   <button
                     type="button" aria-label={`Naikkan soal ${qi + 1}`} title="Naikkan soal"
-                    className="btn-ghost btn-sm !px-1.5" disabled={qi === 0} onClick={() => move(qi, -1)}
+                    className="btn-quiet btn-sm !px-1.5" disabled={qi === 0} onClick={() => move(qi, -1)}
                   >
                     <IconChevronUp size={14} />
                   </button>
                   <button
                     type="button" aria-label={`Turunkan soal ${qi + 1}`} title="Turunkan soal"
-                    className="btn-ghost btn-sm !px-1.5" disabled={qi === questions.length - 1} onClick={() => move(qi, 1)}
+                    className="btn-quiet btn-sm !px-1.5" disabled={qi === questions.length - 1} onClick={() => move(qi, 1)}
                   >
                     <IconChevronDown size={14} />
                   </button>
                   <button
                     type="button" aria-label={`Duplikat soal ${qi + 1}`} title="Duplikat soal"
-                    className="btn-ghost btn-sm !px-1.5" onClick={() => dupQuestion(qi)}
+                    className="btn-quiet btn-sm !px-1.5" onClick={() => dupQuestion(qi)}
                   >
                     <IconCopy size={14} />
                   </button>
                   <button
                     type="button" aria-label={`Hapus soal ${qi + 1}`} title="Hapus soal"
-                    className="btn-quiet btn-sm !px-1.5 text-danger" onClick={() => setDeleting(question)}
+                    className="btn-quiet btn-sm !px-1.5 text-muted hover:text-danger" onClick={() => setDeleting(question)}
                   >
                     <IconTrash size={14} />
                   </button>
                 </div>
               </div>
 
-              {/* badan editor soal */}
-              <div className="space-y-3 p-2.5 sm:p-3">
+              {/* isi kartu: pertanyaan → tipe → jawaban → pengaturan */}
+              <div className="px-2.5 pb-2 sm:px-4 sm:pb-3">
                 {stimulus && (
                   <div
-                    className="rich-text rounded-md border border-border bg-canvas p-2.5 text-[13px] leading-relaxed"
+                    className="rich-text mb-2 rounded border border-border bg-canvas px-2 py-1.5 text-[12px] leading-relaxed"
                     dangerouslySetInnerHTML={{ __html: stimulus }}
                   />
                 )}
 
-                <div>
-                  <label className="label" htmlFor={`body-${qi}`}>Teks soal</label>
+                <div className="gf-q">
                   <RichEditor
                     id={`body-${qi}`}
                     value={String(question.body ?? '')}
                     onChange={v => patchQuestion(qi, { body: v })}
                     ariaLabel={`Teks soal ${qi + 1}`}
-                    placeholder="Ketik soal di sini…"
+                    placeholder="Pertanyaan"
+                    minHeight={40}
                   />
-                  <p className="hint mt-1">
-                    Blok teks lalu pakai tombol B / I / U / daftar / pangkat. Enter di baris "1." atau "-" otomatis jadi daftar bernomor/butir.
-                  </p>
-                  {Boolean(question.body) && (
-                    <button
-                      type="button" className="btn-quiet btn-sm mt-1 !px-0"
-                      onClick={() => setPreview({ q: question, stimulusHtml: stimulus })}
-                    >
-                      <IconEye size={14} /> Pratinjau tampilan siswa
-                    </button>
-                  )}
                 </div>
 
-                {/* input jawaban per tipe */}
+                {/* tipe soal (bisa diganti) + pratinjau */}
+                <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                  <span className="gf-type">
+                    <TypeIco size={14} className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-muted" />
+                    <select
+                      aria-label={`Tipe soal ${qi + 1}`}
+                      value={type}
+                      onChange={e => changeType(qi, e.target.value as QType)}
+                    >
+                      {QTYPES.map(t => (
+                        <option key={t.value} value={t.value}>{t.label}</option>
+                      ))}
+                    </select>
+                    <IconChevronDown size={13} className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 text-muted" />
+                  </span>
+                  {Boolean(question.body) && (
+                    <button
+                      type="button" className="gf-add"
+                      onClick={() => setPreview({ q: question, stimulusHtml: stimulus })}
+                    >
+                      <IconEye size={13} /> Pratinjau
+                    </button>
+                  )}
+                  <button
+                    type="button" className="gf-more ml-auto"
+                    aria-expanded={Boolean(adv[String(question._uid ?? qi)])}
+                    onClick={() => setAdv(a => ({ ...a, [String(question._uid ?? qi)]: !a[String(question._uid ?? qi)] }))}
+                  >
+                    Pengaturan
+                    <IconChevronDown
+                      size={13}
+                      className={`transition-transform ${adv[String(question._uid ?? qi)] ? 'rotate-180' : ''}`}
+                    />
+                  </button>
+                </div>
+
+                {/* ---------------- jawaban: pilihan ganda ---------------- */}
                 {type === 'pg' && (
-                  <div className="space-y-2 rounded-md border border-border bg-canvas/50 p-2.5">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <span className="section-label">Opsi jawaban · pilih radio untuk kunci</span>
-                      <button
-                        type="button" className="btn-ghost btn-sm" disabled={options.length >= 5}
-                        onClick={() => patchQuestion(qi, { options: [...options, { label: LETTERS[options.length] ?? '?', text: '' }] })}
-                      >
-                        <IconPlus size={13} /> Opsi
-                      </button>
-                    </div>
+                  <div className="mt-1">
                     {options.map((o, oi) => {
                       const active = String(question.key ?? '') === String(o.label)
                       return (
-                        <div
-                          key={o.label ?? oi}
-                          className={`flex min-h-11 items-center gap-1.5 rounded-md border px-2 py-1 ${
-                            active ? 'border-primary-line bg-primary-soft' : 'border-border bg-surface'
-                          }`}
-                        >
+                        <div key={String(o.label ?? oi)} className="gf-opt">
                           <input
-                            type="radio" aria-label={`Kunci ${o.label}`} checked={active}
-                            onChange={() => patchQuestion(qi, { key: o.label })}
+                            type="radio" className="shrink-0" aria-label={`Jadikan ${o.label} kunci jawaban`}
+                            checked={active} onChange={() => patchQuestion(qi, { key: o.label })}
                           />
-                          <span className="mono w-4 shrink-0 text-center text-[13px] font-bold">{String(o.label)}</span>
                           <input
-                            className="input !min-h-0 min-w-0 flex-1 !border-0 !bg-transparent !px-1" aria-label={`Teks opsi ${o.label}`}
-                            value={String(o.text ?? '')} placeholder="Teks pilihan…"
+                            type="text" className="gf-line" aria-label={`Teks pilihan ${o.label}`}
+                            value={String(o.text ?? '')} placeholder={`Pilihan ${oi + 1}`}
                             onChange={e => withAutoCap(e, v => patchQuestion(qi, { options: options.map((x, k) => (k === oi ? { ...x, text: v } : x)) }))}
                           />
                           <button
-                            type="button" aria-label={`Hapus opsi ${o.label}`} className="btn-quiet btn-sm shrink-0 !px-1 text-danger"
+                            type="button" aria-label={`Hapus pilihan ${o.label}`}
+                            className="gf-opt-del btn-quiet btn-sm shrink-0 !px-1 text-danger"
                             onClick={() => {
                               const rest = options.filter((_, k) => k !== oi)
-                              patchQuestion(qi, { options: rest.map((x, k) => ({ ...x, label: LETTERS[k] ?? x.label })), key: question.key === o.label ? '' : question.key })
+                              patchQuestion(qi, {
+                                options: rest.map((x, k) => ({ ...x, label: LETTERS[k] ?? x.label })),
+                                key: question.key === o.label ? '' : question.key,
+                              })
                             }}
                           >
                             <IconX size={14} />
@@ -833,169 +906,191 @@ export default function QsetEditor() {
                         </div>
                       )
                     })}
-                    <label className="flex min-h-11 items-center gap-2 text-[13px]">
-                      <input
-                        type="checkbox" checked={Boolean(question.shuffle_options)}
-                        onChange={e => patchQuestion(qi, { shuffle_options: e.target.checked })}
-                      />
-                      Acak urutan pilihan
-                    </label>
+                    <div className="flex flex-wrap items-center justify-between gap-1">
+                      <button
+                        type="button" className="gf-add" disabled={options.length >= 5}
+                        onClick={() => patchQuestion(qi, { options: [...options, { label: LETTERS[options.length] ?? '?', text: '' }] })}
+                      >
+                        <IconPlus size={13} /> Tambah opsi
+                      </button>
+                      <span className="pr-1 text-[11px] text-muted">Bulatan kiri = kunci jawaban</span>
+                    </div>
                   </div>
                 )}
 
+                {/* ---------------- jawaban: PG kompleks ---------------- */}
                 {type === 'pg_kompleks' && (
-                  <div className="space-y-2 rounded-md border border-border bg-canvas/50 p-2.5">
-                    <span className="section-label">Opsi · centang semua jawaban benar</span>
+                  <div className="mt-1">
                     {options.map((o, oi) => {
                       const active = strArr(question.correct).includes(String(o.label))
                       return (
-                        <div
-                          key={o.label ?? oi}
-                          className={`flex min-h-11 items-center gap-1.5 rounded-md border px-2 py-1 ${
-                            active ? 'border-success-line bg-success-soft' : 'border-border bg-surface'
-                          }`}
-                        >
+                        <div key={String(o.label ?? oi)} className="gf-opt">
                           <input
-                            type="checkbox" aria-label={`Kunci ${o.label}`} checked={active}
+                            type="checkbox" className="shrink-0" aria-label={`Jadikan ${o.label} kunci jawaban`}
+                            checked={active}
                             onChange={e => {
                               const cur = strArr(question.correct)
-                              patchQuestion(qi, { correct: e.target.checked ? [...cur, String(o.label)] : cur.filter(l => l !== o.label) })
+                              patchQuestion(qi, {
+                                correct: e.target.checked ? [...cur, String(o.label)] : cur.filter(l => l !== o.label),
+                              })
                             }}
                           />
-                          <span className="mono w-4 shrink-0 text-center text-[13px] font-bold">{String(o.label)}</span>
                           <input
-                            className="input !min-h-0 min-w-0 flex-1 !border-0 !bg-transparent !px-1" aria-label={`Teks opsi ${o.label}`}
-                            value={String(o.text ?? '')} placeholder="Teks pilihan…"
+                            type="text" className="gf-line" aria-label={`Teks pilihan ${o.label}`}
+                            value={String(o.text ?? '')} placeholder={`Pilihan ${oi + 1}`}
                             onChange={e => withAutoCap(e, v => patchQuestion(qi, { options: options.map((x, k) => (k === oi ? { ...x, text: v } : x)) }))}
                           />
+                          <button
+                            type="button" aria-label={`Hapus pilihan ${o.label}`}
+                            className="gf-opt-del btn-quiet btn-sm shrink-0 !px-1 text-danger"
+                            onClick={() => {
+                              const rest = options.filter((_, k) => k !== oi)
+                              patchQuestion(qi, {
+                                options: rest.map((x, k) => ({ ...x, label: LETTERS[k] ?? x.label })),
+                                correct: strArr(question.correct).filter(l => l !== o.label),
+                              })
+                            }}
+                          >
+                            <IconX size={14} />
+                          </button>
                         </div>
                       )
                     })}
-                    <div>
-                      <span className="label">Skoring benar-atau-tidak / parsial</span>
-                      <select
-                        className="input" value={String(question.scoring ?? 'all')} aria-label="Skoring PG kompleks"
-                        onChange={e => patchQuestion(qi, { scoring: e.target.value })}
+                    <div className="flex flex-wrap items-center justify-between gap-1">
+                      <button
+                        type="button" className="gf-add" disabled={options.length >= 5}
+                        onClick={() => patchQuestion(qi, { options: [...options, { label: LETTERS[options.length] ?? '?', text: '' }] })}
                       >
-                        <option value="all">Semua-atau-tidak</option>
-                        <option value="partial">Parsial per opsi</option>
-                      </select>
+                        <IconPlus size={13} /> Tambah opsi
+                      </button>
+                      <span className="pr-1 text-[11px] text-muted">Centang = jawaban benar</span>
                     </div>
-                    <label className="flex min-h-11 items-center gap-2 text-[13px]">
-                      <input
-                        type="checkbox" checked={Boolean(question.shuffle_options)}
-                        onChange={e => patchQuestion(qi, { shuffle_options: e.target.checked })}
-                      />
-                      Acak urutan pilihan
-                    </label>
                   </div>
                 )}
 
+                {/* ---------------- jawaban: menjodohkan ---------------- */}
                 {type === 'menjodohkan' && (
-                  <div className="space-y-2 rounded-md border border-border bg-canvas/50 p-2.5">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <span className="section-label">Pasangan kiri ↔ kanan</span>
-                      <button
-                        type="button" className="btn-ghost btn-sm"
-                        onClick={() => patchQuestion(qi, { pairs: [...asList(question.pairs), { left: '', right: '' }] })}
-                      >
-                        <IconPlus size={13} /> Pasangan
-                      </button>
-                    </div>
-                    {asList(question.pairs).map((p, pi) => (
-                      <div key={pi} className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+                  <div className="mt-1">
+                    {asList(question.pairs).map((pr, pi) => (
+                      <div key={pi} className="gf-opt gap-2">
                         <input
-                          className="input" aria-label={`Kiri ${pi + 1}`} placeholder="kolom kiri" value={String(p.left ?? '')}
+                          className="gf-line gf-line--ruled" aria-label={`Kiri ${pi + 1}`} placeholder="Kiri"
+                          value={String(pr.left ?? '')}
                           onChange={e => withAutoCap(e, v => patchQuestion(qi, { pairs: asList(question.pairs).map((x, k) => (k === pi ? { ...x, left: v } : x)) }))}
                         />
+                        <span aria-hidden className="shrink-0 text-muted">↔</span>
                         <input
-                          className="input" aria-label={`Kanan ${pi + 1}`} placeholder="kolom kanan" value={String(p.right ?? '')}
+                          className="gf-line gf-line--ruled" aria-label={`Kanan ${pi + 1}`} placeholder="Kanan"
+                          value={String(pr.right ?? '')}
                           onChange={e => withAutoCap(e, v => patchQuestion(qi, { pairs: asList(question.pairs).map((x, k) => (k === pi ? { ...x, right: v } : x)) }))}
                         />
                         <button
-                          type="button" aria-label={`Hapus pasangan ${pi + 1}`} className="btn-quiet btn-sm text-danger"
+                          type="button" aria-label={`Hapus pasangan ${pi + 1}`}
+                          className="gf-opt-del btn-quiet btn-sm shrink-0 !px-1 text-danger"
                           onClick={() => patchQuestion(qi, { pairs: asList(question.pairs).filter((_, k) => k !== pi) })}
                         >
                           <IconX size={14} />
                         </button>
                       </div>
                     ))}
-                    <div>
-                      <span className="label">Skoring</span>
-                      <select
-                        className="input" value={String(question.scoring ?? 'all')} aria-label="Skoring menjodohkan"
-                        onChange={e => patchQuestion(qi, { scoring: e.target.value })}
-                      >
-                        <option value="all">Semua pasangan benar</option>
-                        <option value="partial">Parsial per pasangan</option>
-                      </select>
-                    </div>
+                    <button
+                      type="button" className="gf-add"
+                      onClick={() => patchQuestion(qi, { pairs: [...asList(question.pairs), { left: '', right: '' }] })}
+                    >
+                      <IconPlus size={13} /> Tambah pasangan
+                    </button>
                   </div>
                 )}
 
+                {/* ---------------- jawaban: isian singkat ---------------- */}
                 {type === 'isian' && (
-                  <div className="space-y-2 rounded-md border border-border bg-canvas/50 p-2.5">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <span className="section-label">Daftar kunci (case-insensitive)</span>
-                      <button
-                        type="button" className="btn-ghost btn-sm"
-                        onClick={() => patchQuestion(qi, { keys: [...strArr(question.keys), ''] })}
-                      >
-                        <IconPlus size={13} /> Kunci
-                      </button>
-                    </div>
-                    {strArr(question.keys).map((k, ki) => (
-                      <div key={ki} className="flex items-center gap-2">
+                  <div className="mt-1">
+                    {(strArr(question.keys).length ? strArr(question.keys) : ['']).map((k, ki, all) => (
+                      <div key={ki} className="gf-opt">
                         <input
-                          className="input min-w-0 flex-1" aria-label={`Kunci ${ki + 1}`} placeholder={`kunci ${ki + 1}`}
+                          className="gf-line gf-line--ruled" aria-label={`Kunci ${ki + 1}`} placeholder={`Kunci jawaban ${ki + 1}`}
                           value={String(k ?? '')}
-                          onChange={e => patchQuestion(qi, { keys: strArr(question.keys).map((x, j) => (j === ki ? e.target.value : x)) })}
+                          onChange={e => patchQuestion(qi, { keys: all.map((x, j) => (j === ki ? e.target.value : x)) })}
                         />
                         <button
-                          type="button" aria-label={`Hapus kunci ${ki + 1}`} className="btn-quiet btn-sm shrink-0 text-danger"
-                          disabled={strArr(question.keys).length <= 1}
-                          onClick={() => patchQuestion(qi, { keys: strArr(question.keys).filter((_, j) => j !== ki) })}
+                          type="button" aria-label={`Hapus kunci ${ki + 1}`}
+                          className="gf-opt-del btn-quiet btn-sm shrink-0 !px-1 text-danger"
+                          disabled={all.length <= 1}
+                          onClick={() => patchQuestion(qi, { keys: all.filter((_, j) => j !== ki) })}
                         >
                           <IconX size={14} />
                         </button>
                       </div>
                     ))}
+                    <button
+                      type="button" className="gf-add"
+                      onClick={() => patchQuestion(qi, { keys: [...(strArr(question.keys).length ? strArr(question.keys) : ['']), ''] })}
+                    >
+                      <IconPlus size={13} /> Tambah kunci
+                    </button>
                   </div>
                 )}
 
+                {/* ---------------- jawaban: uraian ---------------- */}
                 {type === 'uraian' && (
-                  <div>
-                    <label className="label" htmlFor={`rubric-${qi}`}>Rubrik penilaian uraian</label>
-                    <textarea
-                      id={`rubric-${qi}`} className="input min-h-20" placeholder="Kriteria jawaban lengkap…"
-                      value={String(question.rubric ?? '')}
-                      onChange={e => withAutoCap(e, v => patchQuestion(qi, { rubric: v }))}
-                    />
-                  </div>
+                  <p className="mt-1.5 text-[12px] leading-relaxed text-muted">
+                    Jawaban uraian dinilai manual oleh guru. Rubrik penilaian ada di pengaturan lanjutan.
+                  </p>
                 )}
 
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div>
-                    <label className="label" htmlFor={`pts-${qi}`}>Poin soal</label>
-                    <input
-                      id={`pts-${qi}`} type="number" min={1} max={100} className="input mono"
-                      value={String(question.points ?? 1)}
-                      onChange={e => patchQuestion(qi, { points: Number(e.target.value) || 1 })}
-                    />
-                    <p className="hint mt-1">Rentang 1–100 poin.</p>
+                {/* pengaturan lanjutan (tertutup default supaya kartu ringkas) */}
+                {Boolean(adv[String(question._uid ?? qi)]) && (
+                  <div className="mt-2 grid grid-cols-1 gap-2 border-t border-border pt-2 sm:grid-cols-2">
+                      <div>
+                        <label className="label" htmlFor={`pts-${qi}`}>Poin soal</label>
+                        <input
+                          id={`pts-${qi}`} type="number" min={1} max={100} className="input mono !min-h-9"
+                          value={String(question.points ?? 1)}
+                          onChange={e => patchQuestion(qi, { points: Number(e.target.value) || 1 })}
+                        />
+                      </div>
+                      {(type === 'pg' || type === 'pg_kompleks' || type === 'isian' || type === 'uraian') && (
+                        <div>
+                          <label className="label" htmlFor={`expl-${qi}`}>Pembahasan (opsional)</label>
+                          <input
+                            id={`expl-${qi}`} className="input !min-h-9" value={String(question.explanation ?? '')}
+                            onChange={e => withAutoCap(e, v => patchQuestion(qi, { explanation: v }))} placeholder="Penjelasan singkat…"
+                          />
+                        </div>
+                      )}
+                      {(type === 'pg' || type === 'pg_kompleks') && (
+                        <label className="flex min-h-9 items-center gap-2 text-[13px]">
+                          <input
+                            type="checkbox" checked={Boolean(question.shuffle_options)}
+                            onChange={e => patchQuestion(qi, { shuffle_options: e.target.checked })}
+                          />
+                          Acak urutan pilihan
+                        </label>
+                      )}
+                      {(type === 'pg_kompleks' || type === 'menjodohkan') && (
+                        <div>
+                          <label className="label" htmlFor={`score-${qi}`}>Skoring</label>
+                          <select
+                            id={`score-${qi}`} className="input !min-h-9" value={String(question.scoring ?? 'all')}
+                            onChange={e => patchQuestion(qi, { scoring: e.target.value })}
+                          >
+                            <option value="all">{type === 'menjodohkan' ? 'Semua pasangan benar' : 'Semua-atau-tidak'}</option>
+                            <option value="partial">{type === 'menjodohkan' ? 'Parsial per pasangan' : 'Parsial per opsi'}</option>
+                          </select>
+                        </div>
+                      )}
+                      {type === 'uraian' && (
+                        <div className="sm:col-span-2">
+                          <label className="label" htmlFor={`rubric-${qi}`}>Rubrik penilaian uraian</label>
+                          <textarea
+                            id={`rubric-${qi}`} className="input min-h-16" placeholder="Kriteria jawaban lengkap…"
+                            value={String(question.rubric ?? '')}
+                            onChange={e => withAutoCap(e, v => patchQuestion(qi, { rubric: v }))}
+                          />
+                        </div>
+                      )}
                   </div>
-                  {(type === 'pg' || type === 'pg_kompleks' || type === 'isian' || type === 'uraian') && (
-                    <div>
-                      <label className="label" htmlFor={`expl-${qi}`}>
-                        Pembahasan <span className="font-normal text-muted">(opsional)</span>
-                      </label>
-                      <input
-                        id={`expl-${qi}`} className="input" value={String(question.explanation ?? '')}
-                        onChange={e => withAutoCap(e, v => patchQuestion(qi, { explanation: v }))} placeholder="Penjelasan singkat…"
-                      />
-                    </div>
-                  )}
-                </div>
+                )}
               </div>
             </section>
           )

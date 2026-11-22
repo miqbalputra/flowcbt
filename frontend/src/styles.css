@@ -605,6 +605,99 @@ input[type="checkbox"], input[type="radio"] {
 .rt-editor sup, .rt-editor sub { font-size: 0.75em; }
 .rt-editor:focus { outline: none; }
 
+/* ============================================================
+   BUILDER SOAL — kartu ringkas gaya Google Form
+   Satu soal = satu kartu putih bergaris tipis dengan aksen kiri.
+   Kotak pertanyaan & opsi hanya bergaris bawah (tanpa kotak tebal).
+   ============================================================ */
+.gf-card {
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-left: 4px solid var(--c-primary);
+  border-radius: 8px;
+  transition: box-shadow 0.15s, border-color 0.15s;
+}
+.gf-card:hover { border-color: var(--c-border-strong); border-left-color: var(--c-primary); }
+.gf-card:focus-within { box-shadow: 0 1px 3px rgb(60 64 67 / 18%); }
+
+.gf-grip { color: var(--c-muted); cursor: grab; }
+.gf-grip:active { cursor: grabbing; }
+
+/* kolom "Pertanyaan" — garis bawah seperti Google Form */
+.gf-q .rt { border: 0; border-radius: 0; background: transparent; overflow: visible; }
+.gf-q .rt:hover, .gf-q .rt:focus-within { border: 0; box-shadow: none; }
+.gf-q .rt-toolbar { gap: 0; padding: 0 0 2px; border-bottom: 0; background: transparent; }
+.gf-q .rt-btn { min-width: 26px; height: 26px; }
+.gf-q .rt-sep { height: 14px; margin: 0 2px; }
+.gf-q .rt-editor {
+  min-height: 40px;
+  padding: 2px 0 7px;
+  border-bottom: 1px solid var(--c-border);
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  max-height: 260px;
+}
+.gf-q .rt-editor:focus { border-bottom: 2px solid var(--c-primary); padding-bottom: 6px; }
+
+/* dropdown tipe soal (di bawah pertanyaan, seperti Google Form) */
+.gf-type { position: relative; display: inline-flex; align-items: center; }
+.gf-type select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding: 0.375rem 1.75rem 0.375rem 1.75rem;
+  border: 1px solid var(--c-border-strong);
+  border-radius: 4px;
+  background: var(--c-surface);
+  color: var(--c-text);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.12s, background-color 0.12s;
+}
+.gf-type select:hover { background: var(--c-canvas); }
+
+/* baris opsi: bulat/kotak centang + teks bergaris bawah */
+.gf-opt { display: flex; align-items: center; gap: 0.5rem; min-height: 34px; }
+.gf-opt-del { opacity: 0; transition: opacity 0.12s; }
+.gf-opt:hover .gf-opt-del, .gf-opt:focus-within .gf-opt-del { opacity: 1; }
+@media (hover: none) { .gf-opt-del { opacity: 1; } }
+
+/* input satu baris tanpa kotak (opsi, pasangan, kunci) */
+.gf-line {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0.3rem 0;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--c-text);
+  font-size: 0.875rem;
+}
+.gf-line::placeholder { color: var(--c-muted); opacity: 0.75; }
+.gf-line:hover { border-bottom-color: var(--c-border); }
+/* varian bergaris tetap — dipakai pasangan menjodohkan & kunci isian */
+.gf-line--ruled { border-bottom-color: var(--c-border); }
+.gf-line:focus { outline: none; border-bottom: 1px solid var(--c-primary); }
+
+/* tombol teks "Tambah opsi" gaya Google Form */
+.gf-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 999px;
+  color: var(--c-muted);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+.gf-add:hover:not(:disabled) { background: var(--c-primary-soft); color: var(--c-primary); }
+.gf-add:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* tautan "Pengaturan lanjutan" */
+.gf-more { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.75rem; font-weight: 600; color: var(--c-muted); }
+.gf-more:hover { color: var(--c-text); }
+
 /* pangkat pada tampilan soal siswa */
 .rich-text sup, .rich-text sub { font-size: 0.75em; }
 
