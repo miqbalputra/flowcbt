@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/hex"
 	"fmt"
 	"os"
 	"strconv"
@@ -31,6 +32,11 @@ type Config struct {
 	UploadDir string
 	// Penyimpanan media per tenant default 1 GB (konfigurasi PRD 3.2)
 	StorageMediaPerTenantBytes int64
+
+	// SnapshotEncryptionKey mengenkripsi foto proktor at-rest (AES-256-GCM,
+	// 64 karakter hex = 32 byte). Produksi wajib diisi (FailFast); kosong di
+	// development berarti snapshot disimpan apa adanya (legacy).
+	SnapshotEncryptionKey string
 }
 
 func env(key, def string) string {
@@ -56,13 +62,14 @@ func Load() *Config {
 		DatabaseAppURL:             env("DATABASE_APP_URL", "postgres://flowcbt_app:app_user_dev@127.0.0.1:5433/flowcbt"),
 		JWTSecret:                  env("JWT_SECRET", "dev-secret-change-me-in-production"),
 		AccessTokenTTL:             accessTTL,
-		RefreshTokenTTL:            refreshTTL,
+		RefreshTokenTTL:           refreshTTL,
 		SeedSuperAdminEmail:        env("SEED_SUPERADMIN_EMAIL", "superadmin@flowcbt.id"),
 		SeedSuperAdminPass:         env("SEED_SUPERADMIN_PASS", "Admin#12345"),
 		PublicBaseURL:              env("PUBLIC_BASE_URL", ""),
 		CORSAllowedOrigins:         strings.Split(env("CORS_ALLOWED_ORIGINS", "*"), ","),
 		UploadDir:                  env("UPLOAD_DIR", "./data/uploads"),
 		StorageMediaPerTenantBytes: 1 << 30, // 1 GB default
+		SnapshotEncryptionKey:      env("SNAPSHOT_ENCRYPTION_KEY", ""),
 	}
 }
 
@@ -96,6 +103,11 @@ func (c *Config) FailFast() error {
 	}
 	if c.DatabaseAppURL == defaultAppDNS {
 		problems = append(problems, "DATABASE_APP_URL masih memakai password default app_user_dev")
+	}
+	if c.SnapshotEncryptionKey == "" {
+		problems = append(problems, "SNAPSHOT_ENCRYPTION_KEY belum diset (enkripsi foto proktor at-rest, 64 karakter hex — buat dengan `openssl rand -hex 32`)")
+	} else if raw, err := hex.DecodeString(c.SnapshotEncryptionKey); err != nil || len(raw) != 32 {
+		problems = append(problems, "SNAPSHOT_ENCRYPTION_KEY tidak valid (harus tepat 64 karakter hex / 32 byte — `openssl rand -hex 32`)")
 	}
 	if len(problems) > 0 {
 		return fmt.Errorf("konfigurasi produksi tidak aman: %s — set variabel lingkungan sebelum menjalankan", strings.Join(problems, "; "))

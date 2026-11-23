@@ -37,6 +37,13 @@ func (m *Module) issueStreamTicket(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, httpx.NewErr(http.StatusUnauthorized, "UNAUTHORIZED", "Sesi tidak dikenali"))
 		return
 	}
+	// rate-limit per tenant: tiket dipakai sekali tiap koneksi SSE —
+	// reconnect loop normal jauh di bawah 60/menit; ini memblokir spam
+	// minta-tiket (pencegahan pemenuhan memori tiket).
+	if !m.a.RL.Allow("sseticket:"+claims.TenantID, 60) {
+		httpx.Error(w, httpx.ErrRateLimited)
+		return
+	}
 	buf := make([]byte, 32)
 	if _, err := rand.Read(buf); err != nil {
 		httpx.Error(w, err)
@@ -49,7 +56,7 @@ func (m *Module) issueStreamTicket(w http.ResponseWriter, r *http.Request) {
 		now := time.Now()
 		for k, t := range m.tickets {
 			if now.After(t.expires) {
-				delete(m.tickets, k)
+					delete(m.tickets, k)
 			}
 		}
 	}
@@ -71,7 +78,7 @@ func (m *Module) requireStreamTicket(next http.Handler) http.Handler {
 		if id == "" {
 			httpx.Error(w, httpx.NewErr(http.StatusUnauthorized, "TICKET_REQUIRED",
 				"Tiket SSE wajib — minta lewat POST /reports/live/stream-ticket"))
-			return
+				return
 		}
 		m.ticketMu.Lock()
 		t, ok := m.tickets[id]
