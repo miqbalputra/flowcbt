@@ -62,7 +62,7 @@ func Load() *Config {
 		DatabaseAppURL:             env("DATABASE_APP_URL", "postgres://flowcbt_app:app_user_dev@127.0.0.1:5433/flowcbt"),
 		JWTSecret:                  env("JWT_SECRET", "dev-secret-change-me-in-production"),
 		AccessTokenTTL:             accessTTL,
-		RefreshTokenTTL:           refreshTTL,
+		RefreshTokenTTL:            refreshTTL,
 		SeedSuperAdminEmail:        env("SEED_SUPERADMIN_EMAIL", "superadmin@flowcbt.id"),
 		SeedSuperAdminPass:         env("SEED_SUPERADMIN_PASS", "Admin#12345"),
 		PublicBaseURL:              env("PUBLIC_BASE_URL", ""),

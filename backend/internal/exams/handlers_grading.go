@@ -273,7 +273,7 @@ func (m *Module) reportViolation(w http.ResponseWriter, r *http.Request) {
 				return err
 			}
 			if a.Status != "in_progress" && a.Status != "pending_sync" {
-			return nil
+				return nil
 			}
 			e, err := loadExam(r.Context(), tx, a.ExamID)
 			if err != nil {

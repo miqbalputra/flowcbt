@@ -2,7 +2,7 @@ package exams
 
 // Enkripsi foto proktor at-rest (audit P2 #3). Snapshot berisi wajah siswa —
 // data pribadi yang sensitif; file di disk tidak boleh terbaca tanpa kunci.
-// Format berkas: "FCBTE1\\x00" + nonce(12) + ciphertext AES-256-GCM(+tag).
+// Format berkas: "FCBTE1\x00" + nonce(12) + ciphertext AES-256-GCM(+tag).
 // Berkas lama tanpa magic prefix diteruskan apa adanya (passthrough legacy)
 // sehingga migrasi tidak butuh konversi massal: baca-lama tetap jalan,
 // tulis-baru selalu terenkripsi bila key dikonfigurasi.
@@ -18,7 +18,7 @@ import (
 	"io"
 )
 
-const snapshotMagic = "FCBTE1\\x00"
+const snapshotMagic = "FCBTE1\x00"
 
 // snapshotAEAD membangun cipher AES-256-GCM dari key hex 64 karakter.
 func snapshotAEAD(keyHex string) (cipher.AEAD, error) {

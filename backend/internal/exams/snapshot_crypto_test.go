@@ -19,7 +19,7 @@ func testKey(t *testing.T) string {
 
 func TestEncryptDecryptRoundtrip(t *testing.T) {
 	key := testKey(t)
-	plain := []byte("\\xFF\\xD8\\xFFfoto-proktor-jpeg-bytes")
+	plain := []byte("\xFF\xD8\xFFfoto-proktor-jpeg-bytes")
 	enc, err := encryptSnapshot(key, plain)
 	if err != nil {
 		t.Fatalf("enkripsi gagal: %v", err)
@@ -40,7 +40,7 @@ func TestEncryptDecryptRoundtrip(t *testing.T) {
 }
 
 func TestDecryptLegacyPassthrough(t *testing.T) {
-	plain := []byte("\\xFF\\xD8\\xFFlegacy-jpeg-tanpa-encrypt")
+	plain := []byte("\xFF\xD8\xFFlegacy-jpeg-tanpa-encrypt")
 	got, err := decryptSnapshotIfEncrypted(testKey(t), plain)
 	if err != nil {
 		t.Fatalf("berkas legacy harus diteruskan: %v", err)
