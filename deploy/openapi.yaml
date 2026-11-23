@@ -1,0 +1,355 @@
+openapi: 3.0.3
+info:
+  title: FlowCBT API
+  version: 1.0.0
+  description: |
+    Spesifikasi **parsial** FlowCBT — mencakup endpoint inti yang dipakai
+    klien web guru & siswa. Diperluas bertahap: modul billing, master-data
+    (students/teachers/classes), question-sets, dan admin belum tercakup
+    penuh di sini. Sumber kebenaran tetap kode (internal/*/module.go).
+
+    Konvensi respons error: `{ "error": { "code", "message" } }`. Respons
+    sukses flat per-endpoint (auth/login: `access_token`, `refresh_in_cookie`,
+    `user`; list: array). Autentikasi: Bearer JWT access (15 mnt);
+    staf mendapat refresh token lewat cookie httpOnly `flowcbt_rt`
+    (Path=/api/v1/auth). Rate-limit per-attempt/per-tenant berlaku pada
+    endpoint sinkronisasi, submit, pelanggaran, snapshot, dan tiket SSE —
+    respons 429 RATE_LIMITED.
+servers:
+  - url: http://127.0.0.1:8080/api/v1
+    description: Server produksi (VPS, internal)
+  - url: http://localhost:8080/api/v1
+    description: Pengembangan lokal
+tags:
+  - name: auth
+    description: Autentikasi staf (owner/teacher/superadmin)
+  - name: student-auth
+    description: Autentikasi siswa (mapel mandiri / kartu ujian)
+  - name: exams
+    description: Kelola ujian, pemantauan, penilaian
+  - name: attempts
+    description: Pengerjaan ujian oleh siswa (klien CBT)
+  - name: cards
+    description: Kartu ujian (generate PDF / WA)
+  - name: reports
+    description: Laporan & monitoring live (SSE)
+security:
+  - bearerAuth: []
+paths:
+  /auth/login:
+    post:
+      tags: [auth]
+      summary: Login staf; refresh token dikirim via cookie httpOnly
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string }
+            example: { email: guru@demo.cbt, password: Guru#12345 }
+      responses:
+        "200":
+          description: Token akses (body) + Set-Cookie flowcbt_rt (httpOnly)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token: { type: string }
+                  expires_at: { type: string, format: date-time }
+                  refresh_in_cookie: { type: boolean }
+                  token_type: { type: string, example: Bearer }
+                  user: { type: object }
+            example:
+              access_token: eyJhbGciOiJIUzI1NiIs...
+              refresh_in_cookie: true
+        "401": { $ref: "#/components/responses/Err" }
+        "429": { $ref: "#/components/responses/Err" }
+  /auth/refresh:
+    post:
+      tags: [auth]
+      summary: Perpanjang sesi staf dari cookie flowcbt_rt
+      security: []
+      responses:
+        "200":
+          description: Access token baru + rotasi refresh cookie
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token: { type: string }
+                  refresh_in_cookie: { type: boolean }
+        "401": { $ref: "#/components/responses/Err" }
+  /auth/logout:
+    post:
+      tags: [auth]
+      summary: Cabut refresh token & hapus cookie
+      responses:
+        "200": { description: OK }
+  /auth/me:
+    get:
+      tags: [auth]
+      summary: Profil pengguna aktif
+      responses:
+        "200": { description: OK }
+        "401": { $ref: "#/components/responses/Err" }
+
+  /student/auth/guest:
+    post:
+      tags: [student-auth]
+      summary: Login siswa mandiri (username/NIS + password)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username: { type: string }
+                password: { type: string }
+      responses:
+        "200": { description: Token siswa (offline-first, localStorage) }
+        "401": { $ref: "#/components/responses/Err" }
+  /student/auth/card-lookup:
+    post:
+      tags: [student-auth]
+      summary: Masuk dengan nomor peserta + kode ujian dari kartu
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [card_number, exam_token]
+              properties:
+                card_number: { type: string, example: TS26-NWY0-G }
+                exam_token: { type: string, example: L4EJXB }
+      responses:
+        "200": { description: Identitas + token siswa }
+        "401": { $ref: "#/components/responses/Err" }
+
+  /exams:
+    get:
+      tags: [exams]
+      summary: Daftar ujian staf
+      responses:
+        "200": { description: OK }
+    post:
+      tags: [exams]
+      summary: Buat ujian
+      responses:
+        "201": { description: Dibuat }
+        "400": { $ref: "#/components/responses/Err" }
+  /exams/{examID}:
+    parameters:
+      - { name: examID, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [exams]
+      summary: Detail ujian
+      responses:
+        "200": { description: OK }
+    put:
+      tags: [exams]
+      summary: Ubah ujian
+      responses:
+        "200": { description: OK }
+    delete:
+      tags: [exams]
+      summary: Hapus ujian
+      responses:
+        "204": { description: Terhapus }
+  /exams/{examID}/publish:
+    post:
+      tags: [exams]
+      summary: Terbitkan ujian (generate token & nomor peserta)
+      parameters:
+        - { name: examID, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: OK }
+  /exams/{examID}/attempts:
+    get:
+      tags: [exams]
+      summary: Daftar attempt + progres peserta
+      parameters:
+        - { name: examID, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: OK }
+  /exams/{examID}/cheating-summary:
+    get:
+      tags: [exams]
+      summary: Rekap pelanggaran antar ujian (anti-curang)
+      parameters:
+        - { name: examID, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: OK }
+
+  /attempts/{attemptID}:
+    parameters:
+      - { name: attemptID, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [attempts]
+      summary: Ambil state attempt (offline-first)
+      responses:
+        "200": { description: OK }
+        "404": { $ref: "#/components/responses/Err" }
+  /attempts/{attemptID}/answers:sync:
+    post:
+      tags: [attempts]
+      summary: Sinkronisasi jawaban (batch, rate-limit per attempt)
+      parameters:
+        - { name: attemptID, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                answers: { type: array, items: { type: object } }
+      responses:
+        "200": { description: State tersimpan }
+        "429": { $ref: "#/components/responses/Err" }
+  /attempts/{attemptID}/submit:
+    post:
+      tags: [attempts]
+      summary: Submit attempt (final, sekali)
+      parameters:
+        - { name: attemptID, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: Skor/hasil}
+        "409": { $ref: "#/components/responses/Err" }
+  /attempts/{attemptID}/violations:
+    post:
+      tags: [attempts]
+      summary: Catat pelanggaran anti-curang (tab-switch dsb.)
+      parameters:
+        - { name: attemptID, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "201": { description: Tercatat }
+        "429": { $ref: "#/components/responses/Err" }
+  /attempts/{attemptID}/snapshots:
+    post:
+      tags: [attempts]
+      summary: Unggah foto proktor (JPEG/PNG ≤5MB; dienkripsi at-rest)
+      parameters:
+        - { name: attemptID, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                photo: { type: string, format: binary }
+                trigger: { type: string, example: manual }
+      responses:
+        "201": { description: URL snapshot dibuat }
+        "429": { $ref: "#/components/responses/Err" }
+
+  /exams/{examID}/cards:
+    get:
+      tags: [cards]
+      summary: Daftar kartu ujian peserta
+      parameters:
+        - { name: examID, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: OK }
+  /exams/{examID}/cards/pdf:
+    get:
+      tags: [cards]
+      summary: PDF semua kartu (guru unduh & cetak)
+      parameters:
+        - { name: examID, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: PDF
+          content:
+            application/pdf: {}
+  /exams/{examID}/cards/{studentID}/pdf:
+    get:
+      tags: [cards]
+      summary: PDF kartu per siswa
+      parameters:
+        - { name: examID, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: studentID, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: PDF
+          content:
+            application/pdf: {}
+  /exams/{examID}/cards/renumber:
+    post:
+      tags: [cards]
+      summary: Regenerate nomor peserta (format pendek TS26-XXXX-C)
+      parameters:
+        - { name: examID, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: OK }
+
+  /reports/live:
+    get:
+      tags: [reports]
+      summary: Daftar ujian berjalan
+      responses:
+        "200": { description: OK }
+  /reports/live/stream-ticket:
+    post:
+      tags: [reports]
+      summary: Minta tiket sekali-pakai untuk SSE (rate-limit 60/menit/tenant)
+      responses:
+        "201": { description: Tiket diterbitkan }
+        "429": { $ref: "#/components/responses/Err" }
+  /reports/live/stream:
+    get:
+      tags: [reports]
+      summary: Monitoring realtime — SSE (butuh ?ticket= sekali pakai)
+      security: []
+      parameters:
+        - { name: ticket, in: query, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Server-Sent Events
+          content:
+            text/event-stream: {}
+  /reports/exams/{examId}:
+    get:
+      tags: [reports]
+      summary: Laporan per ujian
+      parameters:
+        - { name: examId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: OK }
+  /reports/exams/{examId}/item-analysis:
+    get:
+      tags: [reports]
+      summary: Analisis butir soal (daya beda, kesulitan)
+      parameters:
+        - { name: examId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: OK }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  responses:
+    Err:
+      description: Error
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: object
+                properties:
+                  code: { type: string, example: RATE_LIMITED }
+                  message: { type: string, example: Terlalu banyak permintaan, coba lagi nanti }
