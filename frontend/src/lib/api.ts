@@ -7,9 +7,14 @@ const REFRESH_KEY = 'flowcbt.refresh'
 
 export function getAccessToken() { return localStorage.getItem(TOKEN_KEY) || '' }
 export function getRefreshToken() { return localStorage.getItem(REFRESH_KEY) || '' }
-export function setTokens(access: string, refresh: string) {
+// Refresh token staf kini hidup di COOKIE httpOnly (server meng-endalikan
+// rotasi & logout); localStorage hanya menyimpan access token (umur 15 mnt
+// — XSS tidak bisa mencuri token refresh 30-hari). refresh=='' berarti
+// "sesi berbasis cookie": hapus sisa-sisa refresh lama di localStorage.
+export function setTokens(access: string, refresh?: string) {
   localStorage.setItem(TOKEN_KEY, access)
-  localStorage.setItem(REFRESH_KEY, refresh)
+  if (refresh) localStorage.setItem(REFRESH_KEY, refresh)
+  else localStorage.removeItem(REFRESH_KEY)
 }
 export function clearTokens() {
   localStorage.removeItem(TOKEN_KEY)
@@ -24,15 +29,17 @@ async function tryRefresh(): Promise<string> {
   refreshing ??= (async () => {
     try {
       const rt = getRefreshToken()
-      if (!rt) throw { status: 401, code: 'UNAUTHORIZED', message: 'Sesi berakhir' }
+      // Refresh diambil dari cookie httpOnly bila localStorage kosong
+      // (mode baru); body dikirim hanya bila masih ada nilai lama.
       const res = await fetch(`${BASE}/auth/refresh`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refresh_token: rt }),
+        body: JSON.stringify(rt ? { refresh_token: rt } : {}),
+        credentials: 'same-origin',
       })
       if (!res.ok) throw { status: 401, code: 'UNAUTHORIZED', message: 'Sesi berakhir' }
       const data = await res.json()
-      setTokens(data.access_token, data.refresh_token)
+      setTokens(data.access_token, data.refresh_token /* bisa kosong → cookie */)
       return data.access_token as string
     } finally {
       refreshing = null

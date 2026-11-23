@@ -106,7 +106,9 @@ function SessionBoot() {
 
 function doLogout() {
   const rt = getRefreshToken()
-  if (rt) send('/auth/logout', { refresh_token: rt }, 'POST').catch(() => {})
+  // refresh hidup di cookie httpOnly — logout cukup POST /auth/logout
+  // (server mencabut & membersihkan cookie). Body opsional untuk mode lama.
+  send('/auth/logout', rt ? { refresh_token: rt } : {}, 'POST').catch(() => {})
   clearTokens()
 }
 

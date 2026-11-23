@@ -24,6 +24,9 @@ type Config struct {
 
 	// PublicBaseURL alamat publik aplikasi (tautan di pesan WhatsApp/QR); opsional.
 	PublicBaseURL string
+	// CORSAllowedOrigins dipisah koma; "*" (default) untuk pengembangan.
+	// Produksi sebaiknya eksplisit, mis. "http://129.226.92.76:5173".
+	CORSAllowedOrigins []string
 
 	UploadDir string
 	// Penyimpanan media per tenant default 1 GB (konfigurasi PRD 3.2)
@@ -57,6 +60,7 @@ func Load() *Config {
 		SeedSuperAdminEmail:        env("SEED_SUPERADMIN_EMAIL", "superadmin@flowcbt.id"),
 		SeedSuperAdminPass:         env("SEED_SUPERADMIN_PASS", "Admin#12345"),
 		PublicBaseURL:              env("PUBLIC_BASE_URL", ""),
+		CORSAllowedOrigins:         strings.Split(env("CORS_ALLOWED_ORIGINS", "*"), ","),
 		UploadDir:                  env("UPLOAD_DIR", "./data/uploads"),
 		StorageMediaPerTenantBytes: 1 << 30, // 1 GB default
 	}

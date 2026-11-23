@@ -39,6 +39,10 @@ func (m *Module) submitAttempt(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, err)
 		return
 	}
+	if !m.a.RL.Allow("submit:%s:"+attemptID, 12) {
+		httpx.Error(w, httpx.ErrRateLimited)
+		return
+	}
 	var req submitReq
 	if !m.decode(w, r, &req) {
 		return

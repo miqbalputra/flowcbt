@@ -14,6 +14,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"flowcbt/backend/internal/app"
@@ -25,22 +26,29 @@ import (
 )
 
 // Module modul laporan: monitor live, riwayat ujian, rekap & analisis butir, export.
-type Module struct{ a *app.App }
+type Module struct {
+	a *app.App
 
-func Init(a *app.App) *Module { return &Module{a: a} }
+	// tiket SSE sekali-pakai (lihat stream_ticket.go)
+	ticketMu sync.Mutex
+	tickets  map[string]streamTicket
+}
+
+func Init(a *app.App) *Module {
+	return &Module{a: a, tickets: map[string]streamTicket{}}
+}
 
 // Routes dipasang di bawah /api/v1 (lihat internal/api/modules.go).
 func (m *Module) Routes(r chi.Router) {
 	r.Route("/reports", func(r chi.Router) {
-		// SSE real-time (FR-9.3): token via query (?token=) karena EventSource
-		// tidak bisa mengirim header. Static path "/live/stream" menang atas
-		// "/live/{examId}" di chi.
-		sse := httpmw.RequireAuthQueryOrHeader(
-			m.a.Cfg.JWTSecret, "owner", "teacher", "superadmin")(http.HandlerFunc(m.liveStream))
-		r.Get("/live/stream", func(w http.ResponseWriter, r *http.Request) { sse.ServeHTTP(w, r) })
+		// SSE real-time (FR-9.3): EventSource tidak bisa mengirim header, jadi
+		// klien meminta TIKET sekali-pakai (POST, auth header) lalu membuka
+		// GET /live/stream?ticket=… — JWT tidak pernah muncul di URL/log.
+		r.Get("/live/stream", m.requireStreamTicket(http.HandlerFunc(m.liveStream)).(http.HandlerFunc))
 
 		r.Group(func(r chi.Router) {
 			r.Use(httpmw.RequireAuth(m.a.Cfg.JWTSecret, "owner", "teacher"))
+			r.Post("/live/stream-ticket", m.issueStreamTicket)
 			r.Get("/live", m.liveList)
 			r.Get("/live/{examId}", m.liveDetail)
 			r.Get("/history", m.historyList)

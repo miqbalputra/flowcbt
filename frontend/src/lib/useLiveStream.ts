@@ -1,14 +1,16 @@
 // useLiveStream — hook EventSource untuk laporan real-time (PRD FR-9.3).
 //
-// Membuka SSE ke `/reports/live/stream` (token via query, karena EventSource
-// tidak bisa mengirim header). Setiap event `snapshot` dikirim ke onData.
+// Membuka SSE ke `/reports/live/stream`. EventSource tidak bisa mengirim
+// header, jadi tiap koneksi TERLEBIH DULU meminta TIKET sekali-pakai
+// (POST /reports/live/stream-ticket, auth header) lalu membuka stream
+// dengan `?ticket=` — JWT tidak pernah muncul di URL/log akses.
 // Ketangguhan:
 //  - tiap (re)koneksi membaca token TERBARU (setelah refresh tidak 401 loop);
 //  - kegagalan beruntun → fallback polling, lalu cooldown dan coba SSE lagi
 //    (jangan jadi polling permanen hanya karena proxy sekali gagal);
 //  - event `reconnect` dari server (batas sesi) → sambung ulang segera.
 import { useEffect, useRef, useState } from 'react'
-import { API_BASE, getAccessToken } from './api'
+import { API_BASE, api } from './api'
 
 export type LiveStreamStatus = 'connecting' | 'live' | 'polling'
 
@@ -40,10 +42,28 @@ export function useLiveStream(
     let closed = false
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null
 
-    function connect() {
+    async function connect() {
       if (closed) return
-      const token = getAccessToken() // token TERKINI saat tiap (re)koneksi
-      const url = `${API_BASE}${path}?token=${encodeURIComponent(token)}&${qsRef.current}`
+      let ticket = ''
+      try {
+        // minta tiket sekali-pakai — JWT tetap di header, tidak di URL
+        const t = await api<{ data?: { ticket?: string }; ticket?: string }>('/reports/live/stream-ticket', { method: 'POST' })
+        ticket = t?.data?.ticket ?? t?.ticket ?? ''
+      } catch {
+        /* gagal minta tiket → dihitung error & di-retry oleh handler bawah */
+      }
+      if (!ticket) {
+        errors++
+        if (closed) return
+        if (errors >= MAX_ERRORS) {
+          setStatus('polling')
+          reconnectTimer = setTimeout(() => { if (!closed) { errors = 0; setStatus('connecting'); connect() } }, COOLDOWN_MS)
+        } else {
+          reconnectTimer = setTimeout(connect, 1000 * errors)
+        }
+        return
+      }
+      const url = `${API_BASE}${path}?ticket=${encodeURIComponent(ticket)}&${qsRef.current}`
       es = new EventSource(url)
 
       es.addEventListener('snapshot', ev => {

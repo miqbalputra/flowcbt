@@ -1,0 +1,10 @@
+[Unit]
+Description=Watchdog FlowCBT tiap 5 menit
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

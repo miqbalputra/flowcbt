@@ -16,6 +16,7 @@ import (
 )
 
 func NewRouter(a *app.App) http.Handler {
+	cfg := a.Cfg
 	r := chi.NewRouter()
 
 	r.Use(middleware.RequestID)
@@ -23,7 +24,7 @@ func NewRouter(a *app.App) http.Handler {
 	r.Use(logger)
 	r.Use(recoverer)
 	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{"*"},
+		AllowedOrigins:   cfg.CORSAllowedOrigins,
 		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"*"},
 		AllowCredentials: false,

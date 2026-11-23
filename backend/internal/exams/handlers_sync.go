@@ -25,6 +25,10 @@ func (m *Module) syncAnswers(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, err)
 		return
 	}
+	if !m.a.RL.Allow("sync:%s:"+attemptID, 90) {
+		httpx.Error(w, httpx.ErrRateLimited)
+		return
+	}
 	var req syncReq
 	if !m.decode(w, r, &req) {
 		return

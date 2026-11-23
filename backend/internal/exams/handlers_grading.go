@@ -170,6 +170,10 @@ func (m *Module) reportViolation(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, err)
 		return
 	}
+	if !m.a.RL.Allow("viol:%s:"+attemptID, 30) {
+		httpx.Error(w, httpx.ErrRateLimited)
+		return
+	}
 	var req violationReq
 	if !m.decode(w, r, &req) {
 		return
@@ -334,6 +338,10 @@ func (m *Module) uploadSnapshot(w http.ResponseWriter, r *http.Request) {
 	attemptID, err := urlUUID(r, "attemptID")
 	if err != nil {
 		httpx.Error(w, err)
+		return
+	}
+	if !m.a.RL.Allow("snap:%s:"+attemptID, 15) {
+		httpx.Error(w, httpx.ErrRateLimited)
 		return
 	}
 	if err := r.ParseMultipartForm(snapshotMaxBytes); err != nil {

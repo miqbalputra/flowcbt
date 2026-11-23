@@ -1,0 +1,6 @@
+[Unit]
+Description=FlowCBT watchdog — cek layanan tiap 5 menit
+
+[Service]
+Type=oneshot
+ExecStart=/opt/flowcbt/bin/watchdog.sh

@@ -186,18 +186,59 @@ func (m *Module) login(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, err)
 		return
 	}
+	// Refresh token kini hidup di cookie httpOnly — DILUAR dari body agar
+	// XSS tidak bisa membacanya dari localStorage (audit P1-10).
+	if rt, ok := resp["refresh_token"].(string); ok && rt != "" {
+		setRTCookie(w, rt, m.a.Cfg.RefreshTokenTTL)
+	}
+	delete(resp, "refresh_token")
+	resp["refresh_in_cookie"] = true
 	resp["user"] = map[string]any{"id": id, "name": email2name(email), "email": email, "role": role, "tenant_id": tenantID}
 	httpx.OK(w, resp)
 }
 
 type refreshReq struct {
-	RefreshToken string `json:"refresh_token" validate:"required"`
+	// Opsional: FE lama mengirim body; FE baru cukup memakai cookie httpOnly.
+	RefreshToken string `json:"refresh_token"`
+}
+
+// rtCookie — cookie httpOnly pembawa refresh token staf. Path dibatasi ke
+// /api/v1/auth sehingga tidak terkirim ke endpoint lain; HttpOnly menutup
+// akses JS (XSS tak bisa mencuri token refresh 30-hari).
+func rtCookie(name, value string, maxAge int) *http.Cookie {
+	return &http.Cookie{
+		Name:     name,
+		Value:    value,
+		Path:     "/api/v1/auth",
+		MaxAge:   maxAge,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		// Secure hanya bila https (di VPS ujicoba masih http://IP).
+	}
+}
+
+// setRTCookie kirim cookie refresh baru.
+func setRTCookie(w http.ResponseWriter, value string, ttl time.Duration) {
+	http.SetCookie(w, rtCookie("flowcbt_rt", value, int(ttl.Seconds())))
+}
+
+// clearRTCookie hapus cookie refresh (logout).
+func clearRTCookie(w http.ResponseWriter) {
+	http.SetCookie(w, rtCookie("flowcbt_rt", "", -1))
 }
 
 func (m *Module) refresh(w http.ResponseWriter, r *http.Request) {
 	var req refreshReq
-	if err := httpx.Decode(r, &req); err != nil {
-		httpx.Error(w, err)
+	_ = httpx.Decode(r, &req) // body opsional (FE lama); FE baru rely cookie
+	// fallback: refresh dari cookie httpOnly
+	if req.RefreshToken == "" {
+		if c, err := r.Cookie("flowcbt_rt"); err == nil && c.Value != "" {
+			req.RefreshToken = c.Value
+		}
+	}
+	if req.RefreshToken == "" {
+		httpx.Error(w, httpx.NewErr(http.StatusBadRequest, "REFRESH_REQUIRED",
+			"Refresh token wajib (cookie httpOnly atau body)"))
 		return
 	}
 	// RL per-IP (5/menit): endpoint token inti auth, membatasi probing
@@ -239,6 +280,12 @@ func (m *Module) refresh(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, err)
 		return
 	}
+	// rotasi: cookie refresh baru; body hanya access token
+	if rt, ok := resp["refresh_token"].(string); ok && rt != "" {
+		setRTCookie(w, rt, m.a.Cfg.RefreshTokenTTL)
+	}
+	delete(resp, "refresh_token")
+	resp["refresh_in_cookie"] = true
 	httpx.OK(w, resp)
 }
 

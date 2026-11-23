@@ -105,6 +105,7 @@ journald (berotasi otomatis), backup database harian:
 #   flowcbt-webserve.service   — static+proxy di :5173 (serve frontend/dist)
 #   flowcbt-worker.service     — retensi, queue email, pembersih snapshot proktor
 #   flowcbt-backup.timer       — pg_dump harian 02:30 → /opt/flowcbt/backups (retensi 14)
+#   flowcbt-watchdog.timer     — cek layanan tiap 5 menit + webhook opsional (WATCH_WEBHOOK_URL)
 
 systemctl status flowcbt-api flowcbt-webserve flowcbt-worker   # status
 journalctl -u flowcbt-api -f                                  # log live

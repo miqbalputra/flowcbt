@@ -1038,6 +1038,62 @@ namun tetap aman.
 - Audit regresi Playwright 15 halaman + mobile + peserta: **0 error, 0
   HTTP >=400** (dijalankan setelah semua layanan pindah ke systemd).
 
+## Tambahan 2026-11-23 (putaran 26 — hardening P1: SSE ticket, rate-limit, cookie refresh, watchdog)
+
+**Lanjutan audit** (P1 dari putaran 24-25), dikerjakan step-by-step.
+
+### 1. SSE tak lagi membocorkan JWT ke URL/log (P1-6)
+- **Backend** `reports/stream_ticket.go`: endpoint baru
+  `POST /reports/live/stream-ticket` (auth header staf) mengeluarkan tiket
+  64-hex **sekali pakai, umur 30 detik**, menyimpan klaim staf; middleware
+  `requireStreamTicket` memvalidasi tiket lalu menyuntik klaim ke context.
+  `GET /live/stream` kini HANYA menerima `?ticket=` — query `token=` tidak
+  lagi diterima.
+- **FE** `lib/useLiveStream.ts`: tiap (re)koneksi minta tiket via POST
+  (header) lalu buka EventSource `?ticket=…`; gagal minta tiket dihitung
+  error dengan fallback polling yang sudah ada.
+- Verifikasi Playwright: URL SSE `?ticket=…` ✓, **"masih ada token di
+  query: TIDAK"** ✓, halaman live-detail render tanpa error, badge
+  PANTAUAN REAL-TIME muncul, 0 page error.
+
+### 2. Rate-limit endpoint ujian (P1-9)
+- `exams`: guard `m.a.RL.Allow` per attempt SEBELUM proses —
+  `answers:sync` 90/menit, `submit` 12/menit, `violations` 30/menit,
+  `snapshots` 15/menit (interval proktor 30-90 dtk sangat longgar).
+  Response `429 RATE_LIMITED` dari `httpx.ErrRateLimited`.
+- `go test ./internal/exams` tetap PASS (alur normal tak terganggu).
+
+### 3. Refresh token staf → cookie httpOnly (P1-10)
+- `users/handlers_auth.go`: login & refresh meng-set cookie
+  `flowcbt_rt` (HttpOnly, SameSite=Lax, Path=/api/v1/auth, Max-Age 30
+  hari) dan **menghapus refresh dari body respons** (`refresh_in_cookie:
+  true`); refresh menerima cookie ATAU body (kompatibel); logout
+  mencabut token dari cookie & menghapus cookie. Area siswa
+  (offline-first) TIDAK diubah.
+- `lib/api.ts`: `setTokens(access, refresh?)` — tanpa refresh → hapus
+  refresh lama dari localStorage; tryRefresh `credentials:'same-origin'`
+  & body opsional. Guru layout logout tetap memanggil POST /auth/logout.
+- Verifikasi: setelah login UI — localStorage refresh **KOSONG**,
+  cookie `flowcbt_rt` HttpOnly tersimpan, POST /auth/refresh tanpa body
+  → 200 access baru, logout menghapus cookie.
+
+### 4. CORS dari env (P1-5)
+- `config.CORSAllowedOrigins` dari `CORS_ALLOWED_ORIGINS` (koma; default
+  "*" untuk dev); `api/router.go` memakainya. env produksi diset
+  `http://129.226.92.76:5173`.
+
+### 5. Watchdog monitoring (P1-8)
+- `deploy/watchdog.sh` + `flowcbt-watchdog.{service,timer}` (tiap 5
+  menit): cek /readyz, frontend, container flowcbt-pg, berikut is-active
+  api/webserve/worker; status → /opt/flowcbt/status.txt; WARNING ke
+  journald; webhook opsional `WATCH_WEBHOOK_URL`. Manual run: status ok.
+
+### Verifikasi keseluruhan
+- `go build` + vet + **test ./... PASS 11/11**; tsc + build FE hijau.
+- API live-detail halaman live tanpa error; audit regresi 15 halaman +
+  mobile + peserta: **0 error konsol, 0 HTTP >=400**.
+- Layanan via systemd tetap aktif setelah deploy binary baru.
+
 ## Remaining backlog (P1/P2, tidak memblokir MVP)
 
 - E2E PWA offline di browser nyata (Playwright), uji beban k6.
