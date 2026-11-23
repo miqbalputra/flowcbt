@@ -104,8 +104,7 @@ journald (berotasi otomatis), backup database harian:
 #   flowcbt-api.service        — API Go di :8080
 #   flowcbt-webserve.service   — static+proxy di :5173 (serve frontend/dist)
 #   flowcbt-worker.service     — retensi, queue email, pembersih snapshot proktor
-#   flowcbt-backup.timer       — pg_dump harian 02:30 → /opt/flowcbt/backups (retensi 14)
-#   flowcbt-watchdog.timer     — cek layanan tiap 5 menit + webhook opsional (WATCH_WEBHOOK_URL)
+#   flowcbt-backup.timer       — pg_dump harian 02:30 → /opt/flowcbt/backups (retensi 14)#   flowcbt-watchdog.timer     — cek layanan tiap 5 menit + webhook opsional (WATCH_WEBHOOK_URL)
 
 systemctl status flowcbt-api flowcbt-webserve flowcbt-worker   # status
 journalctl -u flowcbt-api -f                                  # log live
@@ -117,8 +116,13 @@ gunzip -c /opt/flowcbt/backups/<file>.sql.gz | \
 **Kunci rahasia** hidup di `/opt/flowcbt/flowcbt.env` (mode 600). API & worker
 **menolak menyala** (`config.FailFast`) bila `APP_ENV=production` masih
 memakai secret/password default (JWT dev, seed `Admin#12345`, DB
-`flowcbt_dev`). Deploy baru: `go -C backend build -o /opt/flowcbt/bin/flowcbt-api ./cmd/api`
+`flowcbt_dev`) atau tanpa `SNAPSHOT_ENCRYPTION_KEY` (enkripsi foto proktor
+at-rest, 64 karakter hex — `openssl rand -hex 32`). Deploy baru:
+`go -C backend build -o /opt/flowcbt/bin/flowcbt-api ./cmd/api`
 lalu `sudo systemctl restart flowcbt-api`.
+
+**Referensi & uji beban**: `deploy/openapi.yaml` (spesifikasi API parsial)
+dan `deploy/loadtest/k6-smoke.js` (`k6 run deploy/loadtest/k6-smoke.js`).
 
 ## Akun Demo (hasil `cmd/seed`)
 
