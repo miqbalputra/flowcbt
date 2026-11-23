@@ -1,8 +1,10 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -58,4 +60,41 @@ func Load() *Config {
 		UploadDir:                  env("UPLOAD_DIR", "./data/uploads"),
 		StorageMediaPerTenantBytes: 1 << 30, // 1 GB default
 	}
+}
+
+// Default yang BERBAHAYA bila dipakai di production (audit 2026-11-23).
+const (
+	defaultJWTSecret = "dev-secret-change-me-in-production"
+	defaultSeedPass  = "Admin#12345"
+	defaultAdminDNS  = "postgres://flowcbt:flowcbt_dev@127.0.0.1:5433/flowcbt"
+	defaultAppDNS    = "postgres://flowcbt_app:app_user_dev@127.0.0.1:5433/flowcbt"
+)
+
+// FailFast memastikan konfigurasi BERBAHAYA tidak lolos di production.
+// Dijalankan cmd/api & cmd/worker SEBELUM listen: secret default JWT
+// berarti siapa pun bisa memalsukan token; password seed default berarti
+// superadmin mudah diambil alih; password DB default berarti kredensial
+// produksi sama dengan kredensial yang terbuka di repositori publik.
+// Di development (env default) validasi dilewati agar alur lokal tak rusak.
+func (c *Config) FailFast() error {
+	if c.Env != "production" {
+		return nil
+	}
+	problems := []string{}
+	if c.JWTSecret == defaultJWTSecret {
+		problems = append(problems, "JWT_SECRET masih default (dev-secret-change-me-in-production)")
+	}
+	if c.SeedSuperAdminPass == defaultSeedPass {
+		problems = append(problems, "SEED_SUPERADMIN_PASS masih default (Admin#12345)")
+	}
+	if c.DatabaseURL == defaultAdminDNS {
+		problems = append(problems, "DATABASE_URL masih memakai password default flowcbt_dev")
+	}
+	if c.DatabaseAppURL == defaultAppDNS {
+		problems = append(problems, "DATABASE_APP_URL masih memakai password default app_user_dev")
+	}
+	if len(problems) > 0 {
+		return fmt.Errorf("konfigurasi produksi tidak aman: %s — set variabel lingkungan sebelum menjalankan", strings.Join(problems, "; "))
+	}
+	return nil
 }

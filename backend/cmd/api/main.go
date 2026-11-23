@@ -19,6 +19,10 @@ import (
 
 func main() {
 	cfg := config.Load()
+	if err := cfg.FailFast(); err != nil {
+		slog.Error("tolak start", "err", err)
+		os.Exit(1)
+	}
 	ctx := context.Background()
 
 	if err := db.Migrate(ctx, cfg.DatabaseURL, db.EmbeddedMigrations(), slog.Default()); err != nil {

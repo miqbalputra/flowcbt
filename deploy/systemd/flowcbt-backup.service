@@ -1,0 +1,7 @@
+[Unit]
+Description=FlowCBT backup database (pg_dump harian)
+
+[Service]
+Type=oneshot
+ExecStart=/opt/flowcbt/bin/backup-db.sh
+User=root

@@ -986,6 +986,58 @@ namun tetap aman.
 - Audit 15 halaman + peserta: **0 error, 0 HTTP >=400**; tsc + build
   FE + build Go hijau; API direstart.
 
+## Tambahan 2026-11-23 (putaran 25 — hardening P0: supervisi, backup, secret, worker, CI)
+
+**Tindak lanjut audit sistem** (putaran 24): P0 diperbaiki step-by-step.
+
+### Perbaikan yang dikerjakan (bukti per langkah)
+1. **Fakta lingkungan**: DB produksi = container `flowcbt-pg`
+   (postgres:16-alpine, volume persisten, 127.0.0.1:5433) dengan
+   **restart=no**; embedded-postgres 55432 (dir `/tmp/flowcbt-pg`) sisa
+   setup lama hidup tanpa pemakai; API/webserve berjalan via `setsid`
+   dari /tmp tanpa supervisi & tanpa rotasi log.
+2. **Guard secret** (`internal/config`): `Config.FailFast()` — API & worker
+   menolak start di `APP_ENV=production` bila `JWT_SECRET` masih default
+   (`dev-secret-change-me-in-production`), `SEED_SUPERADMIN_PASS` default
+   (`Admin#12345`), atau DSN DB masih password default
+   (`flowcbt_dev`/`app_user_dev`). 3 unit test; terbukti live: start
+   manual dengan default → `ERROR tolak start` + daftar masalah.
+3. **Rotasi kredensial**: password DB `flowcbt` & `flowcbt_app` diganti
+   (openssl rand) via ALTER ROLE; JWT_SECRET baru 64-hex;
+   SEED_SUPERADMIN_PASS baru (catatan di `/root/flowcbt-secrets-note.txt`,
+   600). Semua di `/opt/flowcbt/flowcbt.env` (600, root). Backup DB diambil
+   SEBELUM rotasi (`/tmp/db-before-rotate.sql.gz`, 52 KB, valid).
+4. **systemd** (	unit didefinisikan dan dijalankan):
+   `flowcbt-api.service`, `flowcbt-webserve.service`,
+   `flowcbt-worker.service`, `flowcbt-backup.service` + `.timer`
+   (OnCalendar 02:30, Persistent). Semua `active` + `enabled` (nyala
+   setelah reboot). **Crash test**: `kill -9` API → systemd menaikkan
+   ulang (PID baru) → `/healthz` 200 dalam 4 detik.
+5. **Binary keluar dari /tmp**: dibangun ke `/opt/flowcbt/bin/`
+   (`flowcbt-api`, `flowcbt-webserve`, `flowcbt-worker`), plus
+   `backup-db.sh` (pg_dump via `docker exec`, gzip 600, retensi 14).
+   Backup manual dijalankan: `flowcbt-20261123-070617.sql.gz` (52 KB).
+   Restore: `gunzip -c | docker exec -i flowcbt-pg psql -U flowcbt -d flowcbt`.
+6. **Worker kini hidup**: `journalctl -u flowcbt-worker` → "worker
+   berjalan interval=60s" — retensi tenant, queue email (retry
+   eksponensial), pembersih snapshot proktor aktif untuk pertama kalinya.
+7. **Docker restart policy** `flowcbt-pg` → `unless-stopped` (reboot host
+   tidak lagi mematikan DB diam-diam). Embedded-postgres 55432
+   diberhentikan (SIGTERM; 0 koneksi aktif sebelumnya; datadir memang di
+   /tmp).
+8. **CI GitHub Actions** `.github/workflows/ci.yml`: backend
+   (gofmt+vet+test ./...) dan frontend (npm ci + tsc -b + build) pada
+   push/PR. Perintah diuji setara lokal: vet 0, **test ./... PASS 11/11
+   paket**, tsc & build hijau.
+9. **Dokumentasi**: README bagian "Operasional Server Produksi"
+   (systemd/backup/restore/FailFast); unit & script backup disalin ke
+   `deploy/systemd/` + `deploy/backup-db.sh` agar reproducible.
+
+### Verifikasi pasca-hardening
+- Login guru → JWT baru, `/exams` 200, `/exams/cheating-summary` 200.
+- Audit regresi Playwright 15 halaman + mobile + peserta: **0 error, 0
+  HTTP >=400** (dijalankan setelah semua layanan pindah ke systemd).
+
 ## Remaining backlog (P1/P2, tidak memblokir MVP)
 
 - E2E PWA offline di browser nyata (Playwright), uji beban k6.

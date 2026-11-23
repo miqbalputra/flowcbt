@@ -1,0 +1,17 @@
+[Unit]
+Description=FlowCBT worker (retensi, email queue, pembersih snapshot proktor)
+After=network-online.target flowcbt-api.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=/opt/flowcbt/flowcbt.env
+ExecStart=/opt/flowcbt/bin/flowcbt-worker
+WorkingDirectory=/opt/flowcbt
+Restart=always
+RestartSec=5
+User=root
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

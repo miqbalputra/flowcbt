@@ -42,6 +42,10 @@ type jobItem struct {
 
 func main() {
 	cfg := config.Load()
+	if err := cfg.FailFast(); err != nil {
+		slog.Error("tolak start", "err", err)
+		os.Exit(1)
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 

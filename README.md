@@ -94,6 +94,31 @@ mendukung teks) — regenerasi sekali saja:
 ./scripts/make-icons.sh   # buat ulang 4 file PNG dari scripts/icons.b64.txt
 ```
 
+## Operasional Server Produksi (systemd + backup)
+
+Layanan di VPS ini dikelola systemd — auto-restart saat crash/reboot, log di
+journald (berotasi otomatis), backup database harian:
+
+```bash
+# unit (lihat deploy/systemd/ untuk versi repo):
+#   flowcbt-api.service        — API Go di :8080
+#   flowcbt-webserve.service   — static+proxy di :5173 (serve frontend/dist)
+#   flowcbt-worker.service     — retensi, queue email, pembersih snapshot proktor
+#   flowcbt-backup.timer       — pg_dump harian 02:30 → /opt/flowcbt/backups (retensi 14)
+
+systemctl status flowcbt-api flowcbt-webserve flowcbt-worker   # status
+journalctl -u flowcbt-api -f                                  # log live
+sudo systemctl start flowcbt-backup.service                    # backup manual
+gunzip -c /opt/flowcbt/backups/<file>.sql.gz | \
+  docker exec -i flowcbt-pg psql -U flowcbt -d flowcbt          # restore
+```
+
+**Kunci rahasia** hidup di `/opt/flowcbt/flowcbt.env` (mode 600). API & worker
+**menolak menyala** (`config.FailFast`) bila `APP_ENV=production` masih
+memakai secret/password default (JWT dev, seed `Admin#12345`, DB
+`flowcbt_dev`). Deploy baru: `go -C backend build -o /opt/flowcbt/bin/flowcbt-api ./cmd/api`
+lalu `sudo systemctl restart flowcbt-api`.
+
 ## Akun Demo (hasil `cmd/seed`)
 
 | Peran | Login | Password |

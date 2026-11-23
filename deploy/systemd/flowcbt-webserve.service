@@ -1,0 +1,15 @@
+[Unit]
+Description=FlowCBT static server + reverse proxy (5173)
+After=network-online.target flowcbt-api.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/opt/flowcbt/bin/flowcbt-webserve -addr 0.0.0.0:5173 -dist /home/ubuntu/project/App_CBT/frontend/dist -api http://127.0.0.1:8080
+Restart=always
+RestartSec=3
+User=root
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
