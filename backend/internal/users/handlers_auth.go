@@ -189,7 +189,7 @@ func (m *Module) login(w http.ResponseWriter, r *http.Request) {
 	// Refresh token kini hidup di cookie httpOnly — DILUAR dari body agar
 	// XSS tidak bisa membacanya dari localStorage (audit P1-10).
 	if rt, ok := resp["refresh_token"].(string); ok && rt != "" {
-		setRTCookie(w, rt, m.a.Cfg.RefreshTokenTTL)
+		m.setRTCookie(w, rt, m.a.Cfg.RefreshTokenTTL)
 	}
 	delete(resp, "refresh_token")
 	resp["refresh_in_cookie"] = true
@@ -204,27 +204,31 @@ type refreshReq struct {
 
 // rtCookie — cookie httpOnly pembawa refresh token staf. Path dibatasi ke
 // /api/v1/auth sehingga tidak terkirim ke endpoint lain; HttpOnly menutup
-// akses JS (XSS tak bisa mencuri token refresh 30-hari).
-func rtCookie(name, value string, maxAge int) *http.Cookie {
-	return &http.Cookie{
+// akses JS (XSS tak bisa mencuri token refresh 30-hari). Flag Secure
+// otomatis bila PUBLIC_BASE_URL https:// (VPS ujicoba masih http://IP).
+func (m *Module) rtCookie(name, value string, maxAge int) *http.Cookie {
+	c := &http.Cookie{
 		Name:     name,
 		Value:    value,
 		Path:     "/api/v1/auth",
 		MaxAge:   maxAge,
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
-		// Secure hanya bila https (di VPS ujicoba masih http://IP).
 	}
+	if base := m.a.Cfg.PublicBaseURL; strings.HasPrefix(strings.ToLower(base), "https://") {
+		c.Secure = true
+	}
+	return c
 }
 
 // setRTCookie kirim cookie refresh baru.
-func setRTCookie(w http.ResponseWriter, value string, ttl time.Duration) {
-	http.SetCookie(w, rtCookie("flowcbt_rt", value, int(ttl.Seconds())))
+func (m *Module) setRTCookie(w http.ResponseWriter, value string, ttl time.Duration) {
+	http.SetCookie(w, m.rtCookie("flowcbt_rt", value, int(ttl.Seconds())))
 }
 
 // clearRTCookie hapus cookie refresh (logout).
-func clearRTCookie(w http.ResponseWriter) {
-	http.SetCookie(w, rtCookie("flowcbt_rt", "", -1))
+func (m *Module) clearRTCookie(w http.ResponseWriter) {
+	http.SetCookie(w, m.rtCookie("flowcbt_rt", "", -1))
 }
 
 func (m *Module) refresh(w http.ResponseWriter, r *http.Request) {
@@ -282,7 +286,7 @@ func (m *Module) refresh(w http.ResponseWriter, r *http.Request) {
 	}
 	// rotasi: cookie refresh baru; body hanya access token
 	if rt, ok := resp["refresh_token"].(string); ok && rt != "" {
-		setRTCookie(w, rt, m.a.Cfg.RefreshTokenTTL)
+		m.setRTCookie(w, rt, m.a.Cfg.RefreshTokenTTL)
 	}
 	delete(resp, "refresh_token")
 	resp["refresh_in_cookie"] = true
@@ -291,11 +295,21 @@ func (m *Module) refresh(w http.ResponseWriter, r *http.Request) {
 
 func (m *Module) logout(w http.ResponseWriter, r *http.Request) {
 	var req refreshReq
-	_ = httpx.Decode(r, &req)
-	if req.RefreshToken != "" {
-		m.a.DB.Admin.Exec(r.Context(), `UPDATE refresh_tokens SET revoked=true WHERE token_hash=$1`,
-			auth.SHA256Hex(req.RefreshToken))
+	_ = httpx.Decode(r, &req) // body opsional (FE lama); FE baru rely cookie
+	// Cabut refresh token dari body ATAU cookie httpOnly (audit P2 #2b:
+	// sejak token pindah ke cookie, logout tanpa baca cookie meninggalkan
+	// sesi 30-hari tetap hidup di browser=kotak kredensial kosong).
+	tok := req.RefreshToken
+	if tok == "" {
+		if c, err := r.Cookie("flowcbt_rt"); err == nil && c.Value != "" {
+			tok = c.Value
+		}
 	}
+	if tok != "" {
+		m.a.DB.Admin.Exec(r.Context(), `UPDATE refresh_tokens SET revoked=true WHERE token_hash=$1`,
+			auth.SHA256Hex(tok))
+	}
+	m.clearRTCookie(w)
 	httpx.OK(w, map[string]string{"message": "Logout berhasil"})
 }
 
