@@ -273,7 +273,7 @@ func (m *Module) reportViolation(w http.ResponseWriter, r *http.Request) {
 				return err
 			}
 			if a.Status != "in_progress" && a.Status != "pending_sync" {
-				return nil
+			return nil
 			}
 			e, err := loadExam(r.Context(), tx, a.ExamID)
 			if err != nil {
@@ -373,6 +373,17 @@ func (m *Module) uploadSnapshot(w http.ResponseWriter, r *http.Request) {
 		trigger = "manual"
 	}
 
+	// Enkripsi at-rest bila key dikonfigurasi (FR-6.3/audit P2 #3):
+	// materi ujian menulis file, foto wajah siswa tak boleh terbaca
+	// oleh siapa pun yang memegang akses disk tanpa kunci.
+	if key := m.a.Cfg.SnapshotEncryptionKey; key != "" {
+		enc, err := encryptSnapshot(key, buf)
+		if err != nil {
+			httpx.Error(w, httpx.NewErr(http.StatusInternalServerError, "SNAPSHOT_ENCRYPT", "Gagal mengenkripsi foto"))
+			return
+		}
+		buf = enc
+	}
 	var snapID string
 	var url string
 	ctx := r.Context()
@@ -397,7 +408,8 @@ func (m *Module) uploadSnapshot(w http.ResponseWriter, r *http.Request) {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return err
 		}
-		if err := os.WriteFile(objectKey, buf, 0o644); err != nil {
+		// 0o600: hanya pemilik proses yang boleh membaca foto siswa.
+		if err := os.WriteFile(objectKey, buf, 0o600); err != nil {
 			return err
 		}
 		flags := map[string]any{"taken_at_client": r.FormValue("taken_at"), "trigger": trigger}
@@ -479,6 +491,12 @@ func (m *Module) serveSnapshot(w http.ResponseWriter, r *http.Request) {
 	b, err := os.ReadFile(objectKey)
 	if err != nil {
 		httpx.Error(w, httpx.NewErr(http.StatusNotFound, "NOT_FOUND", "Berkas tidak tersedia"))
+		return
+	}
+	// File lama (pra-enkripsi) tetap terbaca — passthrough legacy.
+	b, err = decryptSnapshotIfEncrypted(m.a.Cfg.SnapshotEncryptionKey, b)
+	if err != nil {
+		httpx.Error(w, httpx.NewErr(http.StatusInternalServerError, "SNAPSHOT_DECRYPT", "Foto tidak dapat didekripsi — cek SNAPSHOT_ENCRYPTION_KEY"))
 		return
 	}
 	ctype := "image/jpeg"
