@@ -1101,3 +1101,61 @@ namun tetap aman.
 - Email SMTP nyata (butuh kredensial SMTP; job queue & template sudah siap).
 - Snapshot expiry cleanup worker — verifikasi berkala.
 - OpenAPI spec export + dokumentasi deploy lanjutan.
+
+## Putaran 27 — P2 hardening tahap 2 (2026-11-23)
+
+Lanjutan backlog P2; semua dideploy ke VPS & diverifikasi.
+
+### 1. Rate-limit penerbitan ticket SSE (P2-#1)
+- `reports/stream_ticket.go`: `Allow("sseticket:"+tenant, 60)`/menit —
+  tiket satu-pakai per koneksi; reconnect normal << 60; spam
+  minta-tiket kini 429. Stream utama TIDAK dibatasi (monitoring legal).
+
+### 2. Cookie Secure otomatis (P2-#2)
+- `users/handlers_auth.go`: `rtCookie` jadi method `*Module` — flag
+  `Secure=true` otomatis bila `PUBLIC_BASE_URL` diawali `https://`
+  (VPS uji masih `http://IP`, jadi tetap Lax tanpa Secure; belakangan
+  cukup ganti env, tanpa rebuild).
+- `setRTCookie`/`clearRTCookie` juga method; logout memakainya.
+
+### 2b. BUG FIX logout tidak mencabut cookie (ditemukan saat verifikasi)
+- logout lama hanya membaca body → sejak token pindah ke cookie, logout
+  di browser TIDAK mencabut refresh 30-hari (sesi mati hanya lewat
+  kedaluwarsa). Patch: logout membaca body ATAU cookie → UPDATE
+  refresh_tokens SET revoked → clear cookie. Bukti: replay cookie
+  lama setelah logout → 401 TOKEN_INVALID; cookie jar terhapus.
+
+### 3. Snapshot proktor terenkripsi at-rest (P2-#3)
+- `config`: `SNAPSHOT_ENCRYPTION_KEY` (64 hex/32 byte); FailFast
+  produksi MENOLAK start tanpa key / key invalid (test ditambah).
+- `exams/snapshot_crypto.go`: AES-256-GCM, format `FCBTE1\0`+nonce+ct;
+  berkas legacy (pra-enkripsi) passthrough — migrasi tanpa konversi
+  massal; file baru mode **0600** (dulu 0644).
+- Unit test 5 skenario PASS: roundtrip, passthrough legacy (±key),
+  tampered → gagal GCM, encrypted-without-key → error jelas, key
+  format salah ditolak.
+- Bukti e2e (ujian demo dibuka sementara lalu dikembalikan): upload
+  JPEG 44B → disk = 79B terawali `FCBTE1\x00`, marker plaintext
+  TIDAK ditemukan di file; serve staf → JPEG identik byte-per-byte
+  (cmp OK); mode `-rw-------`.
+
+### 4. OpenAPI parsial (P2-#4)
+- `deploy/openapi.yaml`: endpoint inti (auth staf login/refresh/logout,
+  student-auth guest/card-lookup, exams CRUD/publish/attempts, attempts
+  sync/submit/violations/snapshots, cards list/pdf/renumber, reports
+  live/stream-ticket/SSE/analisis butir) — ditandai "spesifikasi
+  parsial, diperluas bertahap"; skema respons auth flat sesuai nyata.
+  YAML tervalidasi (python-yaml).
+
+### 5. Uji beban k6 (P2-#5)
+- `deploy/loadtest/k6-smoke.js`: guru monitoring (login via setup,
+  GET /exams, /reports/live, /reports/history) ramp 30 VU + student
+  card-lookup 1 VU; threshold p95<1.5s, err<1%.
+- Hasil (VPS, internal): **2411 req, 0 gagal, p95 3.37ms, checks
+  100%**. k6 v0.54 terpasang /usr/local/bin.
+
+### Verifikasi keseluruhan
+- gofmt clean, vet OK, `go test ./...` **PASS 11/11**; audit 15 halaman
+  guru + mobile + siswa: **0 error, 0 HTTP>=400**; healthz/readyz ok;
+  api+worker aktif; env key termuat di kedua proses (verifikasi
+  /proc/environ); jendela demo dikembalikan ke nilai semula.
