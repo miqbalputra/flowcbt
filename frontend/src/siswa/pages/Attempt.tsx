@@ -442,7 +442,7 @@ export default function Attempt() {
               <IconClock size={15} className="text-ink-muted" />
               <div>
                 <div className="text-[8.5px] font-semibold uppercase tracking-[0.1em] text-ink-muted">Sisa waktu</div>
-                <div className={`timer text-[17px] leading-none ${urgent ? 'text-[#FCA5A5]' : 'text-white'}`}>
+                <div className={`timer text-[17px] leading-none ${urgent ? 'text-onink-danger' : 'text-white'}`}>
                   {fmtClock(remainingMs)}
                 </div>
               </div>

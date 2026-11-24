@@ -6,7 +6,14 @@
 import { useState } from 'react'
 import type { FetchedQuestion } from '../types'
 import { htmlToText, renderRich } from '@/lib/sanitize'
-import { IconCheck, IconX, IconBook, IconChevronDown, IconChevronUp } from '@/components/icons'
+import {
+  IconBook,
+  IconCheck,
+  IconChevronDown,
+  IconChevronUp,
+  IconSwap,
+  IconX,
+} from '@/components/icons'
 
 /** Bentuk jawaban lintas tipe: string, string[], atau map pasangan matching. */
 export type AnswerValue = string | string[] | Record<string, string> | null
@@ -308,10 +315,10 @@ function MatchingPairs({
                       className="flex min-w-16 items-center justify-center gap-1 rounded-sm px-1.5 py-0.5 font-mono text-xs font-bold text-white"
                       style={{ background: colorAt(i) }}
                     >
-                      {i + 1} ↔ {String.fromCharCode(65 + ri)}
+                      {i + 1} <IconSwap size={10} className="inline-block align-[-1px]" /> {String.fromCharCode(65 + ri)}
                     </span>
                     <span className="min-w-0 flex-1 truncate text-muted">
-                      {htmlToText(l.text)} ↔ {htmlToText(right[ri]?.text ?? '')}
+                      {htmlToText(l.text)} <IconSwap size={11} className="inline-block align-[-1px]" /> {htmlToText(right[ri]?.text ?? '')}
                     </span>
                     <button
                       type="button"

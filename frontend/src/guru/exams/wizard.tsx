@@ -435,6 +435,7 @@ export default function ExamWizard() {
                   value={form.open_at}
                   onChange={e => set('open_at', e.target.value)}
                 />
+                {form.open_at && <p className="hint mt-1">Tampil: {fmtDateTime(form.open_at)}</p>}
               </div>
               <div>
                 <label className="label" htmlFor="ex-close">Tutup (WIB)</label>
@@ -445,6 +446,7 @@ export default function ExamWizard() {
                   value={form.close_at}
                   onChange={e => set('close_at', e.target.value)}
                 />
+                {form.close_at && <p className="hint mt-1">Tampil: {fmtDateTime(form.close_at)}</p>}
               </div>
             </div>
             <div>
@@ -689,7 +691,7 @@ export default function ExamWizard() {
             <div className="min-w-0">
               <dt className="section-label">Buka — tutup</dt>
               <dd className="mono mt-0.5 break-words text-xs font-semibold">
-                {fmtDateTime(form.open_at)} → {fmtDateTime(form.close_at)}
+                {fmtDateTime(form.open_at)} <IconRight size={11} className="inline-block align-middle" /> {fmtDateTime(form.close_at)}
               </dd>
             </div>
             <div className="min-w-0">

@@ -6,7 +6,10 @@ import { Link } from 'react-router-dom'
 import { api } from '@/lib/api'
 import { EmptyState, ErrorBox, PageHeader, Panel, SkeletonRows, StatCard } from './ui'
 import { unwrap } from './types'
-import { IconShield } from '@/components/icons'
+import {
+  IconRight,
+  IconShield,
+} from '@/components/icons'
 
 const VIO_LABEL: Record<string, string> = {
   tab_hidden: 'Keluar tab',
@@ -178,7 +181,7 @@ export default function CheatingOverview() {
                           <td data-th="Penalti" className="num">{num(e.penalty_points)} pts</td>
                           <td data-th="">
                             <Link className="btn-ghost btn-sm" to={`/exams/${e.exam_id}/cheating`}>
-                              Laporan →
+                              Laporan <IconRight size={12} className="inline-block align-[-1px]" />
                             </Link>
                           </td>
                         </tr>
@@ -261,7 +264,7 @@ export default function CheatingOverview() {
 
           <p className="text-xs text-muted">
             Penalti selalu dihitung di server; pelanggaran offline tersinkron saat peserta kembali
-            online. Buka <Link className="underline hover:text-primary" to="/reports/live">Pantauan Live</Link>{' '}
+            online. Buka <Link className="lnk underline hover:text-primary" to="/reports/live">Pantauan Live</Link>{' '}
             untuk memantau pelanggaran secara real-time.
           </p>
         </div>

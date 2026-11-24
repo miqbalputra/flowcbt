@@ -3,7 +3,16 @@
 // API lama (PageHeader, EmptyState, ErrorBox, SkeletonRows, StatusBadge,
 // sortRowsBy, SortHeader, TableToolbar, SearchBox, BarRow, Donut) tetap.
 import type { ReactNode } from 'react'
-import { IconEmpty, IconInfo, IconRefresh, IconSearch, IconWarn } from '@/components/icons'
+import {
+  IconChevronDown,
+  IconChevronUp,
+  IconEmpty,
+  IconInfo,
+  IconRefresh,
+  IconSearch,
+  IconSort,
+  IconWarn,
+} from '@/components/icons'
 import { statusBadge } from './types'
 
 /* ------------------------------- header ------------------------------- */
@@ -353,8 +362,8 @@ export function SortHeader({ label, active, dir, onClick }: {
       className={`inline-flex items-center gap-1 font-semibold uppercase tracking-wider text-xs ${active ? 'text-primary' : 'text-muted hover:text-text'}`}
     >
       {label}
-      <span aria-hidden className={`w-3 text-center text-[11px] leading-none ${active ? '' : 'opacity-50'}`}>
-        {active ? (dir === 'asc' ? '↑' : '↓') : '↕'}
+      <span aria-hidden className={`inline-flex w-3.5 justify-center ${active ? '' : 'opacity-50'}`}>
+        {active ? (dir === 'asc' ? <IconChevronUp size={13} /> : <IconChevronDown size={13} />) : <IconSort size={13} />}
       </span>
     </button>
   )

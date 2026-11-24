@@ -52,7 +52,7 @@ export default function Forgot() {
           </Link>
         </div>
       )}
-      <Link to="/login" className="block text-center text-sm text-primary hover:underline">Kembali ke masuk</Link>
+      <Link to="/login" className="lnk mx-auto block w-fit text-center text-sm text-primary hover:underline">Kembali ke masuk</Link>
     </AuthShell>
   )
 }

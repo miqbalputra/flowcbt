@@ -11,8 +11,15 @@ import {
 } from '../ui'
 import { asDict, asList, attemptStatus, fmtDate, fmtDuration, qtypeLabel, qRows, unwrap, unwrapList } from '../types'
 import {
-  IconChart, IconChart2, IconCheck, IconClock, IconDownload, IconStudents,
-  IconTrendDown, IconTrendUp,
+  IconChart,
+  IconChart2,
+  IconCheck,
+  IconClock,
+  IconDownload,
+  IconRight,
+  IconStudents,
+  IconTrendDown,
+  IconTrendUp,
 } from '@/components/icons'
 
 /** warna garis badge mengikuti tone teks dari attemptStatus() */
@@ -233,7 +240,7 @@ export default function ReportExam() {
                       <td data-th="Track record">
                         {s.student_id ? (
                           <Link className="btn-quiet btn-sm !px-0 !text-primary" to={`/students/${s.student_id}`}>
-                            profil →
+                            profil <IconRight size={11} className="inline-block align-[-1px]" />
                           </Link>
                         ) : (
                           <span className="text-xs text-muted">—</span>

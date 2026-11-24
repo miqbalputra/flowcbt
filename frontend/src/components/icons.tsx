@@ -90,6 +90,7 @@ export const IconChevronDown = (p: IconProps) => (<I {...p}><path d="m6 9 6 6 6-
 export const IconMenu = (p: IconProps) => (<I {...p}><path d="M4 6h16" /><path d="M4 12h16" /><path d="M4 18h16" /></I>)
 export const IconGrid = (p: IconProps) => (<I {...p}><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></I>)
 export const IconSwap = (p: IconProps) => (<I {...p}><path d="M8 3 4 7l4 4" /><path d="M4 7h16" /><path d="m16 21 4-4-4-4" /><path d="M20 17H4" /></I>)
+export const IconSort = (p: IconProps) => (<I {...p}><path d="m7 9 5-5 5 5" /><path d="m7 15 5 5 5-5" /></I>)
 
 // ---- status & info ----
 export const IconWarn = (p: IconProps) => (<I {...p}><path d="m21.73 18-8-14a2 2 0 0 0-3.46 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" /><path d="M12 9v4" /><path d="M12 17h.01" /></I>)

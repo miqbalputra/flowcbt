@@ -439,10 +439,21 @@ select.input { padding-right: 2rem; }
 
 input[type="checkbox"], input[type="radio"] {
   accent-color: var(--c-primary-bg);
-  width: 1.125rem;
-  height: 1.125rem;
+  width: 1.5rem; /* WCAG 2.5.8: target sentuh minimum 24px (audit 2026-11-24) */
+  height: 1.5rem;
   flex-shrink: 0;
 }
+
+/* WCAG 2.5.8 — semua kontrol interaktif minimal setinggi 24px */
+button, [role="button"], [role="tab"] { min-height: 24px; min-width: 24px; }
+/* link di dalam sel tabel & link sekunder (a.lnk) — area sentuh ≥24px */
+td a:not([class*="btn"]), a.lnk, a.auth-label {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+}
+/* warna teks darurat di atas latar ink (timer runner) — sebelumnya hardcode #FCA5A5 */
+.text-onink-danger { color: #fca5a5; }
 
 .label {
   display: block;

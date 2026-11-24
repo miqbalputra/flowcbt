@@ -82,7 +82,7 @@ export default function Register() {
             {busy ? 'Memverifikasi…' : 'Verifikasi Email'}
           </button>
         </form>
-        <Link to="/login" className="block text-center text-sm text-primary hover:underline">Kembali ke masuk</Link>
+        <Link to="/login" className="lnk mx-auto block w-fit text-center text-sm text-primary hover:underline">Kembali ke masuk</Link>
       </AuthShell>
     )
   }
@@ -129,7 +129,7 @@ export default function Register() {
         </button>
       </form>
       <p className="text-center text-sm pt-1">
-        Sudah punya akun? <Link className="text-primary hover:underline" to="/login">Masuk</Link>
+        Sudah punya akun? <Link className="lnk text-primary hover:underline" to="/login">Masuk</Link>
       </p>
     </AuthShell>
   )

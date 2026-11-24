@@ -26,8 +26,21 @@ import {
 import { autoCapitalize, escapeHtml, htmlToText, renderInline, renderRich } from '@/lib/sanitize'
 import { RichEditor } from '@/components/RichEditor'
 import {
-  IconBank, IconBook, IconCheck, IconChevronDown, IconChevronUp, IconClipboard, IconClock, IconCopy, IconEye,
-  IconMenu, IconPlus, IconTrash, IconWarn, IconX,
+  IconBank,
+  IconBook,
+  IconCheck,
+  IconChevronDown,
+  IconChevronUp,
+  IconClipboard,
+  IconClock,
+  IconCopy,
+  IconEye,
+  IconMenu,
+  IconPlus,
+  IconSwap,
+  IconTrash,
+  IconWarn,
+  IconX,
 } from '@/components/icons'
 
 /** Estimasi waktu pengerjaan per tipe (menit) — informasi bantu guru. */
@@ -1082,7 +1095,7 @@ export default function QsetEditor() {
                           value={String(pr.left ?? '')}
                           onChange={e => withAutoCap(e, v => patchQuestion(qi, { pairs: asList(question.pairs).map((x, k) => (k === pi ? { ...x, left: v } : x)) }))}
                         />
-                        <span aria-hidden className="shrink-0 text-muted">↔</span>
+                        <IconSwap size={13} className="shrink-0 text-muted" />
                         <input
                           className="gf-line gf-line--ruled" aria-label={`Kanan ${pi + 1}`} placeholder="Kanan"
                           value={String(pr.right ?? '')}

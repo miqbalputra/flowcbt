@@ -122,7 +122,7 @@ export default function Login() {
 
         <p className="text-center text-sm text-muted">
           Belum punya akun?{' '}
-          <Link className="font-medium text-primary underline-offset-4 hover:underline" to="/register">Daftar sekolah</Link>
+          <Link className="lnk font-medium text-primary underline-offset-4 hover:underline" to="/register">Daftar sekolah</Link>
         </p>
 
         {getAccessToken() && (

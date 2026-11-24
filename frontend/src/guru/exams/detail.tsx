@@ -287,7 +287,7 @@ export default function ExamDetail() {
       {flaggedRows > 0 && isPublished && (
         <Callout tone="warn" title="Ada peserta ditandai" icon={<IconShield size={16} />}>
           <span className="mono font-semibold">{flaggedRows}</span> peserta perlu keputusan pengawas — buka{' '}
-          <Link to={`/exams/${id}/cheating`} className="font-semibold text-primary hover:underline">laporan kecurangan</Link>.
+          <Link to={`/exams/${id}/cheating`} className="lnk font-semibold text-primary hover:underline">laporan kecurangan</Link>.
         </Callout>
       )}
 
@@ -353,6 +353,7 @@ export default function ExamDetail() {
                   value={sched.open_at}
                   onChange={ev => setSched(s => ({ ...s, open_at: ev.target.value }))}
                 />
+                {sched.open_at && <p className="hint mt-1">Tampil: {fmtDateTime(sched.open_at)}</p>}
               </div>
               <div>
                 <label className="label" htmlFor="ed-close">Tutup (WIB)</label>
@@ -363,6 +364,7 @@ export default function ExamDetail() {
                   value={sched.close_at}
                   onChange={ev => setSched(s => ({ ...s, close_at: ev.target.value }))}
                 />
+                {sched.close_at && <p className="hint mt-1">Tampil: {fmtDateTime(sched.close_at)}</p>}
               </div>
               <div>
                 <label className="label" htmlFor="ed-dur">Durasi (menit)</label>
