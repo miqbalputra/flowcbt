@@ -1159,3 +1159,39 @@ Lanjutan backlog P2; semua dideploy ke VPS & diverifikasi.
   guru + mobile + siswa: **0 error, 0 HTTP>=400**; healthz/readyz ok;
   api+worker aktif; env key termuat di kedua proses (verifikasi
   /proc/environ); jendela demo dikembalikan ke nilai semula.
+
+## Putaran 28 — perbaikan temuan audit UI/UX 2026-11-24 (docs/AUDIT_UIUX_2026-11-24.md)
+
+Semua temuan mayor + sebagian minor diperbaiki & diverifikasi (audit ulang 47 halaman).
+
+### 1. Target sentuh minimum 24px (WCAG 2.5.8) — dari 177 → 0
+- `styles.css`: checkbox/radio 18px → **24px**; `button/[role=button]/[role=tab]`
+  min-height **24px** + min-width 24px (memperbaiki sort header 16px, drag handle
+  editor 19px, tombol nama baris 20px); link di sel tabel & link sekunder
+  (`a.lnk`, `a.auth-label`) jadi inline-flex min-height 24px.
+- Link sekunder auth (`Lupa password?`, `Daftar sekolah`, `Masuk`, `Kembali ke masuk`,
+  `laporan kecurangan`, `Pantauan Live`) diberi kelas `lnk`.
+
+### 2. Format tanggal konsisten Indonesia
+- Input `datetime-local` (detail ujian & wizard) kini punya hint live
+  "Tampil: 22 Nov 2026, 18.00" tepat di bawah field — input native tetap
+  en-US (browser), tapi guru langsung melihat format Indonesia.
+
+### 3. Simbol panah teks → ikon SVG
+- `IconSort` baru di icons.tsx; `SortHeader` (ui.tsx) pakai IconChevronUp/Down/IconSort.
+- `↔` menjodohkan (editor & QuestionView siswa) → `IconSwap`; `→` pada
+  "Laporan" (cheating), ringkasan buka–tutup (wizard), "profil" (reports exam) → `IconRight`.
+- Hasil audit ulang: **0 simbol panah/emoji tersisa di seluruh UI**.
+
+### 4. Warna hardcode dihapus
+- Timer darurat runner `text-[#FCA5A5]` → kelas token `.text-onink-danger` di styles.css.
+
+### Verifikasi (bukti)
+- `tsc -b --noEmit` 0 error; `npm run build` lulus (PWA 22 entri); webserve menyajikan
+  build baru tanpa restart.
+- Audit ulang Playwright **47 halaman** (1440 & 375, publik+guru+siswa penuh incl. runner):
+  **0 console error, 0 HTTP≥400, 0 overflow-x, 0 target <24px, 0 input tanpa label,
+  0 simbol/emoji di UI, semua halaman ber-h1, kontras terendah 5.11:1 (AA)**.
+- Screenshot bukti: `/tmp/rt/audit2/shots/fixed-*.png` (jadwal tampil Indo, checkbox 24px,
+  ikon sort, editor, cheating, login).
+- Data demo dikembalikan (reset attempt, jendela DEMO01 restore; counts 3/2).
