@@ -10,6 +10,12 @@ import (
 	"flowcbt/backend/internal/httpx"
 )
 
+// isFullSession menolak token pra-2FA: token bertipe "pre2fa" hanya boleh
+// dipakai di POST /auth/2fa/login, bukan untuk mengakses resource aplikasi.
+// Tanpa pengecekan ini, siapa pun yang tahu email+password bisa memakai
+// pre2fa_token sebagai sesi penuh dan 2FA menjadi tidak efektif.
+func isFullSession(c *auth.Claims) bool { return c != nil && c.Typ != "pre2fa" }
+
 // RequireAuth memverifikasi Bearer JWT dan membatasi role.
 // roles kosong = semua role boleh kecuali anonim.
 func RequireAuth(secret string, roles ...string) func(http.Handler) http.Handler {
@@ -21,7 +27,7 @@ func RequireAuth(secret string, roles ...string) func(http.Handler) http.Handler
 				return
 			}
 			claims, err := auth.VerifyAccessToken(secret, strings.TrimPrefix(header, "Bearer "))
-			if err != nil || claims.ExpiresAt != nil && claims.ExpiresAt.Before(time.Now()) {
+			if err != nil || !isFullSession(claims) || claims.ExpiresAt != nil && claims.ExpiresAt.Before(time.Now()) {
 				httpx.Error(w, httpx.ErrUnauthorized)
 				return
 			}
@@ -48,7 +54,7 @@ func OptionalAuth(secret string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if header := r.Header.Get("Authorization"); strings.HasPrefix(header, "Bearer ") {
-				if claims, err := auth.VerifyAccessToken(secret, strings.TrimPrefix(header, "Bearer ")); err == nil {
+				if claims, err := auth.VerifyAccessToken(secret, strings.TrimPrefix(header, "Bearer ")); err == nil && isFullSession(claims) {
 					r = r.WithContext(ctxinfo.WithClaims(r.Context(), claims))
 				}
 			}
@@ -74,7 +80,7 @@ func RequireAuthQueryOrHeader(secret string, roles ...string) func(http.Handler)
 				return
 			}
 			claims, err := auth.VerifyAccessToken(secret, token)
-			if err != nil || claims.ExpiresAt != nil && claims.ExpiresAt.Before(time.Now()) {
+			if err != nil || !isFullSession(claims) || claims.ExpiresAt != nil && claims.ExpiresAt.Before(time.Now()) {
 				httpx.Error(w, httpx.ErrUnauthorized)
 				return
 			}
