@@ -2,13 +2,14 @@
 // Logika submit offline-first TIDAK berubah (AC-4/FR-7.6).
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { getAttempt, saveAttempt } from '../db'
-import { submitSafe } from '../lib/student-api'
+import { getAttempt, saveAttempt, getAnswers } from '../db'
+import { submitSafe, getServerAttempt, toEpochMs, normalizeQuestions } from '../lib/student-api'
 import { flush, enqueueSubmit, kick, getEngineState, subscribeSync } from '../lib/sync'
 import { SiswaLayout, Panel } from '../components/SiswaLayout'
 import { toast } from '@/components/toast'
 import { IconCheck, IconClipboard, IconFlag, IconWarn, IconWifi, IconWifiOff } from '@/components/icons'
-import type { AttemptRecord } from '../types'
+import type { AttemptRecord, FetchedQuestion } from '../types'
+import { getProfile } from '../lib/util'
 
 export default function Review() {
   const { id = '' } = useParams()
@@ -20,7 +21,49 @@ export default function Review() {
 
   useEffect(() => {
     let alive = true
-    getAttempt(id).then(r => alive && setRec(r ?? null))
+    void (async () => {
+      let r = await getAttempt(id)
+      // Perangkat lain / cache dibersihkan: pulihkan paket dari server.
+      if (!r) {
+        try {
+          const v = await getServerAttempt(id)
+          const meta = (v.attempt ?? {}) as Record<string, unknown>
+          const questions = normalizeQuestions((v.package?.questions ?? []) as FetchedQuestion[])
+          if (alive && meta.id && questions.length) {
+            r = {
+              attempt_id: id,
+              exam_name: String(meta.exam_name ?? 'Ujian'),
+              exam_code: typeof meta.exam_code === 'string' ? meta.exam_code : undefined,
+              subject_name: typeof meta.subject_name === 'string' ? meta.subject_name : undefined,
+              questions,
+              deadline_at: toEpochMs(meta.deadline_at) || 0,
+              server_offset: v.server_offset_ms || 0,
+              started_at: toEpochMs(meta.started_at) || Date.now(),
+              status: (typeof meta.status === 'string' ? meta.status : 'in_progress') as AttemptRecord['status'],
+              profile: getProfile(),
+              flags: (v.flags ?? {}) as Record<string, boolean>,
+              answers: (v.answers ?? {}) as Record<string, unknown>,
+            } as AttemptRecord
+            await saveAttempt(r)
+          }
+        } catch {
+          /* offline → biarkan pesan memuat di bawah */
+        }
+      }
+      if (!alive) return
+      if (!r) { setRec(null); return }
+      // Jawaban tersimpan di store "answers" per soal (offline-first) — itulah
+      // sumber paling baru. Tanpa ini ringkasan selalu "Terjawab 0" karena
+      // record attempt jarang menyimpan peta jawaban.
+      const rows = await getAnswers(id)
+      const answers: Record<string, unknown> = { ...(r.answers ?? {}) }
+      const flags: Record<string, boolean> = { ...(r.flags ?? {}) }
+      for (const row of rows) {
+        if (row.answer !== null && row.answer !== undefined) answers[row.question_id] = row.answer
+        flags[row.question_id] = Boolean(row.flag)
+      }
+      setRec({ ...r, answers, flags })
+    })()
     const unsub = subscribeSync(s => {
       setPending(s.pending)
       if (s.syncing === false && s.pending === 0) setOnline(navigator.onLine)
