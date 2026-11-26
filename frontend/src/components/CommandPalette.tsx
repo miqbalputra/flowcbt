@@ -1,13 +1,16 @@
 // Command palette global (Ctrl+K / Cmd+K) — pencarian lintas ujian, bank soal,
-// siswa, dan kelas via GET /api/v1/search. Navigasi keyboard penuh (panah
-// wrap-around, Home/End, Enter, Esc), riwayat hasil terakhir (localStorage),
-// highlight teks yang cocok, skeleton loading, dan state error yang jelas.
+// siswa, kelas (GET /api/v1/search) + indeks HALAMAN & FITUR internal yang bisa
+// dicari via kata kunci (mis. "kartu", "curang", "2fa", "riwayat"). Navigasi
+// keyboard penuh (panah wrap-around, Home/End, Enter, Esc), riwayat hasil
+// terakhir (localStorage), highlight teks cocok, skeleton loading, dan state
+// error yang jelas.
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '@/lib/api'
 import {
   IconSearch, IconX, IconBank, IconExam, IconStudents, IconClass,
-  IconDashboard, IconChart, IconShield, IconSettings, IconClock,
+  IconDashboard, IconChart2, IconShield, IconSettings, IconCredit,
+  IconClock, IconHistory, IconPlay, IconPlus, IconGrid, IconClipboard,
 } from '@/components/icons'
 
 type Dict = Record<string, unknown>
@@ -18,21 +21,61 @@ type Hit = { id: string; title: string; sub: string; to: string; group: string }
 type Group = { key: string; label: string; items: Hit[] }
 
 const GROUP_ICON: Record<string, typeof IconSearch> = {
+  pages: IconGrid,
   exams: IconExam,
   qsets: IconBank,
   students: IconStudents,
   classes: IconClass,
 }
+const GROUP_TONE: Record<string, string> = {
+  pages: 'border-border bg-canvas text-muted',
+  exams: 'border-primary-line bg-primary-soft text-primary',
+  qsets: 'border-warn-line bg-warn-soft text-warn',
+  students: 'border-success-line bg-success-soft text-success',
+  classes: 'border-ink-line bg-canvas text-text',
+}
+const groupTone = (k: string) => GROUP_TONE[k] ?? 'border-border bg-canvas text-muted'
 
-/** Tujuan pintas saat palette kosong — jalur paling sering dipakai guru. */
-const QUICK_LINKS: { label: string; sub: string; to: string; Icon: typeof IconSearch; key: string }[] = [
-  { label: 'Dashboard', sub: 'Ringkasan hari ini', to: '/dashboard', Icon: IconDashboard, key: 'link-dash' },
-  { label: 'Ujian', sub: 'Kelola & buat ujian', to: '/exams', Icon: IconExam, key: 'link-exams' },
-  { label: 'Bank Soal', sub: 'Kumpulan paket soal', to: '/qsets', Icon: IconBank, key: 'link-qsets' },
-  { label: 'Siswa', sub: 'Data & akun siswa', to: '/students', Icon: IconStudents, key: 'link-stu' },
-  { label: 'Kelas', sub: 'Rombongan belajar', to: '/classes', Icon: IconClass, key: 'link-cls' },
-  { label: 'Laporan', sub: 'Hasil & analitik', to: '/reports', Icon: IconChart, key: 'link-rep' },
+// ---------- Indeks halaman & fitur internal (bisa dicari via kata kunci) ----------
+type PageEntry = {
+  to: string; label: string; sub: string; Icon: typeof IconSearch
+  keywords: string[]; tone: string
+}
+const PAGES: PageEntry[] = [
+  { to: '/dashboard', label: 'Dashboard', sub: 'Ringkasan hari ini', Icon: IconDashboard, tone: 'pages', keywords: ['beranda', 'utama', 'ringkasan', 'home', 'statistik', 'hari ini'] },
+  { to: '/exams', label: 'Ujian', sub: 'Daftar semua ujian & tes', Icon: IconExam, tone: 'exams', keywords: ['ujian', 'tes', 'tes online', 'jadwal', 'daftar ujian', 'exam'] },
+  { to: '/exams/new', label: 'Buat Ujian Baru', sub: 'Wizard membuat ujian', Icon: IconPlus, tone: 'exams', keywords: ['buat ujian', 'ujian baru', 'tambah ujian', 'buat tes', 'tes baru', 'new exam'] },
+  { to: '/exams', label: 'Kartu Ujian', sub: 'Buka detail ujian → tab Kartu Ujian', Icon: IconClipboard, tone: 'exams', keywords: ['kartu', 'kartu ujian', 'nomor peserta', 'no peserta', 'pdf', 'unduh kartu', 'kartu peserta', 'wa whatsapp'] },
+  { to: '/question-sets', label: 'Bank Soal', sub: 'Kumpulan paket soal', Icon: IconBank, tone: 'qsets', keywords: ['bank soal', 'soal', 'paket', 'buat soal', 'editor soal', 'kumpulan soal', 'kisi-kisi'] },
+  { to: '/students', label: 'Siswa', sub: 'Data & akun siswa', Icon: IconStudents, tone: 'students', keywords: ['siswa', 'peserta', 'murid', 'import siswa', 'data siswa', 'nis', 'kelas siswa'] },
+  { to: '/classes', label: 'Kelas', sub: 'Rombongan belajar', Icon: IconClass, tone: 'classes', keywords: ['kelas', 'rombel', 'rombongan belajar', 'kelas baru'] },
+  { to: '/reports', label: 'Laporan', sub: 'Hasil & analitik nilai', Icon: IconChart2, tone: 'pages', keywords: ['laporan', 'hasil', 'nilai', 'analitik', 'grafik', 'rapor', 'statistik nilai'] },
+  { to: '/reports/live', label: 'Pantauan Live', sub: 'Pantau peserta secara real-time', Icon: IconPlay, tone: 'pages', keywords: ['live', 'pantau', 'monitoring', 'real-time', 'langsung', 'sedang berlangsung', 'pantauan'] },
+  { to: '/reports/history', label: 'Riwayat Ujian', sub: 'Arsip ujian yang sudah lewat', Icon: IconClock, tone: 'pages', keywords: ['riwayat', 'arsip', 'history', 'ujian lama', 'sudah lewat', 'lampau'] },
+  { to: '/cheating', label: 'Anti-Curang', sub: 'Pantau & tinjau kecurangan', Icon: IconShield, tone: 'pages', keywords: ['anti curang', 'curang', 'kecurangan', 'salin', 'copy paste', 'monitor', 'pelanggaran', 'kecurangan ujian', 'curang'] },
+  { to: '/audit', label: 'Audit Log', sub: 'Jejak semua aksi penting', Icon: IconHistory, tone: 'pages', keywords: ['audit', 'log', 'aktivitas', 'jejak', 'riwayat aksi', 'siapa melakukan'] },
+  { to: '/billing', label: 'Langganan', sub: 'Paket, kuota & tagihan', Icon: IconCredit, tone: 'pages', keywords: ['langganan', 'paket', 'kuota', 'tagihan', 'bayar', 'billing', 'harga', 'upgrade', 'paket aktif'] },
+  { to: '/settings', label: 'Pengaturan', sub: 'Akun, keamanan & preferensi', Icon: IconSettings, tone: 'pages', keywords: ['pengaturan', 'akun', 'profil', 'sandi', 'password', 'kata sandi', '2fa', 'otp', 'keamanan', 'tema', 'gelap terang', 'preferensi', 'sekolah'] },
 ]
+
+/** Enam halaman utama untuk empty state "Jelajah". */
+const QUICK_PAGES = PAGES.slice(0, 6)
+
+/** Cocokkan query (bisa multi kata) terhadap label+sub+keywords; skor: label diawali > label mengandung > kata kunci. */
+function matchPages(q: string): Hit[] {
+  const tokens = q.toLowerCase().split(/\s+/).filter(Boolean)
+  if (tokens.length === 0) return []
+  return PAGES.map(p => {
+    const label = p.label.toLowerCase()
+    const hay = label + ' ' + p.sub.toLowerCase() + ' ' + p.keywords.join(' ')
+    if (!tokens.every(t => hay.includes(t))) return null
+    const score = label.startsWith(q.toLowerCase()) ? 3 : label.includes(tokens[0]) ? 2 : 1
+    return { p, score }
+  }).filter((x): x is { p: PageEntry; score: number } => x !== null)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 6)
+    .map(({ p }) => ({ id: 'page-' + p.to + '-' + p.label, title: p.label, sub: p.sub, to: p.to, group: 'Halaman & Fitur' }))
+}
 
 // ---------- riwayat hasil yang dibuka (max 6, per browser) ----------
 const RECENT_KEY = 'flowcbt.palette.recent'
@@ -51,7 +94,7 @@ function saveRecent(to: string, title: string, sub: string, group: string) {
   } catch { /* kuota penuh / private mode — abaikan */ }
 }
 
-/** Split title menjadi [sebelum, cocok, sesudah] untuk highlight keras. */
+/** Split title menjadi [sebelum, cocok, sesudah] untuk highlight. */
 function Highlight({ text, q }: { text: string; q: string }) {
   const i = text.toLowerCase().indexOf(q.toLowerCase())
   if (i < 0 || q.length === 0) return <span className="truncate">{text}</span>
@@ -64,7 +107,7 @@ function Highlight({ text, q }: { text: string; q: string }) {
   )
 }
 
-/** Bulatan ikon tonjolan ala item daftar modern. */
+/** Bulatan ikon ala item daftar modern. */
 function IconBubble({ children, tone }: { children: React.ReactNode; tone: string }) {
   return (
     <span aria-hidden className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border ${tone}`}>
@@ -72,14 +115,6 @@ function IconBubble({ children, tone }: { children: React.ReactNode; tone: strin
     </span>
   )
 }
-
-const GROUP_TONE: Record<string, string> = {
-  exams: 'border-primary-line bg-primary-soft text-primary',
-  qsets: 'border-info-line bg-info-soft text-info', // fallback → tone default
-  students: 'border-success-line bg-success-soft text-success',
-  classes: 'border-warn-line bg-warn-soft text-warn',
-}
-const groupTone = (k: string) => GROUP_TONE[k] ?? 'border-border bg-canvas text-muted'
 
 export function useCommandPalette() {
   const [open, setOpen] = useState(false)
@@ -110,13 +145,20 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
 
   const query = q.trim()
 
+  // halaman & fitur yang cocok dengan kata kunci (instan, tanpa menunggu server)
+  const pageHits = useMemo(() => (query.length < 2 ? [] : matchPages(query)), [query])
+
   // baris navigasi saat query kosong: riwayat + tautan pintas
   const emptyRows: Hit[] = useMemo(() => [
     ...recent.map(r => ({ id: 'recent-' + r.to, title: r.title, sub: r.sub, to: r.to, group: 'Terakhir dibuka' })),
-    ...QUICK_LINKS.map(l => ({ id: l.key, title: l.label, sub: l.sub, to: l.to, group: 'Jelajah' })),
+    ...QUICK_PAGES.map(p => ({ id: 'quick-' + p.to + p.label, title: p.label, sub: p.sub, to: p.to, group: 'Jelajah' })),
   ], [recent])
 
-  const flat = useMemo<Hit[]>(() => (query.length < 2 ? emptyRows : groups.flatMap(g => g.items)), [query, emptyRows, groups])
+  const serverItems = useMemo(() => groups.flatMap(g => g.items), [groups])
+  const flat = useMemo<Hit[]>(
+    () => (query.length < 2 ? emptyRows : [...pageHits, ...serverItems]),
+    [query, emptyRows, pageHits, serverItems],
+  )
 
   // ---------- fokus input saat dibuka ----------
   useEffect(() => {
@@ -130,7 +172,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
     }
   }, [open])
 
-  // ---------- debounce pencarian ----------
+  // ---------- debounce pencarian server (entitas) ----------
   useEffect(() => {
     if (!open || query.length < 2) { setStatus('idle'); setGroups([]); return }
     let cancelled = false
@@ -157,7 +199,6 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
   // ---------- keyboard ----------
   const go = (h: Hit) => {
     if (query.length >= 2) saveRecent(h.to, h.title, h.sub, h.group)
-    else if (h.id.startsWith('recent-')) { /* dari riwayat — biarkan urutannya */ }
     onClose()
     nav(h.to)
   }
@@ -185,9 +226,32 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
 
   if (!open) return null
 
-  // prefix id untuk aria-activedescendant
   const optId = (i: number) => `cp-opt-${i}`
-  const groupOf = (i: number): string | undefined => flat[i]?.group
+  const pageIcon = (h: Hit) => PAGES.find(p => p.label === h.title)?.Icon ?? IconGrid
+  const pageTone = (h: Hit) => PAGES.find(p => p.label === h.title)?.tone ?? 'pages'
+
+  const renderRow = (h: Hit, idx: number, icon: React.ReactNode, tone: string, opts?: { secondary?: string; right?: string; secondaryBlock?: boolean }) => (
+    <button
+      key={h.id}
+      type="button"
+      id={optId(idx)}
+      data-idx={idx}
+      role="option"
+      aria-selected={idx === active}
+      className={`flex min-h-12 w-full items-center gap-3 rounded-lg px-2.5 text-left ${idx === active ? 'bg-primary-soft' : 'hover:bg-canvas'}`}
+      onMouseEnter={() => setActive(idx)}
+      onClick={() => go(h)}
+    >
+      <IconBubble tone={groupTone(tone)}>{icon}</IconBubble>
+      <span className="min-w-0 flex-1 text-sm font-medium">
+        <Highlight text={h.title} q={query} />
+        {opts?.secondary && (opts.secondaryBlock
+          ? <span className="block truncate text-[11px] font-normal text-muted">{opts.secondary}</span>
+          : <span className="ml-2 whitespace-nowrap text-[11px] font-normal text-muted">{opts.secondary}</span>)}
+      </span>
+      {opts?.right && <span className="mono shrink-0 text-[11px] text-muted">{opts.right}</span>}
+    </button>
+  )
 
   return (
     <div
@@ -204,7 +268,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
           <input
             ref={inputRef}
             className="h-11 min-w-0 flex-1 bg-transparent text-[15px] outline-none placeholder:text-muted"
-            placeholder="Cari ujian, bank soal, siswa, atau kelas…"
+            placeholder="Cari ujian, soal, siswa, atau fitur (mis. kartu, curang, 2fa)…"
             value={q}
             onChange={e => setQ(e.target.value)}
             role="combobox"
@@ -255,11 +319,11 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
               <div className={recent.length ? 'px-2 pb-1 pt-3' : 'px-2 pb-1 pt-2'}>
                 <span className="text-[10px] font-bold uppercase tracking-[0.09em] text-muted/80">Jelajah</span>
               </div>
-              {QUICK_LINKS.map((l, j) => {
+              {QUICK_PAGES.map((p, j) => {
                 const i = recent.length + j
                 return (
                   <button
-                    key={l.key}
+                    key={'quick-' + p.to + p.label}
                     type="button"
                     id={optId(i)}
                     data-idx={i}
@@ -267,12 +331,12 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
                     aria-selected={i === active}
                     className={`flex min-h-12 w-full items-center gap-3 rounded-lg px-2.5 text-left ${i === active ? 'bg-primary-soft' : 'hover:bg-canvas'}`}
                     onMouseEnter={() => setActive(i)}
-                    onClick={() => go({ id: l.key, title: l.label, sub: l.sub, to: l.to, group: 'Jelajah' })}
+                    onClick={() => go({ id: 'quick-' + p.to + p.label, title: p.label, sub: p.sub, to: p.to, group: 'Jelajah' })}
                   >
-                    <IconBubble tone={groupTone(l.key.replace('link-', ''))}><l.Icon size={14} /></IconBubble>
+                    <IconBubble tone={groupTone(p.tone)}><p.Icon size={14} /></IconBubble>
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium">{l.label}</span>
-                      <span className="block truncate text-[11px] text-muted">{l.sub}</span>
+                      <span className="block truncate text-sm font-medium">{p.label}</span>
+                      <span className="block truncate text-[11px] text-muted">{p.sub}</span>
                     </span>
                   </button>
                 )
@@ -280,68 +344,70 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
             </>
           )}
 
-          {query.length >= 2 && status === 'loading' && (
-            <div className="p-2" aria-hidden>
-              {[0, 1, 2, 3].map(i => (
-                <div key={i} className="flex items-center gap-3 rounded-lg px-2.5 py-2.5">
-                  <span className="h-8 w-8 shrink-0 animate-pulse rounded-full bg-canvas" />
-                  <span className="min-w-0 flex-1 space-y-1.5">
-                    <span className="block h-3 w-1/3 animate-pulse rounded bg-canvas" />
-                    <span className="block h-2.5 w-1/5 animate-pulse rounded bg-canvas" />
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
+          {query.length >= 2 && (
+            <>
+              {/* ---------- hasil instan: halaman & fitur ---------- */}
+              {pageHits.length > 0 && (
+                <Fragment>
+                  <div className="flex items-baseline gap-1.5 px-2 pb-1 pt-2 text-[10px] font-bold uppercase tracking-[0.09em] text-muted/80">
+                    Halaman & Fitur <span className="font-semibold normal-case tracking-normal text-muted/60">· {pageHits.length}</span>
+                  </div>
+                  {pageHits.map(h => {
+                    const idx = flat.indexOf(h)
+                    const P = pageIcon(h)
+                    return renderRow(h, idx, <P size={14} />, pageTone(h), { secondary: h.sub, secondaryBlock: true })
+                  })}
+                </Fragment>
+              )}
 
-          {query.length >= 2 && status === 'error' && (
-            <div className="px-3 py-8 text-center">
-              <p className="mb-1 text-sm font-medium">Pencarian gagal dimuat</p>
-              <p className="mb-3 text-xs text-muted">Periksa koneksi Anda, lalu coba lagi.</p>
-              <button type="button" className="btn btn-sm" onClick={() => { setQ(q + ' '); setQ(q) }}>Coba lagi</button>
-            </div>
-          )}
-
-          {query.length >= 2 && status === 'ok' && flat.length === 0 && (
-            <div className="px-3 py-8 text-center">
-              <p className="mb-1 text-sm font-medium">Tidak ada hasil untuk “{query}”</p>
-              <p className="text-xs text-muted">Coba kata kunci lain — misalnya nama ujian, kode, NIS, atau nama siswa.</p>
-            </div>
-          )}
-
-          {groups.map(g =>
-            g.items.length === 0 ? null : (
-              <Fragment key={g.key}>
-                <div className="flex items-baseline gap-1.5 px-2 pb-1 pt-2.5 text-[10px] font-bold uppercase tracking-[0.09em] text-muted/80">
-                  {g.label}
-                  <span className="font-semibold normal-case tracking-normal text-muted/60">· {g.items.length}</span>
-                </div>
-                {g.items.map(h => {
-                  const idx = flat.indexOf(h)
-                  const G = GROUP_ICON[g.key] ?? IconSearch
-                  return (
-                    <button
-                      key={g.key + h.id}
-                      type="button"
-                      id={optId(idx)}
-                      data-idx={idx}
-                      role="option"
-                      aria-selected={idx === active}
-                      className={`flex min-h-12 w-full items-center gap-3 rounded-lg px-2.5 text-left ${idx === active ? 'bg-primary-soft' : 'hover:bg-canvas'}`}
-                      onMouseEnter={() => setActive(idx)}
-                      onClick={() => go(h)}
-                    >
-                      <IconBubble tone={groupTone(g.key)}><G size={14} /></IconBubble>
-                      <span className="min-w-0 flex-1 text-sm font-medium">
-                        <Highlight text={h.title} q={query} />
-                        <span className="ml-2 block text-[11px] font-normal text-muted md:inline">{h.group}</span>
+              {/* ---------- loading server ---------- */}
+              {status === 'loading' && (
+                <div className="p-2" aria-hidden>
+                  {[0, 1, 2].map(i => (
+                    <div key={i} className="flex items-center gap-3 rounded-lg px-2.5 py-2.5">
+                      <span className="h-8 w-8 shrink-0 animate-pulse rounded-full bg-canvas" />
+                      <span className="min-w-0 flex-1 space-y-1.5">
+                        <span className="block h-3 w-1/3 animate-pulse rounded bg-canvas" />
+                        <span className="block h-2.5 w-1/5 animate-pulse rounded bg-canvas" />
                       </span>
-                      {h.sub && <span className="mono shrink-0 text-[11px] text-muted">{h.sub}</span>}
-                    </button>
-                  )
-                })}
-              </Fragment>
-            ),
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* ---------- error server (halaman tetap tampil di atas) ---------- */}
+              {status === 'error' && (
+                <div className="px-3 py-4 text-center">
+                  <p className="mb-1 text-xs text-muted">Pencarian data (ujian/siswa/soal) gagal dimuat — coba lagi.</p>
+                  <button type="button" className="btn btn-sm" onClick={() => { setQ(q + ' '); setQ(q) }}>Coba lagi</button>
+                </div>
+              )}
+
+              {/* ---------- kosong total ---------- */}
+              {status === 'ok' && serverItems.length === 0 && pageHits.length === 0 && (
+                <div className="px-3 py-8 text-center">
+                  <p className="mb-1 text-sm font-medium">Tidak ada hasil untuk “{query}”</p>
+                  <p className="text-xs text-muted">Coba kata kunci lain — nama ujian, kode, NIS, nama siswa, atau fitur seperti “kartu”, “curang”, “2fa”.</p>
+                </div>
+              )}
+
+              {/* ---------- hasil server per grup ---------- */}
+              {groups.map(g =>
+                g.items.length === 0 ? null : (
+                  <Fragment key={g.key}>
+                    <div className="flex items-baseline gap-1.5 px-2 pb-1 pt-2.5 text-[10px] font-bold uppercase tracking-[0.09em] text-muted/80">
+                      {g.label}
+                      <span className="font-semibold normal-case tracking-normal text-muted/60">· {g.items.length}</span>
+                    </div>
+                    {g.items.map(h => {
+                      const idx = flat.indexOf(h)
+                      const G = GROUP_ICON[g.key] ?? IconSearch
+                      return renderRow(h, idx, <G size={14} />, g.key, { secondary: h.group, right: h.sub })
+                    })}
+                  </Fragment>
+                ),
+              )}
+            </>
           )}
         </div>
 
@@ -350,7 +416,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
           <span className="inline-flex items-center gap-1.5"><kbd className="mono rounded border border-border bg-surface px-1.5 py-px">↑↓</kbd> navigasi</span>
           <span className="inline-flex items-center gap-1.5"><kbd className="mono rounded border border-border bg-surface px-1.5 py-px">↵</kbd> buka</span>
           <span className="inline-flex items-center gap-1.5"><kbd className="mono rounded border border-border bg-surface px-1.5 py-px">Esc</kbd> tutup</span>
-          <span className="ml-auto hidden sm:inline">Hasil terakhir untuk grup besar bisa terpotong</span>
+          <span className="ml-auto hidden sm:inline">Cari juga fitur: kartu, curang, audit, 2fa…</span>
         </div>
       </div>
     </div>
