@@ -12,7 +12,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { getAttempt, putAnswer, saveAttempt, getQueuedQuestionIds } from '../db'
 import { enqueue, registerAttempt, unregisterAttempt, uuid, setAttemptStart, kick, enqueueSubmit } from '../lib/sync'
-import { reportViolation, getServerAttempt, toEpochMs, type ServerAttemptView } from '../lib/student-api'
+import { reportViolation, getServerAttempt, toEpochMs, normalizeQuestions, type ServerAttemptView } from '../lib/student-api'
 import { fmtClock, getProfile } from '../lib/util'
 import { QuestionView, StimulusCard, type AnswerValue } from '../components/QuestionView'
 import { ConnStatus } from '../components/ConnStatus'
@@ -118,9 +118,11 @@ export default function Attempt() {
         nav('/s/exams', { replace: true })
         return
       }
-      // Normalisasi data lama: deadline/started bisa string RFC3339.
+      // Normalisasi data lama: deadline/started bisa string RFC3339; soal
+      // matching perlu q.left/q.right (backend mengirim options mentah).
       const r: AttemptRecord = {
         ...r0,
+        questions: normalizeQuestions(r0.questions),
         deadline_at: toEpochMs(r0.deadline_at) || 0,
         started_at: toEpochMs(r0.started_at) || Date.now(),
         server_offset: Number(r0.server_offset) || 0,

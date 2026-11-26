@@ -1,7 +1,30 @@
 // Wrapper API khusus Area Siswa — semua pemanggilan lewat api() (Bearer otomatis
 // + refresh), di-satukan di sini agar halaman tidak fetch manual.
 import { api, API_BASE, setTokens, clearTokens, getAccessToken } from '@/lib/api'
-import type { StudentExam } from '../types'
+import type { FetchedQuestion, McqOption, StudentExam } from '../types'
+
+/**
+ * Normalisasi soal 'matching': backend mengirim `options` mentah berupa
+ * {left: ["Indonesia",...], right: ["Jakarta",...]} (array teks), sedangkan
+ * komponen siswa membaca `q.left`/`q.right` berupa [{id, text}].
+ * id = teks asli sehingga jawaban pasangan yang tersimpan ({teksKiri: teksKanan})
+ * langsung sesuai format penilaian server (grading membaca map/pairs teks).
+ */
+export function normalizeQuestions(qs: FetchedQuestion[] | undefined | null): FetchedQuestion[] {
+  if (!Array.isArray(qs)) return []
+  return qs.map(q => {
+    if (q.type !== 'matching') return q
+    if (Array.isArray(q.left) && Array.isArray(q.right)) return q
+    const o = q.options as unknown as { left?: unknown[]; right?: unknown[] } | undefined
+    const toItems = (arr: unknown[] | undefined, prefix: string): McqOption[] =>
+      (arr ?? []).map((v, i) => {
+        if (typeof v === 'string') return { id: v, text: v }
+        const d = (v ?? {}) as Record<string, unknown>
+        return { id: String(d.id ?? `${prefix}${i + 1}`), text: String(d.text ?? '') }
+      })
+    return { ...q, left: toItems(o?.left, 'L'), right: toItems(o?.right, 'R') }
+  })
+}
 
 export interface LoginResponse {
   access_token: string

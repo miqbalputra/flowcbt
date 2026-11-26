@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { saveAttempt } from '../db'
-import { examDetail, getServerAttempt, startExam } from '../lib/student-api'
+import { examDetail, getServerAttempt, normalizeQuestions, startExam } from '../lib/student-api'
 import { errMessage, fmtDateTime, getProfile, lastExamToken } from '../lib/util'
 import { SiswaLayout, Panel, MetaRow, TextField } from '../components/SiswaLayout'
 import { toast } from '@/components/toast'
@@ -89,11 +89,11 @@ export default function Start() {
       const res = await startExam(id, token.trim())
       const pack = (res.package ?? ({} as AttemptPackage)) as AttemptPackage
       // Resume lama (atau server tanpa paket): ambil soal dari view attempt.
-      let questions = (pack.questions ?? []) as FetchedQuestion[]
+      let questions = normalizeQuestions((pack.questions ?? []) as FetchedQuestion[])
       if (questions.length === 0 && res.attempt_id) {
         try {
           const view = await getServerAttempt(res.attempt_id)
-          questions = (view.package?.questions ?? []) as FetchedQuestion[]
+          questions = normalizeQuestions((view.package?.questions ?? []) as FetchedQuestion[])
         } catch {
           /* offline-first: IDB kosong → halaman Attempt akan memulihkan sendiri */
         }
