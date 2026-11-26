@@ -618,7 +618,9 @@ td a:not([class*="btn"]), a.lnk, a.auth-label {
 @media (min-width: 1024px) {
   .exam-grid { grid-template-columns: minmax(0, 1fr) 312px; }
 }
-.exam-content { padding: 1rem; }
+/* Proteksi salin ala ANBK/TKA: teks ujian tak dapat diseleksi; kolom jawaban tetap aktif. */
+.exam-content { padding: 1rem; user-select: none; -webkit-user-select: none; }
+.exam-content input, .exam-content textarea, .exam-content [contenteditable] { user-select: text; -webkit-user-select: text; }
 @media (min-width: 1024px) { .exam-content { padding: 1.25rem 1.5rem 2rem; } }
 
 .timer {

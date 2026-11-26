@@ -59,6 +59,7 @@ export default function Attempt() {
   const [idx, setIdx] = useState(0)
   const [now, setNow] = useState(Date.now())
   const [sheet, setSheet] = useState(false)
+  const [confirmOpen, setConfirmOpen] = useState(false)
   const [violate, setViolate] = useState<{ n: number; left: number } | null>(null)
   const [locked, setLocked] = useState(false)
   const [isFs, setIsFs] = useState(false)
@@ -244,6 +245,23 @@ export default function Attempt() {
     if (dl && Date.now() > dl) void finish(true)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [now, rec, locked])
+
+  // Proteksi tata tertib ala ANBK/TKA: teks ujian tidak dapat disalin atau
+  // klik-kanan selama pengerjaan (kolom jawaban tetap dapat diketik normal).
+  useEffect(() => {
+    const noCtx = (e: MouseEvent) => {
+      const t = e.target as HTMLElement | null
+      if (t && t.closest('input, textarea, [contenteditable]')) return
+      e.preventDefault()
+    }
+    const noCopy = (e: ClipboardEvent) => { e.preventDefault() }
+    document.addEventListener('contextmenu', noCtx)
+    document.addEventListener('copy', noCopy)
+    return () => {
+      document.removeEventListener('contextmenu', noCtx)
+      document.removeEventListener('copy', noCopy)
+    }
+  }, [])
 
   async function finish(auto = false) {
     if (!rec) return
@@ -445,6 +463,7 @@ export default function Attempt() {
                 <div className={`timer text-[17px] leading-none ${urgent ? 'text-onink-danger' : 'text-white'}`}>
                   {fmtClock(remainingMs)}
                 </div>
+                <div className="text-[8.5px] font-medium text-ink-muted/70">menit&nbsp;:&nbsp;detik</div>
               </div>
             </div>
           )}
@@ -598,6 +617,29 @@ export default function Attempt() {
           {/* --- panel Daftar Soal (desktop) --- */}
           <aside className="hidden border-l border-border bg-surface lg:block" aria-label="Daftar soal">
             <div className="sticky top-[100px] flex max-h-[calc(100dvh-100px)] flex-col">
+              {/* identitas + sisa waktu ala ANBK */}
+              <div className="border-b border-border bg-surface px-4 py-3">
+                <div className="flex items-center gap-2.5">
+                  <span aria-hidden className="mono flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border bg-canvas text-xs font-bold">
+                    {profile.name.trim().split(/\s+/).slice(0, 2).map(w => w.charAt(0)).join('').toUpperCase() || 'S'}
+                  </span>
+                  <div className="min-w-0">
+                    <div className="truncate text-[13px] font-bold leading-tight">{profile.name}</div>
+                    <div className="truncate text-[11px] text-muted">
+                      {profile.isGuest ? 'Peserta tamu' : profile.sid ? `NIS ${profile.sid}` : 'Peserta'}
+                    </div>
+                  </div>
+                </div>
+                {hasDeadline && (
+                  <div className="mt-2.5 rounded-md border border-border bg-canvas px-3 py-2 text-center" role="timer" aria-live="off" aria-label={`Sisa waktu ${fmtClock(remainingMs)}`}>
+                    <div className="text-[9px] font-semibold uppercase tracking-[0.12em] text-muted">Sisa waktu</div>
+                    <div className={`timer text-[28px] font-bold leading-tight tabular-nums ${urgent ? 'text-danger' : 'text-primary'}`}>
+                      {fmtClock(remainingMs)}
+                    </div>
+                    <div className="text-[9.5px] text-muted">menit&nbsp;:&nbsp;detik</div>
+                  </div>
+                )}
+              </div>
               <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
                 <div>
                   <div className="section-label">Navigasi</div>
@@ -641,7 +683,7 @@ export default function Attempt() {
               </div>
 
               <div className="border-t border-border p-3">
-                <button type="button" className="btn btn-dark btn-block" onClick={() => void finish()} disabled={locked}>
+                <button type="button" className="btn btn-dark btn-block" onClick={() => setConfirmOpen(true)} disabled={locked}>
                   <IconCheck size={16} />
                   Selesai Ujian
                 </button>
@@ -692,7 +734,7 @@ export default function Attempt() {
           </div>
 
           {isLast ? (
-            <button type="button" className="btn btn-primary h-12 shrink-0 px-3" onClick={() => void finish()} disabled={locked}>
+            <button type="button" className="btn btn-primary h-12 shrink-0 px-3" onClick={() => setConfirmOpen(true)} disabled={locked}>
               <IconCheck size={16} />
               <span className="hidden sm:inline">Selesaikan Ujian</span>
               <span className="sm:hidden">Selesai</span>
@@ -735,10 +777,53 @@ export default function Attempt() {
           <LegendBar tone="clear" label="Kosong" count={Math.max(0, total - answeredCount)} />
           <LegendBar tone="active" label="Sedang dibuka" />
         </div>
-        <button type="button" className="btn btn-dark btn-block" disabled={locked} onClick={() => { setSheet(false); void finish() }}>
+        <button type="button" className="btn btn-dark btn-block" disabled={locked} onClick={() => { setSheet(false); setConfirmOpen(true) }}>
           <IconCheck size={16} /> Selesai &amp; kirim jawaban
         </button>
         <button type="button" className="btn-ghost btn-block" onClick={() => setSheet(false)}>Kembali ke soal</button>
+      </Modal>
+
+      {/* ===================== KONFIRMASI AKHIR UJIAN (ala ANBK/TKA) ===================== */}
+      <Modal open={confirmOpen} onClose={() => setConfirmOpen(false)} title="Akhiri Ujian">
+        <p className="text-sm text-muted">
+          Periksa kembali jawaban Anda — setelah dikirim, jawaban tidak dapat diubah.
+        </p>
+        <div className="my-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <div className="rounded-md border border-border bg-canvas p-2 text-center">
+            <div className="mono text-lg font-bold text-primary">{answeredCount}</div>
+            <div className="text-[10.5px] text-muted">Terjawab</div>
+          </div>
+          <div className="rounded-md border border-border bg-canvas p-2 text-center">
+            <div className="mono text-lg font-bold text-warn">{flagCount}</div>
+            <div className="text-[10.5px] text-muted">Ragu-ragu</div>
+          </div>
+          <div className="rounded-md border border-border bg-canvas p-2 text-center">
+            <div className="mono text-lg font-bold text-danger">{Math.max(0, total - answeredCount)}</div>
+            <div className="text-[10.5px] text-muted">Belum dijawab</div>
+          </div>
+          <div className="rounded-md border border-border bg-canvas p-2 text-center">
+            <div className="mono text-lg font-bold">{total}</div>
+            <div className="text-[10.5px] text-muted">Total soal</div>
+          </div>
+        </div>
+        {total - answeredCount > 0 && (
+          <p className="mb-3 flex items-start gap-2 rounded-md border border-warn-line bg-warn-soft p-2 text-[12.5px] text-warn" role="status">
+            <IconAlertCircle size={15} className="mt-0.5 shrink-0" />
+            <span>Masih ada <b>{total - answeredCount} soal belum dijawab</b>. Soal kosong dinilai salah.</span>
+          </p>
+        )}
+        <div className="space-y-2">
+          <button
+            type="button"
+            className="btn btn-dark btn-block btn-lg"
+            onClick={() => { setConfirmOpen(false); void finish() }}
+          >
+            <IconCheck size={16} /> Ya, kirim jawaban
+          </button>
+          <button type="button" className="btn-ghost btn-block" onClick={() => setConfirmOpen(false)}>
+            Kembali mengerjakan
+          </button>
+        </div>
       </Modal>
 
       {/* peringatan pelanggaran (AC-8+ FR-5.8) */}
