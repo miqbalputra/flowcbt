@@ -55,7 +55,9 @@ export function openDb(): Promise<IDBPDatabase<FlowDB>> {
 /* ---------- attempts (pra-muat & pemulihan FR-7.8) ---------- */
 
 export async function saveAttempt(rec: AttemptRecord): Promise<void> {
-  ;(await openDb()).put('attempts', rec)
+  // await: kegagalan IDB harus terasa di pemanggil (sebelumnya fire-and-forget
+  // sehingga attempt_id invalid lolos senyap → navigasi ke /s/attempt/undefined).
+  await (await openDb()).put('attempts', rec)
 }
 
 export async function getAttempt(id: string): Promise<AttemptRecord | undefined> {
@@ -65,7 +67,7 @@ export async function getAttempt(id: string): Promise<AttemptRecord | undefined>
 /* ---------- answers (jawaban terkini, overlay dirty) ---------- */
 
 export async function putAnswer(rec: AnswerRecord): Promise<void> {
-  ;(await openDb()).put('answers', rec)
+  await (await openDb()).put('answers', rec)
 }
 
 export async function getAnswers(attemptId: string): Promise<AnswerRecord[]> {
@@ -97,7 +99,7 @@ export interface QueueRow {
 }
 
 export async function enqueue(q: QueueRow): Promise<void> {
-  ;(await openDb()).put('queue', q)
+  await (await openDb()).put('queue', q)
 }
 
 export async function dequeue(clientEventId: string): Promise<void> {

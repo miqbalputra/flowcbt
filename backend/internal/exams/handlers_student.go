@@ -276,8 +276,14 @@ func (m *Module) studentStart(w http.ResponseWriter, r *http.Request) {
 			return err
 		}
 		if existing != nil {
+			// Sertakan paket soal saat resume juga — tanpa ini FE menyimpan
+			// questions=[] di IndexedDB dan UI pengerjaan tampil tanpa badan soal.
+			pkgResume, err := buildStartPackage(ctx, tx, existing.ID, e)
+			if err != nil {
+				return err
+			}
 			out = startResp{AttemptID: existing.ID, Resume: true,
-				StartedAt: existing.StartedAt, DeadlineAt: existing.DeadlineAt, ServerTime: now}
+				StartedAt: existing.StartedAt, DeadlineAt: existing.DeadlineAt, ServerTime: now, Package: pkgResume}
 			// Pastikan cookie perangkat tetap ada & device_token terisi.
 			if err := ensureDeviceCookie(tx, tenantID, existing, r, w, req.DeviceInfo); err != nil {
 				return err
@@ -342,7 +348,10 @@ func (m *Module) studentStart(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, err)
 		return
 	}
-	httpx.Created(w, map[string]any{"data": out})
+	// Respons FLAT (tanpa pembungkus "data") — sesuai kontrak FE siswa
+	// (startExam mengharapkan attempt_id di level atas). Pembungkus "data"
+	// membuat FE membaca attempt_id=undefined → navigasi ke /s/attempt/undefined.
+	httpx.Created(w, out)
 }
 
 // buildStartPackage rangkai paket soal attempt (tanpa kunci) untuk pra-muat.

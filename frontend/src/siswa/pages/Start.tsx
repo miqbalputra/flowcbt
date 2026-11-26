@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { saveAttempt } from '../db'
-import { examDetail, startExam } from '../lib/student-api'
+import { examDetail, getServerAttempt, startExam } from '../lib/student-api'
 import { errMessage, fmtDateTime, getProfile, lastExamToken } from '../lib/util'
 import { SiswaLayout, Panel, MetaRow, TextField } from '../components/SiswaLayout'
 import { toast } from '@/components/toast'
@@ -88,13 +88,23 @@ export default function Start() {
       setStage('server')
       const res = await startExam(id, token.trim())
       const pack = (res.package ?? ({} as AttemptPackage)) as AttemptPackage
+      // Resume lama (atau server tanpa paket): ambil soal dari view attempt.
+      let questions = (pack.questions ?? []) as FetchedQuestion[]
+      if (questions.length === 0 && res.attempt_id) {
+        try {
+          const view = await getServerAttempt(res.attempt_id)
+          questions = (view.package?.questions ?? []) as FetchedQuestion[]
+        } catch {
+          /* offline-first: IDB kosong → halaman Attempt akan memulihkan sendiri */
+        }
+      }
       setStage('save')
       const rec: AttemptRecord = {
         attempt_id: res.attempt_id,
         exam_name: (pack.name as string) ?? 'Ujian',
         exam_code: (detail?.exam_code as string) ?? (pack.exam_code as string) ?? '',
         subject_name: (pack.subject_name as string) ?? '',
-        questions: (pack.questions ?? []) as FetchedQuestion[],
+        questions,
         deadline_at: res.deadline_at,
         server_offset: res.server_offset_ms,
         started_at: res.started_at,
